@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "mode": "remote",
+  "seed": 20261013,
+  "devices": 4,
+  "duration_s": 120,
+  "tail_s": 10,
+  "contracts": [
+    "K3S",
+    "K3F",
+    "K2"
+  ],
+  "policies": [
+    "EVICON",
+    "RES_IMMEDIATE",
+    "RES_PERIODIC",
+    "M1"
+  ],
+  "faults": {
+    "windows_per_min": 6,
+    "window_s": [
+      2.0,
+      6.0
+    ],
+    "offline_s": [
+      5.0,
+      15.0
+    ],
+    "min_gap_s": 2.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "drop_up": 0.3,
+      "drop_down": 0.3,
+      "delay_up": 0.15,
+      "offline": 0.1,
+      "crash_after_effect": 0.15
+    }
+  },
+  "activation_gate": {
+    "policies": [
+      "EVICON"
+    ],
+    "contracts": [
+      "K3S",
+      "K3F"
+    ],
+    "min_acting_decisions_per_cell": 1
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "name": "pilot-capacity-binding",
+  "regime": "capacity-binding",
+  "episodes": 3,
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 140,
+    "deadline_s": 15,
+    "validity_s": 30,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 16
+  },
+  "notes": "PILOT, capacity-binding regime (review RV01): demand ~1.3x the per-device bound over the run, max_outstanding=16 so the outstanding budget does not bind; ambiguous reservations near the bound block candidates and EviCon must act through the CERTIFICATE path (and the sweep). The bound is not tuned to make any policy win. If the activation gate fails, do not start a confirmatory campaign. Release 065: 3 episodes (power.py needs >= 3 CRN pairs; 064's 2-episode pilot could not be sized)."
+}

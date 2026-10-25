@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A",
+    "F"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "sim-k3-fence",
+  "notes": "frontier cutoff",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

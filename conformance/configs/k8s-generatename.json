@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "name": "k8s-generatename",
+  "adapter": "k8s_create",
+  "adapter_config": {
+    "namespace": "evicon-probe",
+    "data_server": "https://127.0.0.1:26443",
+    "control_server": "https://192.168.107.152:16443",
+    "token": "${K3S_PROBE_TOKEN}",
+    "client_timeout_s": 3.0,
+    "identity": "generateName"
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "127.0.0.1",
+    "listen_port": 26443,
+    "target_host": "192.168.107.152",
+    "target_port": 16443,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P6",
+    "P3",
+    "P2N",
+    "P5N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32
+  },
+  "repetitions": 3,
+  "system_version": "k3s v1.36.4+k3s1 (API server only)",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)",
+    "owner": "VM-B (docker)"
+  },
+  "compare_with": "",
+  "notes": "Run with: python3 evicon_review.py measure k3s (release 068). The fault proxy on VM-C terminates TLS (throwaway certificate) and re-opens TLS to the API server, so faults act on the HTTP request and reply, not on the handshake. Identity = generateName prefix: the server names every object, so a retry creates another (measured locally: K0, duplicates).",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A",
+    "T"
+  ],
+  "clock_skew_ms": 500,
+  "dedup_horizon_ms": -1,
+  "expiry_ms": 30000,
+  "id": "sim-k3-expiry",
+  "notes": "owner-enforced validity window",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

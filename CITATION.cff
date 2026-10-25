@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software or its data, please cite it as below."
+title: "EviCon: evidence contracts for safe continuation after ambiguous remote effects (research prototype)"
+type: software
+version: "077"
+date-released: "2026-10-25"
+license: MIT
+authors:
+  - family-names: "Nguyen"
+    given-names: "Tran Thanh Lam"
+    email: "lamntt@hcmute.edu.vn"
+    affiliation: "Faculty of Information Technology, HCMC University of Technology and Engineering, Ho Chi Minh City, Vietnam"
+repository-code: "https://github.com/lamnguyentt92/evicon"
+keywords:
+  - Internet of Things
+  - remote effects
+  - idempotency
+  - evidence contracts
+  - fault injection
+  - preregistration
+abstract: >-
+  EviCon models the evidence a remote effect owner (a device, a broker plus device, a cloud API) offers
+  after a client's command becomes ambiguous (dedup, receipt query, per-identity stop, certified fence,
+  atomic receipt, owner expiry), measures that evidence black-box under injected faults (EviCon-Probe),
+  and uses only measured evidence in a runtime that admits commands against a cumulative bound. The
+  release contains the Go runtime and simulator, the probe, a Zephyr firmware, a TLA+ model, the
+  preregistrations of every confirmatory experiment with their results, and the reviewer driver that
+  reproduces the testbed runs and the paper's tables.

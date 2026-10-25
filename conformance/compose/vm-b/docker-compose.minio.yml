@@ -1,0 +1,22 @@
+# VM-B: MinIO for the conditional-write measurements (minio-conditional.json).
+# Credentials come from the environment and never live in a file:
+#   MINIO_ROOT_USER=... MINIO_ROOT_PASSWORD=... docker compose -f docker-compose.minio.yml up -d
+# Release 068: MinIO publishes no images any more, so the default image is built from the
+# official source on VM-B (minio/Dockerfile; evicon_review.py builds it when missing).
+# MINIO_IMAGE overrides it with any image that runs `minio server` (the measurement then
+# records that image instead).
+name: evicon-probe-minio
+services:
+  minio:
+    image: ${MINIO_IMAGE:-evicon/minio-src:RELEASE.2025-04-22T22-12-26Z}
+    pull_policy: missing
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports: ["9000:9000", "9001:9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+    volumes: [minio-data:/data]
+    restart: "no"
+
+volumes:
+  minio-data: {}

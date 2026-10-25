@@ -1,0 +1,126 @@
+{
+  "schema_version": 2,
+  "name": "expC2-zephyr",
+  "regime": "expC2-zephyr",
+  "mode": "remote",
+  "seed": 20261017,
+  "episodes": 8,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "ZEPHYR_PLAIN",
+    "ZEPHYR_CUTOFF",
+    "ZEPHYR_STOP"
+  ],
+  "policies": [
+    "EVICON",
+    "M1",
+    "NAIVE"
+  ],
+  "exclude_cells": [
+    [
+      "ZEPHYR_STOP",
+      "M1"
+    ],
+    [
+      "ZEPHYR_STOP",
+      "NAIVE"
+    ]
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "real_owner": {
+    "system": "zephyr",
+    "broker": "FILLED_BY_EVICON_REVIEW:1883",
+    "firmware": "FILLED_BY_EVICON_REVIEW",
+    "plant_tcp_port": 18093,
+    "contracts": {
+      "ZEPHYR_PLAIN": {
+        "mode": "PLAIN",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN"
+      },
+      "ZEPHYR_CUTOFF": {
+        "mode": "CUTOFF",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN"
+      },
+      "ZEPHYR_STOP": {
+        "mode": "STOP",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN"
+      }
+    },
+    "policies": {
+      "NAIVE": {
+        "base": "M1",
+        "authority": {
+          "retry_guard": false
+        }
+      }
+    },
+    "gateway_budget_s": 1.8,
+    "qos_cmd": 1
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_expC2_074.md",
+    "sha256": "7f4abfd6f75e34ad5272a58d5a3a1c96b3bfe2ebf2cd313d490eb41dd59bd48a"
+  },
+  "notes": "Experiment C2 (release 074): EviCon on a real IoT stack. The Zephyr EviCon firmware (native_sim, one process per device on VM-E) behind Mosquitto 2.0.20 (VM-B), in three evidence modes of one binary (plain, cutoff, stop), each running on the contract measured for it in the same review run (measure zephyr-plain, zephyr, zephyr-stop). Same seed, workload, faults and authority as expW_queue_w6 / expS_w6 (episodes 0-7 replay their schedules: paired fidelity estimands against the emulated owner). NAIVE = M1 without the T4 retry guard. M1 and NAIVE are not run on the stop mode (they never stop). Plan: evaluation/prereg/PREREG_expC2_074.md. 56 cells, about 6.7 hours."
+}

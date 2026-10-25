@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "name": "dbos-step",
+  "adapter": "dbos_step",
+  "adapter_config": {
+    "app_url": "http://192.168.107.151:18300",
+    "plant_url": "http://192.168.107.154:18090",
+    "plant_device_id": "dbos-1",
+    "client_timeout_s": 8.0
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "0.0.0.0",
+    "listen_port": 28211,
+    "target_host": "192.168.107.154",
+    "target_port": 18090,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P3",
+    "P8",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 0.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32
+  },
+  "repetitions": 3,
+  "system_version": "DBOS Transact 3.3.0 (python) + postgres:16.10",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)",
+    "app": "VM-A",
+    "database": "VM-B (docker)"
+  },
+  "compare_with": "hyp-dbos-step",
+  "notes": "Run with: python3 evicon_review.py measure dbos (release 068). Faults sit between the DBOS step and the plant, as for Temporal: the app on VM-A reaches the plant through the fault proxy on VM-C:28211. The step has a 2 s HTTP timeout per attempt and 3 attempts; late_factor 0.5 * 8 s = 4 s > 2 s. Measured locally against DBOS 3.3.0 + PostgreSQL 16 before release: K0, D_h and Q_A contradicted (P2: 3 effects, workflow ERROR).",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

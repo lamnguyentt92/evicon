@@ -1,0 +1,16 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "doc-gcs-conditional",
+  "notes": "conditionally idempotent only with preconditions",
+  "operation": "insert object with ifGenerationMatch",
+  "references": [
+    "https://docs.cloud.google.com/storage/docs/retry-strategy"
+  ],
+  "schema_version": 1,
+  "source": "DOCUMENTED",
+  "system": "Google Cloud Storage"
+}

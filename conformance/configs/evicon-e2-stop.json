@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "name": "evicon-e2_stop",
+  "adapter": "evicon_endpoint",
+  "adapter_config": {
+    "profile": "E2_STOP",
+    "data_url": "http://{proxy}",
+    "control_url": "http://192.168.107.152:18181",
+    "client_timeout_s": 2.0,
+    "domain": "atlas-001"
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "target_host": "192.168.107.152",
+    "target_port": 18181,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P6",
+    "P2",
+    "P1",
+    "P8",
+    "P3",
+    "P9",
+    "P9F",
+    "P9T",
+    "P7",
+    "P5",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "beyond_gap_s": 30.0,
+    "pressure_n": 64
+  },
+  "repetitions": 3,
+  "system_version": "",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C",
+    "owner": "VM-B evicon-endpoint"
+  },
+  "notes": "Positive control. Start on VM-B: evicon-endpoint -profile E2 -per-identity-stop -listen 0.0.0.0:18181 -component-max 1000000",
+  "expect": {
+    "capabilities": [
+      "D_h",
+      "Q_A",
+      "Q_S",
+      "F"
+    ],
+    "declared_unverified": [
+      "D_h_unbounded"
+    ],
+    "no_false_evidence": true
+  },
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

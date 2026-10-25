@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "regime": "replay059",
+  "seed": 20261012,
+  "episodes": 400,
+  "policies": [
+    "M0",
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "ORACLE"
+  ],
+  "workload": {
+    "name": "W1",
+    "dimension": 1,
+    "initial": [
+      20
+    ],
+    "component_min": [
+      0
+    ],
+    "component_max": [
+      100
+    ],
+    "sum_max": 100,
+    "value_min": [
+      1
+    ],
+    "value_max": [
+      8
+    ],
+    "rate_per_sec": 8,
+    "poisson": false,
+    "duration_ms": 3000,
+    "tail_ms": 2000,
+    "deadline_ms": 500
+  },
+  "network": {
+    "one_way_base_ms": 0.3,
+    "one_way_jitter_ms": 0.2,
+    "req_loss_prob": 0,
+    "req_late_prob": 0,
+    "req_late_mean_ms": 0,
+    "resp_loss_prob": 0,
+    "resp_hide_prob": 0.2,
+    "resp_hide_ms": 750,
+    "query_rtt_ms": 2,
+    "query_loss_prob": 0,
+    "control_rtt_ms": 2,
+    "control_loss_prob": 0,
+    "control_timeout_ms": 1000
+  },
+  "owner": {
+    "contract": "E2",
+    "terminal_reject_prob": 0.1,
+    "enforces_bound": true,
+    "crash_mid_prob": 0,
+    "crash_recovery_ms": 1000,
+    "online_mean_ms": 0,
+    "offline_mean_ms": 0,
+    "channel": "direct",
+    "processing_ms": 0.5
+  },
+  "authority": {
+    "dispatch_timeout_ms": 2000,
+    "retry_interval_ms": 250,
+    "query_budget": 2,
+    "query_concurrency": 2,
+    "max_outstanding": 4,
+    "max_configurations": 256,
+    "single_shot_decision": true,
+    "tick_ms": 50,
+    "resolve": {
+      "mode": "SKI_RENTAL",
+      "query_first": false
+    },
+    "costs": {
+      "hold_per_unit_per_sec": 1,
+      "query_cost": 0.01,
+      "stop_cost": 0.5,
+      "fence_cost": 2
+    },
+    "certificate_depth": 3
+  },
+  "notes": "D0 gate: approximate replay of the 059 development regime (3 s at 8 req/s, 20% reply hidden 750 ms, 10% terminal reject, deadline 500 ms, budget 2, max outstanding 4). Fulfillment counts effects applied once before deadline; fulfilled_confirmed additionally requires authority confirmation before deadline (059 definition). SIMULATION ONLY.",
+  "sweep": [
+    {
+      "name": "W1-E2",
+      "patch": {
+        "workload": {
+          "name": "W1",
+          "dimension": 1,
+          "initial": [
+            20
+          ],
+          "component_min": [
+            0
+          ],
+          "component_max": [
+            100
+          ],
+          "sum_max": 100,
+          "value_min": [
+            1
+          ],
+          "value_max": [
+            8
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E2"
+        }
+      }
+    },
+    {
+      "name": "W1-E3",
+      "patch": {
+        "workload": {
+          "name": "W1",
+          "dimension": 1,
+          "initial": [
+            20
+          ],
+          "component_min": [
+            0
+          ],
+          "component_max": [
+            100
+          ],
+          "sum_max": 100,
+          "value_min": [
+            1
+          ],
+          "value_max": [
+            8
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E3"
+        }
+      }
+    },
+    {
+      "name": "W2-E2",
+      "patch": {
+        "workload": {
+          "name": "W2",
+          "dimension": 2,
+          "initial": [
+            15,
+            15
+          ],
+          "component_min": [
+            0,
+            0
+          ],
+          "component_max": [
+            100,
+            100
+          ],
+          "sum_max": 160,
+          "value_min": [
+            1,
+            1
+          ],
+          "value_max": [
+            10,
+            14
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E2"
+        }
+      }
+    },
+    {
+      "name": "W2-E3",
+      "patch": {
+        "workload": {
+          "name": "W2",
+          "dimension": 2,
+          "initial": [
+            15,
+            15
+          ],
+          "component_min": [
+            0,
+            0
+          ],
+          "component_max": [
+            100,
+            100
+          ],
+          "sum_max": 160,
+          "value_min": [
+            1,
+            1
+          ],
+          "value_max": [
+            10,
+            14
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E3"
+        }
+      }
+    },
+    {
+      "name": "W3-E2",
+      "patch": {
+        "workload": {
+          "name": "W3",
+          "dimension": 2,
+          "initial": [
+            20,
+            20
+          ],
+          "component_min": [
+            0,
+            0
+          ],
+          "component_max": [
+            100,
+            100
+          ],
+          "sum_max": 160,
+          "value_min": [
+            1,
+            1
+          ],
+          "value_max": [
+            12,
+            12
+          ],
+          "set_fraction": 0.3,
+          "set_min": [
+            10,
+            10
+          ],
+          "set_max": [
+            80,
+            80
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E2"
+        }
+      }
+    },
+    {
+      "name": "W3-E3",
+      "patch": {
+        "workload": {
+          "name": "W3",
+          "dimension": 2,
+          "initial": [
+            20,
+            20
+          ],
+          "component_min": [
+            0,
+            0
+          ],
+          "component_max": [
+            100,
+            100
+          ],
+          "sum_max": 160,
+          "value_min": [
+            1,
+            1
+          ],
+          "value_max": [
+            12,
+            12
+          ],
+          "set_fraction": 0.3,
+          "set_min": [
+            10,
+            10
+          ],
+          "set_max": [
+            80,
+            80
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E3"
+        }
+      }
+    },
+    {
+      "name": "W2-E2-hetero",
+      "patch": {
+        "workload": {
+          "name": "W2",
+          "dimension": 2,
+          "initial": [
+            15,
+            15
+          ],
+          "component_min": [
+            0,
+            0
+          ],
+          "component_max": [
+            100,
+            100
+          ],
+          "sum_max": 160,
+          "value_min": [
+            1,
+            1
+          ],
+          "value_max": [
+            10,
+            14
+          ],
+          "rate_per_sec": 8,
+          "poisson": false,
+          "duration_ms": 3000,
+          "tail_ms": 2000,
+          "deadline_ms": 500
+        },
+        "owner": {
+          "contract": "E2"
+        },
+        "network": {
+          "query_rtt_class_ms": [
+            1,
+            5,
+            20
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 86400000,
+  "id": "doc-stripe-v1",
+  "notes": "keys may be removed once at least 24 h old; concurrent conflicting request result is not saved",
+  "operation": "POST with Idempotency-Key",
+  "references": [
+    "https://docs.stripe.com/api/idempotent_requests"
+  ],
+  "schema_version": 1,
+  "source": "DOCUMENTED",
+  "system": "Stripe API v1"
+}

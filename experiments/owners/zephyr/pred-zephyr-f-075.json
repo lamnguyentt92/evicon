@@ -1,0 +1,12 @@
+{
+  "capabilities": [
+    "F"
+  ],
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "id": "pred-zephyr-f-075",
+  "notes": "Simulator input only (experiment C3, release 075): the cutoff-mode contract restricted to F (cutoff fence only). A restricted contract is weaker than the measured one (every capability it keeps was measured), so it is sound wherever the measured one is. The campaign runs on the restriction of the contract measured in the same review run.",
+  "operation": "request/response PUBLISH (QoS 1 commands)",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "Mosquitto 2.x -> Zephyr EviCon firmware (cutoff mode), restricted, predicted"
+}

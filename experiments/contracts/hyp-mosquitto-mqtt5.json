@@ -1,0 +1,10 @@
+{
+  "capabilities": [],
+  "dedup_horizon_ms": 0,
+  "id": "hyp-mosquitto-mqtt5",
+  "notes": "QoS 2 dedup is per session packet id, not per command identity; message expiry is enforced by the broker before delivery, not by the device",
+  "operation": "request/response command with message expiry",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "Eclipse Mosquitto 2.x (MQTT 5)"
+}

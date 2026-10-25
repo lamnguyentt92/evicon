@@ -1,0 +1,93 @@
+{
+  "schema_version": 2,
+  "name": "expA-confirm-k2",
+  "regime": "expA-dosing",
+  "sim_twin": "experiments/sim/iot_dosing_testbed.json",
+  "mode": "remote",
+  "seed": 20261018,
+  "episodes": 5,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "K2",
+    "K3F"
+  ],
+  "policies": [
+    "M1",
+    "EVICON",
+    "RES_PERIODIC"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 16
+  },
+  "activation_gate": {
+    "policies": [
+      "EVICON"
+    ],
+    "contracts": [
+      "K3F"
+    ],
+    "min_acting_decisions_per_cell": 1
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_expA_confirm_067.md",
+    "sha256": "d3ff30681d44146272080effd73ae78978c7587fc250d17ac6b7e446544ea79e"
+  },
+  "notes": "CONFIRMATORY experiment A (release 067), preregistered in evaluation/prereg/PREREG_expA_confirm_067.md (the driver refuses to run when that file or the analysis files it lists changed). Same regime as expA_dosing.json (frozen bound 345, faults, authority), new seed 20261018 so no episode repeats a pilot episode; contracts ['K2', 'K3F'], 5 episodes, policies M1, EVICON, RES_PERIODIC. n from the 066 pilot: EVICON n=10, RES_PERIODIC n=16 (K0 -> K0F, delta 10 pp); K2 -> K3F equivalence n=2."
+}

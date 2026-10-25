@@ -1,0 +1,82 @@
+{
+  "schema_version": 2,
+  "name": "expL2-sleepy",
+  "regime": "expL2-sleepy",
+  "mode": "remote",
+  "seed": 20261024,
+  "episodes": 8,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "K2",
+    "K3T"
+  ],
+  "policies": [
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      60.0,
+      180.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6,
+    "resend_until": "30s"
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_review_077.md",
+    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+  },
+  "notes": "Release 077, PREREG_review_077.md (run L2): experiment L (sleepy devices: offline 60-180 s on the queue channel, longer than the 90 s validity; K2 and K3T, EVICON, W = 6) on the release-077 runtime, same seed 20261024 (episodes 0-7 replay expL-sleepy's schedules), with the validity cut of the retry guard (authority.resend_until 30s = validity_s - deadline_s: the client submits an intent no later than its deadline, so a command is never resent under its own identity after its intent's validity ends) and with the dispatch attempt recorded by the owner for every effect, so that late effects of first sends and of resends can be told apart (evaluation/late_attribution.py). Runner: evaluation/campaign_ext077.py."
+}

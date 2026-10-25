@@ -1,0 +1,13 @@
+{
+  "capabilities": [],
+  "dedup_horizon_ms": 0,
+  "id": "doc-hono-command",
+  "notes": "application should consider command failed without timely response; 'accepted' does not say the device processed it",
+  "operation": "request-response command",
+  "references": [
+    "https://eclipse.dev/hono/docs/api/command-and-control/"
+  ],
+  "schema_version": 1,
+  "source": "DOCUMENTED",
+  "system": "Eclipse Hono Command & Control"
+}

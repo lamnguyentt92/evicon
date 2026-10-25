@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "name": "expW-direct-w6",
+  "regime": "expA-dosing",
+  "mode": "remote",
+  "seed": 20261017,
+  "episodes": 12,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "K0",
+    "K0F"
+  ],
+  "policies": [
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    },
+    "device_args": [
+      "-offline-mode",
+      "drop"
+    ]
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "activation_gate": {
+    "policies": [
+      "EVICON"
+    ],
+    "contracts": [
+      "K0F"
+    ],
+    "min_acting_decisions_per_cell": 1
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_expW_072.md",
+    "sha256": "fa408a17b0eb34a888c41979d691b635edb7b0726d4cad535a0ef461f5a712ff"
+  },
+  "notes": "Experiment W (release 072): window 6 on the direct channel (evicon-device -offline-mode drop: a request sent while the device is offline is lost, nothing is delivered late). Same regime and seed as expA_confirm_k0 otherwise. Plan: evaluation/prereg/PREREG_expW_072.md. About 2.9 hours (24 cells)."
+}

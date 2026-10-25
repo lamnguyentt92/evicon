@@ -1,0 +1,16 @@
+# The options of the cutoff firmware (../zephyr-cutoff/Kconfig, unchanged) and the release-077 authentication.
+config EVC_AUTH_KEY
+	string "Device key: 32 bytes as 64 hex characters (provisioned at build time)"
+	help
+	  HMAC-SHA256 key of the requests the firmware accepts (cmd, stop, fence) and of its replies.
+	  deploy/setup/build_zephyr.sh generates a random key per build and keeps it next to the image
+	  (mode 0600); the driver reads it over SSH and passes it to the check in an environment variable.
+
+config EVC_AUTH_CUTOFF_AHEAD
+	int "Largest accepted fence cutoff above the highest sequence seen"
+	default 64
+	help
+	  A fence with a cutoff above max(claim high-water mark, cutoff) + this value is refused
+	  (CUTOFF_TOO_FAR_AHEAD). It must be at least the authority's outstanding window.
+
+rsource "../zephyr-cutoff/Kconfig"

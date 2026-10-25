@@ -1,0 +1,10 @@
+# VM-C (192.168.107.150): orchestrator + fault injection. Toxiproxy uses host
+# networking so its proxies listen on VM-C ports (28081, 28100, 21883, ...)
+# created on demand by EviCon-Probe (faults.create=true in configs/*.json).
+name: evicon-probe-faults
+services:
+  toxiproxy:
+    image: ${TOXIPROXY_IMAGE:-ghcr.io/shopify/toxiproxy:2.9.0}
+    network_mode: host
+    command: ["-host", "0.0.0.0", "-port", "8474"]
+    restart: unless-stopped

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "name": "temporal-activity",
+  "adapter": "temporal_activity",
+  "adapter_config": {
+    "temporal": "192.168.107.153:7243",
+    "namespace": "default",
+    "task_queue": "evicon-probe",
+    "plant_url": "http://192.168.107.154:18090",
+    "plant_device_id": "temporal-1",
+    "start_to_close_s": 2.0,
+    "max_attempts": 3,
+    "client_timeout_s": 8.0
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "0.0.0.0",
+    "listen_port": 28210,
+    "target_host": "192.168.107.154",
+    "target_port": 18090,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P3",
+    "P8",
+    "P9",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 0.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32
+  },
+  "repetitions": 3,
+  "system_version": "temporalio/server:1.31.2, temporalio (python) 1.x",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-temporal-activity",
+  "notes": "Faults sit between the activity and the plant. Run with: python3 evicon_review.py measure temporal (release 065: the driver starts a Temporal dev server on VM-D:7243 and the worker on VM-A: python3 conformance/reference/temporal_worker.py --temporal 192.168.107.153:7243 --plant-url http://192.168.107.150:28210 --task-queue <unique per run>; the fault proxy runs inside the probe on VM-C, port 28210 is inside the 28200-28215 range VM-A already reaches). late_factor 0.5 * 8 s = 4 s > start_to_close 2 s.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

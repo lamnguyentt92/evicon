@@ -1,0 +1,10 @@
+{
+  "capabilities": [],
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "id": "pred-zephyr-plain-074",
+  "notes": "Simulator input only (evaluation/sim_expC2.py): the contract experiment C2 expects the plain mode to measure. The campaign runs on the contract measured in the same review run.",
+  "operation": "request/response PUBLISH (QoS 2 commands)",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "Mosquitto 2.x -> Zephyr EviCon firmware (plain mode), predicted"
+}

@@ -1,0 +1,11 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 45000,
+  "id": "sim-k1-h45s",
+  "notes": "dedup horizon 45 s (CoAP MAX_TRANSMIT_SPAN-like)",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

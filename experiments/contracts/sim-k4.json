@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A",
+    "X"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "sim-k4",
+  "notes": "atomic effect+receipt; in-flight request still NOT_FOUND",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

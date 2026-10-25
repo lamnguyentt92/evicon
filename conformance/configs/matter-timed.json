@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "matter-timed",
+  "adapter": "matter_invoke",
+  "adapter_config": {
+    "chip_tool": "/opt/matter/chip-tool",
+    "node_id": 1,
+    "endpoint_id": 1,
+    "step_size": 1,
+    "client_timeout_s": 10.0,
+    "timed_ms": 500
+  },
+  "faults": {
+    "kind": "netem",
+    "up_iface": "veth-host",
+    "down_iface": "veth-edge",
+    "netns_down": "evicon-edge-ns",
+    "ssh": "root@192.168.107.154",
+    "sudo": false
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P3",
+    "P9T"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0
+  },
+  "repetitions": 3,
+  "system_version": "",
+  "references": [],
+  "testbed": {
+    "harness": "VM-E"
+  },
+  "compare_with": "hyp-matter-timed-invoke",
+  "notes": "NOT MEASURED in release 068: there is no `measure` stack for it (Matter: build only, deploy/setup/build_iot.sh start matter; LwM2M/Leshan: no pinned Leshan build could be obtained or checked when 068 was made). The adapter is untested against the real system. Run the harness on VM-E (chip-tool needs the device on-link); set faults.ssh to empty when local. Interface names follow deploy/linux/setup_tc_namespace.sh - check before running.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

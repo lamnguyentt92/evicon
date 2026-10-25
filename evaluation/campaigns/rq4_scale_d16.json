@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "name": "rq4-scale-d16",
+  "regime": "rq4-scale-d16",
+  "mode": "remote",
+  "seed": 20261020,
+  "episodes": 2,
+  "devices": 16,
+  "duration_s": 120,
+  "tail_s": 20,
+  "contracts": [
+    "K2",
+    "K0F"
+  ],
+  "policies": [
+    "M0",
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 5.0,
+    "value_min": 1,
+    "value_max": 1,
+    "bound": 1000000,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 0.0,
+    "linger_s": 3.0
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 16
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "notes": "Release 077, PREREG_review_077.md (run Scale): the RQ4 load (no faults, 5 commands/s per device, every command admitted) with 16 domains: 16 authorities on VM-A and 16 devices on VM-E, contracts K2 and K0F, policies M0 and EVICON, 2 episodes of 120 s. With rq4-load-r5 (4 domains) it gives the authority's cost per command and the admission latency as the number of domains grows. Run with `python3 evicon_review.py scale` (samples CPU/RSS of the authorities on VM-A and of the devices on VM-E).",
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_review_077.md",
+    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+  }
+}

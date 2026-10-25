@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "name": "local-smoke",
+  "regime": "local-smoke",
+  "mode": "local",
+  "seed": 7,
+  "episodes": 1,
+  "devices": 2,
+  "duration_s": 20,
+  "tail_s": 4,
+  "contracts": [
+    "K3S",
+    "K2"
+  ],
+  "policies": [
+    "EVICON",
+    "M1"
+  ],
+  "workload": {
+    "rate_per_s": 1.0,
+    "value_min": 1,
+    "value_max": 3,
+    "bound": 1000,
+    "deadline_s": 8,
+    "retry_s": 0.3,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 20,
+    "window_s": [
+      1.0,
+      2.5
+    ],
+    "offline_s": [
+      2.0,
+      4.0
+    ],
+    "min_gap_s": 0.5,
+    "delay_ms": 3000,
+    "crash_recovery_s": 1.0,
+    "linger_s": 2.0,
+    "mix": {
+      "drop_up": 0.35,
+      "drop_down": 0.35,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "3s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 2
+  },
+  "activation_gate": {
+    "policies": [
+      "EVICON"
+    ],
+    "contracts": [
+      "K3S"
+    ],
+    "min_acting_decisions_per_cell": 1
+  },
+  "ports": {
+    "plant": 38090,
+    "device": 38100,
+    "authority": 39000,
+    "proxy": 38200
+  },
+  "notes": "Local development smoke test (all roles on 127.0.0.1). DEV_LOCAL: not a measurement."
+}

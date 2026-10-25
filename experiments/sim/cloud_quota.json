@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "regime": "cloud-quota",
+  "seed": 20261014,
+  "episodes": 200,
+  "policies": [
+    "ORACLE",
+    "B0_NAIVE_NEW_ID",
+    "B1_DURABLE_RETRY",
+    "B2_LEDGER",
+    "B3_TIMEOUT_CANCEL",
+    "B4_UNSAFE_FRONTIER",
+    "B5_SELECTOR_M4",
+    "EVICON",
+    "RES_IMMEDIATE",
+    "RES_QUERY_FIRST",
+    "RES_FIXED",
+    "RES_PERIODIC"
+  ],
+  "workload": {
+    "name": "WB-quota",
+    "dimension": 2,
+    "initial": [
+      15,
+      15
+    ],
+    "component_min": [
+      0,
+      0
+    ],
+    "component_max": [
+      4500,
+      4500
+    ],
+    "sum_max": 7200,
+    "value_min": [
+      1,
+      1
+    ],
+    "value_max": [
+      10,
+      14
+    ],
+    "rate_per_sec": 20,
+    "poisson": true,
+    "duration_ms": 30000,
+    "tail_ms": 10000,
+    "deadline_ms": 5000
+  },
+  "network": {
+    "one_way_base_ms": 2,
+    "one_way_jitter_ms": 3,
+    "req_loss_prob": 0.02,
+    "req_late_prob": 0.01,
+    "req_late_mean_ms": 3000,
+    "resp_loss_prob": 0.05,
+    "resp_hide_prob": 0,
+    "resp_hide_ms": 0,
+    "query_rtt_ms": 6,
+    "query_loss_prob": 0.01,
+    "control_rtt_ms": 6,
+    "control_loss_prob": 0.01,
+    "control_timeout_ms": 1000
+  },
+  "owner": {
+    "contract": "E2",
+    "terminal_reject_prob": 0.05,
+    "enforces_bound": true,
+    "crash_mid_prob": 0.01,
+    "crash_recovery_ms": 2000,
+    "online_mean_ms": 0,
+    "offline_mean_ms": 0,
+    "channel": "direct",
+    "processing_ms": 0.5
+  },
+  "authority": {
+    "dispatch_timeout_ms": 1000,
+    "retry_interval_ms": 500,
+    "max_retry_ms": 60000,
+    "cancel_after_ms": 1500,
+    "reconcile_interval_ms": 1000,
+    "escalate_after_ms": 30000,
+    "query_budget": 4,
+    "query_concurrency": 2,
+    "max_outstanding": 8,
+    "max_configurations": 256,
+    "single_shot_decision": false,
+    "tick_ms": 100,
+    "resolve": {
+      "mode": "SKI_RENTAL",
+      "query_first": false
+    },
+    "costs": {
+      "hold_per_unit_per_sec": 1,
+      "query_cost": 0.01,
+      "stop_cost": 2,
+      "fence_cost": 10
+    },
+    "certificate_depth": 3,
+    "fixed_threshold_ms": 3000,
+    "periodic_ms": 2000
+  },
+  "notes": "WB cloud quota (W2-like 2-D grants): demand ~1.1x capacity over 30 s at 20 req/s, response loss 5%, request loss 2%, 1% late requests, owner crash between effect and receipt 1%; deadline 5 s. Placeholders until C2 measurements. SIMULATION ONLY. Policies: B0-B5 baselines (B4_UNSAFE_FRONTIER is a simplified negative control, not Atomix; B5 is ledger + M4 selector, not M5/M5V2); EVICON and the same-capability baselines RES_* share contract, APIs, retry guard and reissue rule (experiment B). Sweep entries '<contract>+F' upgrade the owner with a fence for every policy (experiment A, contract value).",
+  "sweep": [
+    {
+      "name": "E1",
+      "patch": {
+        "owner": {
+          "contract": "E1"
+        }
+      }
+    },
+    {
+      "name": "E2",
+      "patch": {
+        "owner": {
+          "contract": "E2"
+        }
+      }
+    },
+    {
+      "name": "E2_STOP",
+      "patch": {
+        "owner": {
+          "contract": "E2_STOP"
+        }
+      }
+    },
+    {
+      "name": "E3",
+      "patch": {
+        "owner": {
+          "contract": "E3"
+        }
+      }
+    },
+    {
+      "name": "sim-k1-h2m",
+      "patch": {
+        "owner": {
+          "contract": "sim-k1-h2m"
+        }
+      }
+    },
+    {
+      "name": "doc-stripe-v1",
+      "patch": {
+        "owner": {
+          "contract": "doc-stripe-v1"
+        }
+      }
+    },
+    {
+      "name": "hyp-k8s-create-name",
+      "patch": {
+        "owner": {
+          "contract": "hyp-k8s-create-name"
+        }
+      }
+    },
+    {
+      "name": "hyp-temporal-activity",
+      "patch": {
+        "owner": {
+          "contract": "hyp-temporal-activity"
+        }
+      }
+    },
+    {
+      "name": "E1+F",
+      "patch": {
+        "owner": {
+          "contract": "E1+F"
+        }
+      }
+    }
+  ]
+}

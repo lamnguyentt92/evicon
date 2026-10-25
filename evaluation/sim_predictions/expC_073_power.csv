@@ -1,0 +1,5 @@
+n,id,policy,from,to,metric,test,margin,sim_mean,sim_sd,power
+6,C3,EVICON,MINIO_PLAIN,MINIO_COND,clean_fulfilled,at_least,10,45.26,24.05,0.89
+6,C4,EVICON,MINIO_PLAIN,MINIO_COND,clean_fulfilled_confirmed,at_least,10,45.79,23.55,0.91
+8,C3,EVICON,MINIO_PLAIN,MINIO_COND,clean_fulfilled,at_least,10,45.26,24.05,0.98
+8,C4,EVICON,MINIO_PLAIN,MINIO_COND,clean_fulfilled_confirmed,at_least,10,45.79,23.55,0.99

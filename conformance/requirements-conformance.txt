@@ -1,0 +1,7 @@
+# EviCon-Probe (release 061). Core harness: Python standard library only.
+# Optional, per adapter (install what the campaign needs):
+aiocoap==0.4.17        # reference/coap_device.py (CoAP owner side); the probe client is stdlib
+paho-mqtt==2.1.0       # mqtt5_rpc adapter and reference/mqtt_device.py
+nats-py==2.9.0         # nats_jetstream adapter
+temporalio==1.34.0     # temporal_activity adapter and reference/temporal_worker.py
+dbos==3.3.0            # reference/dbos_app.py (VM-A, Python >= 3.10; release 068); the adapter itself is stdlib

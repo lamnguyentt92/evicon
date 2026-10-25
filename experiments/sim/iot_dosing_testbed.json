@@ -1,0 +1,145 @@
+{
+ "schema_version": 1,
+ "regime": "expA-dosing",
+ "seed": 20261014,
+ "episodes": 200,
+ "policies": [
+  "ORACLE",
+  "B2_LEDGER",
+  "M1",
+  "EVICON",
+  "RES_PERIODIC"
+ ],
+ "workload": {
+  "name": "WA-dosing",
+  "dimension": 1,
+  "initial": [
+   0
+  ],
+  "component_min": [
+   0
+  ],
+  "component_max": [
+   345
+  ],
+  "value_min": [
+   1
+  ],
+  "value_max": [
+   5
+  ],
+  "rate_per_sec": 0.5,
+  "poisson": true,
+  "duration_ms": 300000,
+  "tail_ms": 60000,
+  "deadline_ms": 60000,
+  "validity_ms": 90000
+ },
+ "network": {
+  "one_way_base_ms": 20,
+  "one_way_jitter_ms": 20,
+  "req_loss_prob": 0.014,
+  "req_late_prob": 0.01,
+  "req_late_mean_ms": 6000,
+  "resp_loss_prob": 0.018,
+  "resp_hide_prob": 0,
+  "resp_hide_ms": 0,
+  "query_rtt_ms": 60,
+  "query_loss_prob": 0.017,
+  "control_rtt_ms": 60,
+  "control_loss_prob": 0.017,
+  "control_timeout_ms": 5000,
+  "late_replies": "drop"
+ },
+ "owner": {
+  "contract": "sim-k2",
+  "terminal_reject_prob": 0,
+  "enforces_bound": false,
+  "crash_mid_prob": 0.005,
+  "crash_recovery_ms": 2000,
+  "online_mean_ms": 92000,
+  "offline_mean_ms": 23700,
+  "channel": "queue",
+  "broker_expiry_ms": 0,
+  "processing_ms": 5
+ },
+ "authority": {
+  "dispatch_timeout_ms": 2000,
+  "retry_interval_ms": 5000,
+  "max_retry_ms": 600000,
+  "cancel_after_ms": 10000,
+  "reconcile_interval_ms": 10000,
+  "escalate_after_ms": 120000,
+  "query_budget": 4,
+  "query_concurrency": 2,
+  "max_outstanding": 16,
+  "max_configurations": 256,
+  "single_shot_decision": false,
+  "tick_ms": 200,
+  "resolve": {
+   "mode": "SKI_RENTAL",
+   "query_first": true
+  },
+  "costs": {
+   "hold_per_unit_per_sec": 1,
+   "query_cost": 0.001,
+   "stop_cost": 1,
+   "fence_cost": 5
+  },
+  "certificate_depth": 3,
+  "fixed_threshold_ms": 5000,
+  "periodic_ms": 10000,
+  "fence_uncertain": "abort"
+ },
+ "notes": "Simulator twin of evaluation/campaigns/expA_dosing.json (experiment A sim-to-real). Same rate (0.5/s), value 1-5, per-device bound 345 (demand ~1.3x), duration 300 s, deadline 60 s, validity 90 s; authority costs as in the campaign (hold 1, stop 1, fence 5); no owner validation rejects (terminal_reject_prob 0: evicon-device never rejects without a bound). Release 066 alignment with the testbed, from the 065 testbed run (inputs only, never outcomes): (1) transport: a command reply that arrives after the authority's dispatch timeout is lost (late_replies=drop), because evicon-authority talks HTTP to evicon-device with a 2 s client timeout (dispatch_timeout_ms 2000) and closes the connection; the 065 twin delivered late replies (a broker reply channel) and so resolved ambiguity the testbed never could (K0: 0.68 vs 0.28). (2) fences: a barrier whose owner receipt has a crash orphan (UNCERTAIN) is aborted and resolves nothing (fence_uncertain=abort), as evicon-authority does; the 065 twin resolved every other identity. (3) fault rates from the realized fault logs of the 240 device-episodes of the 065 campaign: offline 20.5 % of the time with mean 23.7 s (online mean 92 s; the 065 twin: 20 %, 25 s), request drop 1.4 %, reply drop 1.8 %, 6 s delay 1.0 % of the time, and 0.73 crashes between effect and receipt per device-episode = 0.5 % of commands (the 065 twin used 1.3 %). Contracts: sim-k0 ~ K0, sim-k0+F ~ K0F, sim-k2 ~ K2, sim-k2+F ~ K3F (and sim-k1-h45s(+F) ~ K1(F)). One device per episode (the campaign has 4): compare rates, not counts (evaluation/sim_to_real.py). SIMULATION ONLY.",
+ "sweep": [
+  {
+   "name": "sim-k0",
+   "patch": {
+    "owner": {
+     "contract": "sim-k0"
+    }
+   }
+  },
+  {
+   "name": "sim-k0+F",
+   "patch": {
+    "owner": {
+     "contract": "sim-k0+F"
+    }
+   }
+  },
+  {
+   "name": "sim-k2",
+   "patch": {
+    "owner": {
+     "contract": "sim-k2"
+    }
+   }
+  },
+  {
+   "name": "sim-k2+F",
+   "patch": {
+    "owner": {
+     "contract": "sim-k2+F"
+    }
+   }
+  },
+  {
+   "name": "sim-k1-h45s",
+   "patch": {
+    "owner": {
+     "contract": "sim-k1-h45s"
+    }
+   }
+  },
+  {
+   "name": "sim-k1-h45s+F",
+   "patch": {
+    "owner": {
+     "contract": "sim-k1-h45s+F"
+    }
+   }
+  }
+ ]
+}

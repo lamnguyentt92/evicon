@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "name": "expL-sleepy",
+  "regime": "expA-dosing",
+  "mode": "remote",
+  "seed": 20261024,
+  "episodes": 8,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "K2",
+    "K3T"
+  ],
+  "policies": [
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      60.0,
+      180.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PLAN_expL_072.md",
+    "sha256": "7d6bcdd7d2e45f5772d7e5541cdf6745dc4a201cae00b9312f19e1362fb37455"
+  },
+  "notes": "Experiment L (release 072, exploratory): sleepy devices. Offline periods of 60-180 s, longer than the 90 s validity, on the queue channel, so requests queued while a device sleeps arrive after their validity. K2 (dedup + query) against K3T (K2 + owner-enforced expiry, 30 s). Window 6. New seed 20261024. Plan: evaluation/prereg/PLAN_expL_072.md. About 2 hours (16 cells)."
+}

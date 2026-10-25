@@ -1,0 +1,16 @@
+{
+  "capabilities": [],
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "id": "meas-minio-s3-api-put-object-unconditional",
+  "notes": "APPLIED receipt no longer queryable after 32 intervening identities (P2N): NOT_FOUND is not evidence of absence; aggregated over 3 repetitions; Q_A: declared but contradicted (query answered APPLIED for an applied identity, but not as terminal evidence (the identity can still be applied again))",
+  "operation": "PUT object (unconditional)",
+  "provenance": {},
+  "references": [
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html",
+    "https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html"
+  ],
+  "schema_version": 1,
+  "source": "MEASURED",
+  "system": "MinIO (S3 API)",
+  "verified_test_ids": []
+}

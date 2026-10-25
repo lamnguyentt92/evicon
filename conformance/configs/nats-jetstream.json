@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "name": "nats-jetstream",
+  "adapter": "nats_jetstream",
+  "adapter_config": {
+    "data_server": "nats://127.0.0.1:24222",
+    "control_server": "nats://192.168.107.152:4222",
+    "duplicate_window_s": 120.0,
+    "client_timeout_s": 2.0
+  },
+  "faults": {
+    "kind": "toxiproxy",
+    "api": "http://127.0.0.1:8474",
+    "proxy": "nats",
+    "listen": "0.0.0.0:24222",
+    "upstream": "192.168.107.152:4222",
+    "create": true
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P6",
+    "P5",
+    "P5B",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "beyond_gap_s": 130.0,
+    "pressure_n": 32,
+    "bisect_resolution_s": 8.0,
+    "bisect_max_steps": 4
+  },
+  "repetitions": 3,
+  "system_version": "nats:2.10.22",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-nats-jetstream",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "notes": "Run with: python3 evicon_review.py measure nats (release 067: brings up nats:2.10.22 with JetStream on VM-B through docker compose; the fault proxy runs inside the probe on VM-C). P5B bisects the duplicate window between within_gap_s and beyond_gap_s (default window 120 s)."
+}

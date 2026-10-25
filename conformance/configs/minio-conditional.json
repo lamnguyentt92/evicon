@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "name": "minio-conditional",
+  "adapter": "s3_conditional_put",
+  "adapter_config": {
+    "data_url": "http://127.0.0.1:29000",
+    "control_url": "http://192.168.107.152:9000",
+    "bucket": "evicon-probe",
+    "access_key": "${MINIO_ROOT_USER}",
+    "secret_key": "${MINIO_ROOT_PASSWORD}",
+    "client_timeout_s": 2.0,
+    "conditional": true
+  },
+  "faults": {
+    "kind": "toxiproxy",
+    "api": "http://127.0.0.1:8474",
+    "proxy": "minio",
+    "listen": "0.0.0.0:29000",
+    "upstream": "192.168.107.152:9000",
+    "create": true
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P6",
+    "P3",
+    "P9",
+    "P5",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32,
+    "beyond_gap_s": 600.0
+  },
+  "repetitions": 3,
+  "system_version": "minio/minio:RELEASE.2025-04-22T22-12-26Z",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-minio-conditional",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "notes": "Run with: python3 evicon_review.py measure minio (release 067: MinIO on VM-B through docker compose with credentials from VM-C's environment or random ones for the measurement, passed on stdin; the fault proxy runs inside the probe on VM-C). The bucket is versioned: every effect is an object version. Release 070: P5 retries the same identity after beyond_gap_s = 600 s, so the measured D_h lower bound is 600 s instead of P4's 2 s (a declared unbounded horizon can never be shown by a finite probe); adds about 10 minutes per repetition."
+}

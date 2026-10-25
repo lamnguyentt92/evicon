@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A",
+    "Q_S"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "sim-k3-stop",
+  "notes": "per-identity tombstone stop",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

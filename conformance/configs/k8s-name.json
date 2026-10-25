@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "name": "k8s-name",
+  "adapter": "k8s_create",
+  "adapter_config": {
+    "namespace": "evicon-probe",
+    "data_server": "https://127.0.0.1:26443",
+    "control_server": "https://192.168.107.152:16443",
+    "token": "${K3S_PROBE_TOKEN}",
+    "client_timeout_s": 3.0,
+    "identity": "name"
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "127.0.0.1",
+    "listen_port": 26443,
+    "target_host": "192.168.107.152",
+    "target_port": 16443,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P6",
+    "P3",
+    "P9",
+    "P5",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32,
+    "beyond_gap_s": 600.0
+  },
+  "repetitions": 3,
+  "system_version": "k3s v1.36.4+k3s1 (API server only)",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)",
+    "owner": "VM-B (docker)"
+  },
+  "compare_with": "hyp-k8s-create-name",
+  "notes": "Run with: python3 evicon_review.py measure k3s (release 068). The fault proxy on VM-C terminates TLS (throwaway certificate) and re-opens TLS to the API server, so faults act on the HTTP request and reply, not on the handshake. Identity = metadata.name: AlreadyExists dedups for as long as the object exists, GET by name is a receipt query, a tombstone created first under the same name is a per-identity stop (create-if-absent). Measured locally against k3s v1.36.4+k3s1 before release: K3 (D_h, Q_A, Q_S), late effect without a stop. Release 070: P5 retries the same identity after beyond_gap_s = 600 s, so the measured D_h lower bound is 600 s instead of P4's 2 s (a declared unbounded horizon can never be shown by a finite probe); adds about 10 minutes per repetition.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

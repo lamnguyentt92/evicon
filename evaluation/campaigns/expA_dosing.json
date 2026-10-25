@@ -1,0 +1,92 @@
+{
+  "schema_version": 2,
+  "name": "expA-dosing",
+  "regime": "expA-dosing",
+  "sim_twin": "experiments/sim/iot_dosing_testbed.json",
+  "mode": "remote",
+  "seed": 20261014,
+  "episodes": 5,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "K0",
+    "K0F",
+    "K2",
+    "K3F"
+  ],
+  "policies": [
+    "M1",
+    "EVICON",
+    "RES_PERIODIC"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 16
+  },
+  "activation_gate": {
+    "policies": [
+      "EVICON"
+    ],
+    "contracts": [
+      "K0F",
+      "K3F"
+    ],
+    "min_acting_decisions_per_cell": 1
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "notes": "EXPERIMENT A (contract value) on the testbed, release 065; regime matched to experiments/sim/iot_dosing_testbed.json. Pairs (K0, K0F) and (K2, K3F) differ only by an owner fence. Prediction from the simulator: F helps strongly without a forward path (K0 -> K0F) and not at all with D_h + Q_A (K2 -> K3F). Bound 345 per device = mean demand (446.5 units over 300 s, seed 20261014, episodes 0-4) / 1.3, so capacity binds; frozen before any run. Offline windows 10-40 s, about 20 % of the time; crashes between effect and receipt. Policies: M1 (no backward evidence), EVICON, RES_PERIODIC. Pilot: 5 episodes = 60 cells, about 7 h. EVICON is gated on K0F and K3F; K0 and K2 have no backward evidence (no activation expected)."
+}

@@ -1,0 +1,19 @@
+# VM-B: PostgreSQL for `measure dbos` (release 068). DBOS Transact keeps its system database
+# (workflow status, step checkpoints) here; the DBOS app runs on VM-A. The password is random
+# per measurement, comes from the environment (evicon_review.py passes it on ssh's stdin) and
+# never lives in a file. The data volume is removed after every measurement.
+name: evicon-probe-dbos
+services:
+  dbos-postgres:
+    image: ${DBOS_PG_IMAGE:-postgres:16.10}
+    pull_policy: missing
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: evicon
+      POSTGRES_DB: evicon_dbos
+      POSTGRES_PASSWORD: ${DBOS_PG_PASSWORD:?set DBOS_PG_PASSWORD}
+    volumes: [dbos-pg-data:/var/lib/postgresql/data]
+    restart: "no"
+
+volumes:
+  dbos-pg-data: {}

@@ -1,0 +1,12 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "hyp-minio-conditional",
+  "operation": "PUT If-None-Match: *",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "MinIO S3 conditional write"
+}

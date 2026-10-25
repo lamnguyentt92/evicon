@@ -1,0 +1,28 @@
+# VM-B: k3s for `measure k3s` (release 068): the Kubernetes API server only (no agent, no
+# workloads, no add-ons), so it needs no privileges. The owner of the measured effect is the
+# API server: a ConfigMap created by fixed name or by generateName.
+# Authentication: one bearer token, random per measurement, from the environment
+# (evicon_review.py passes it on ssh's stdin), written to a token file inside the container
+# only. The API certificate covers 127.0.0.1 and VM-B's address (K3S_TLS_SAN).
+name: evicon-probe-k3s
+services:
+  k3s:
+    image: ${K3S_IMAGE:-rancher/k3s:v1.36.4-k3s1}
+    pull_policy: missing
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf '%s,evicon-probe,evicon-probe,system:masters\n' "$$K3S_PROBE_TOKEN" > /etc/evicon-tokens.csv &&
+        exec /bin/k3s server --disable-agent --https-listen-port 6443 --tls-san "$$K3S_TLS_SAN" --tls-san 127.0.0.1 \
+          --disable=traefik,servicelb,metrics-server,local-storage,coredns --disable-network-policy \
+          --disable-helm-controller --disable-cloud-controller --kube-apiserver-arg=token-auth-file=/etc/evicon-tokens.csv
+    ports: ["16443:6443"]
+    environment:
+      K3S_PROBE_TOKEN: ${K3S_PROBE_TOKEN:?set K3S_PROBE_TOKEN}
+      K3S_TLS_SAN: ${K3S_TLS_SAN:-192.168.107.152}
+    tmpfs: ["/run", "/var/run"]
+    volumes: [k3s-data:/var/lib/rancher/k3s]
+    restart: "no"
+
+volumes:
+  k3s-data: {}

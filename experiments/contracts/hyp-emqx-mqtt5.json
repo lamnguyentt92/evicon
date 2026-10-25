@@ -1,0 +1,10 @@
+{
+  "capabilities": [],
+  "dedup_horizon_ms": 0,
+  "id": "hyp-emqx-mqtt5",
+  "notes": "as Mosquitto; broker inflight retry",
+  "operation": "request/response command with message expiry",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "EMQX 5.x (MQTT 5)"
+}

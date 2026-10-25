@@ -1,0 +1,113 @@
+{
+  "schema_version": 2,
+  "name": "expQ-zephyr",
+  "regime": "expQ-zephyr",
+  "mode": "remote",
+  "seed": 20261017,
+  "episodes": 6,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "ZEPHYR_PLAIN_QOS1",
+    "ZEPHYR_PLAIN_QOS0",
+    "ZEPHYR_CUTOFF_QOS1"
+  ],
+  "policies": [
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "real_owner": {
+    "system": "zephyr",
+    "broker": "FILLED_BY_EVICON_REVIEW:1883",
+    "firmware": "FILLED_BY_EVICON_REVIEW",
+    "plant_tcp_port": 18093,
+    "contracts": {
+      "ZEPHYR_PLAIN_QOS1": {
+        "mode": "PLAIN",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN",
+        "channel": "queue",
+        "binding": "qos1"
+      },
+      "ZEPHYR_PLAIN_QOS0": {
+        "mode": "PLAIN",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN",
+        "channel": "queue",
+        "binding": "auto"
+      },
+      "ZEPHYR_CUTOFF_QOS1": {
+        "mode": "CUTOFF",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN",
+        "channel": "queue",
+        "binding": "auto"
+      }
+    },
+    "gateway_budget_s": 1.8,
+    "qos_cmd": 1,
+    "offline_cut": true
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_review_077.md",
+    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+  },
+  "notes": "Release 077, PREREG_review_077.md (run Q): the delivery binding of MQTT commands on the Zephyr EviCon firmware behind Mosquitto, EVICON, W = 6, the queue channel, same seed 20261017 as C2 (episodes 0-5 replay C2's arrivals and fault windows), every offline window starting with a cut (real_owner.offline_cut: the link fails right after a command reached the broker, its acknowledgement lost). ZEPHYR_PLAIN_QOS1: the plain firmware with the C2 binding (QoS 1, at least once), the adapter premise DRIVER_NO_DUPLICATE_EFFECT broken on purpose; ZEPHYR_PLAIN_QOS0: the plain firmware with the 077 binding rule (auto: QoS 0, at most once, for a contract without D_h); ZEPHYR_CUTOFF_QOS1: the cutoff firmware with the rule's QoS 1 (D_h). Runner: evaluation/campaign_zephyr_ext077.py; gateway conformance/reference/mqtt_owner_gateway_ext077.py."
+}

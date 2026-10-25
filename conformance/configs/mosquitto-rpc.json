@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "name": "mosquitto-rpc",
+  "adapter": "mqtt5_rpc",
+  "adapter_config": {
+    "broker": "127.0.0.1:21883",
+    "device_id": "pump-mqtt-1",
+    "plant_url": "http://192.168.107.154:18090",
+    "qos": 1,
+    "message_expiry_s": 30,
+    "device_admin_url": "http://192.168.107.154:18201",
+    "client_timeout_s": 3.0,
+    "broker_name": "Eclipse Mosquitto 2.x",
+    "keepalive_s": 60
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "127.0.0.1",
+    "listen_port": 21883,
+    "target_host": "192.168.107.152",
+    "target_port": 1883,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P6",
+    "P9T",
+    "P7",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "offline_s": 60.0,
+    "pressure_n": 64
+  },
+  "repetitions": 3,
+  "system_version": "eclipse-mosquitto:2.0.20",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-mosquitto-mqtt5",
+  "notes": "Run with: python3 evicon_review.py measure mosquitto (release 065: brings up Mosquitto 2.0.20 on VM-B with docker compose, starts the plant and the reference device on VM-E: python3 conformance/reference/mqtt_device.py --broker 192.168.107.152:1883 --device pump-mqtt-1 --plant http://127.0.0.1:18090 --admin-port 18201). The fault proxy runs inside the probe on VM-C (no Toxiproxy); keepalive_s 60 exceeds the longest injected delay (P9T: 31.5 s).",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

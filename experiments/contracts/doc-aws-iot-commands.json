@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "Q_A"
+  ],
+  "dedup_horizon_ms": 0,
+  "id": "doc-aws-iot-commands",
+  "notes": "cloud-set TIMED_OUT is non-terminal; device may still report SUCCEEDED/FAILED; no cancel documented on the concepts page",
+  "operation": "StartCommandExecution",
+  "references": [
+    "https://docs.aws.amazon.com/iot/latest/developerguide/iot-remote-command-concepts.html"
+  ],
+  "schema_version": 1,
+  "source": "DOCUMENTED",
+  "system": "AWS IoT Commands"
+}

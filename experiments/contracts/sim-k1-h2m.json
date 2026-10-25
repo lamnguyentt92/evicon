@@ -1,0 +1,11 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 120000,
+  "id": "sim-k1-h2m",
+  "notes": "dedup horizon 2 min (NATS-like)",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

@@ -1,0 +1,10 @@
+n,id,policy,from,to,metric,test,margin,sim_mean,sim_sd,power
+6,C2-3,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled,at_least,10,39.6,24.64,0.52
+6,C2-4,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled_confirmed,at_least,10,42.42,25.16,0.6
+6,C2-5,EVICON,ZEPHYR_CUTOFF,ZEPHYR_STOP,clean_fulfilled,at_least,0,0.28,2.84,0.01
+8,C2-3,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled,at_least,10,39.6,24.64,0.79
+8,C2-4,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled_confirmed,at_least,10,42.42,25.16,0.85
+8,C2-5,EVICON,ZEPHYR_CUTOFF,ZEPHYR_STOP,clean_fulfilled,at_least,0,0.28,2.84,0.02
+10,C2-3,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled,at_least,10,39.6,24.64,0.91
+10,C2-4,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled_confirmed,at_least,10,42.42,25.16,0.95
+10,C2-5,EVICON,ZEPHYR_CUTOFF,ZEPHYR_STOP,clean_fulfilled,at_least,0,0.28,2.84,0.04

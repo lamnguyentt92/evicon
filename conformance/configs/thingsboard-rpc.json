@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "name": "thingsboard-rpc",
+  "adapter": "thingsboard_rpc",
+  "adapter_config": {
+    "data_url": "http://127.0.0.1:28088",
+    "control_url": "http://192.168.107.152:18088",
+    "device_uuid": "(set by the driver)",
+    "username": "${TB_USERNAME}",
+    "password": "${TB_PASSWORD}",
+    "plant_url": "http://192.168.107.154:18090",
+    "plant_device_id": "tb-1",
+    "mode": "persistent",
+    "direction": "twoway",
+    "retries": 2,
+    "rpc_timeout_ms": 5000,
+    "expiration_s": 60,
+    "client_timeout_s": 6.0,
+    "device_admin_url": "http://192.168.107.154:18202"
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "listen_host": "127.0.0.1",
+    "listen_port": 28088,
+    "target_host": "192.168.107.152",
+    "target_port": 18088,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P9",
+    "P9T",
+    "P7",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "offline_s": 90.0,
+    "pressure_n": 32
+  },
+  "repetitions": 3,
+  "system_version": "thingsboard/tb-node:4.3.1.6 + postgres:16.10",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)",
+    "owner": "VM-B (docker)",
+    "device": "VM-E reference/mqtt_device.py --mode thingsboard"
+  },
+  "compare_with": "hyp-thingsboard-rpc",
+  "notes": "Run with: python3 evicon_review.py measure thingsboard (release 068: ThingsBoard is installed with demo data, the demo passwords are replaced by random ones, the device evicon-tb-1 is created and its token handed to the reference device in its environment). Persistent twoway RPC with expirationTime = send + 60 s; P7 keeps the device offline 90 s (longer than the expiry). Measured locally against ThingsBoard CE 4.3.1.6 (expiry 10 s, offline 20 s) before release: Q_A by listing the device's RPCs, T observed, D_h contradicted.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

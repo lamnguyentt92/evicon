@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "name": "rq4-load-r20",
+  "regime": "rq4-load-r20",
+  "mode": "remote",
+  "seed": 20261020,
+  "episodes": 3,
+  "devices": 4,
+  "duration_s": 120,
+  "tail_s": 20,
+  "contracts": [
+    "K2",
+    "K0F"
+  ],
+  "policies": [
+    "M0",
+    "EVICON"
+  ],
+  "workload": {
+    "rate_per_s": 20.0,
+    "value_min": 1,
+    "value_max": 1,
+    "bound": 1000000,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 0.0,
+    "linger_s": 3.0
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 16
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns"
+  },
+  "notes": "RQ4 (release 068): authority overhead without faults at 20 commands/s per device (80/s in total), 4 devices, contracts K2 (dedup + query) and K0F (fence only), policies M0 (no evidence actions) and EVICON. No capacity binding (bound 1e6) and no faults, so every command is admitted: the cells measure the cost of admission, journaling and dispatch, not of resolution. Run with `python3 evicon_review.py overhead` (samples CPU/RSS of the authority on VM-A and of the devices on VM-E)."
+}

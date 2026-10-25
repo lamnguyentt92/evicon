@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "name": "leshan-execute",
+  "adapter": "leshan_execute",
+  "adapter_config": {
+    "data_url": "http://127.0.0.1:28089",
+    "endpoint": "evicon-zephyr-1",
+    "resource_path": "33000/0/1",
+    "plant_url": "http://192.168.107.154:18090",
+    "server_timeout_s": 5,
+    "client_timeout_s": 7.0,
+    "client_name": "Leshan 2.x + Zephyr LwM2M (native_sim)"
+  },
+  "faults": {
+    "kind": "toxiproxy",
+    "api": "http://127.0.0.1:8474",
+    "proxy": "leshan",
+    "listen": "0.0.0.0:28089",
+    "upstream": "192.168.107.152:8089",
+    "create": true
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P6",
+    "P7",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 32
+  },
+  "repetitions": 3,
+  "system_version": "leshan-server-demo 2.0.0",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-lwm2m-execute",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "notes": "NOT MEASURED in release 068: there is no `measure` stack for it (Matter: build only, deploy/setup/build_iot.sh start matter; LwM2M/Leshan: no pinned Leshan build could be obtained or checked when 068 was made). The adapter is untested against the real system. "
+}

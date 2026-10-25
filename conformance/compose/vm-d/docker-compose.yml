@@ -1,0 +1,15 @@
+# VM-D (192.168.107.153): PostgreSQL for DBOS (separate from Temporal's own
+# database in deploy/compose/temporal-postgres). Port 5433.
+name: evicon-probe-db
+services:
+  postgres-apps:
+    image: ${POSTGRES_IMAGE:-postgres:16}
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: evicon
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD}
+      POSTGRES_DB: evicon_dbos
+    volumes: [pg-apps:/var/lib/postgresql/data]
+    restart: unless-stopped
+volumes:
+  pg-apps: {}

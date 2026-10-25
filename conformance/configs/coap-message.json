@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "name": "coap-message",
+  "adapter": "coap",
+  "adapter_config": {
+    "data_uri": "coap://{proxy}/actuate",
+    "control_uri": "coap://192.168.107.154:5683/actuate",
+    "status_path": "status",
+    "identity_level": "message",
+    "plant_url": "http://192.168.107.154:18090",
+    "client_timeout_s": 5.0,
+    "ack_timeout_s": 2.0,
+    "exchange_lifetime_s": 247.0,
+    "stack": "aiocoap 0.4.17 (reference/coap_device.py)",
+    "bind_any": true,
+    "device_id": "coap-1"
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "udp",
+    "listen_host": "0.0.0.0",
+    "listen_port": 25683,
+    "target_host": "192.168.107.154",
+    "target_port": 5683
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P5",
+    "P5B",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "beyond_gap_s": 260.0,
+    "pressure_n": 32,
+    "bisect_resolution_s": 16.0,
+    "bisect_max_steps": 4
+  },
+  "repetitions": 3,
+  "system_version": "",
+  "references": [
+    "https://www.rfc-editor.org/rfc/rfc7252#section-4.8.2"
+  ],
+  "testbed": {
+    "harness": "VM-C (192.168.107.150)"
+  },
+  "compare_with": "hyp-coap-con",
+  "notes": "VM-E: python3 evicon_review.py measure coap (release 065; device: python3 conformance/reference/coap_device.py --bind 0.0.0.0 --status --plant http://127.0.0.1:18090 --health-port 18211). For libcoap/Californium run their server with an equivalent /actuate resource and set adapter_config.stack. Release 065: P5B narrows the message-layer horizon between the P4 gap and the P5 gap (4 steps, about 13 min per repetition).",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A"
+  ],
+  "dedup_horizon_ms": -1,
+  "id": "hyp-k8s-create-name",
+  "notes": "AlreadyExists on retry; resourceVersion preconditions for updates",
+  "operation": "create with name",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "Kubernetes API (create with fixed name)"
+}

@@ -1,0 +1,45 @@
+# VM-B (192.168.107.152): owner / broker side. ONE system per campaign:
+#   docker compose --profile mosquitto up -d      (then run the probe config on VM-C)
+#   docker compose --profile mosquitto down -v    (before the next system)
+# Image tags are pinned through variables; after pulling, record the digests:
+#   docker image inspect --format '{{.RepoTags}} {{.RepoDigests}}' <image>  >> manifest
+# EMQX: stay on 5.8.x (Apache-2.0); 5.9+ is distributed under a different licence.
+# Owners with required secrets live in their own files (docker-compose.<stack>.yml: minio,
+# dbos, k3s, thingsboard): Compose checks required variables of every service in a file,
+# whatever profile is selected (release 065: MinIO's made `--profile mosquitto up` fail).
+# Release 068: the ThingsBoard and Leshan services of 067 are gone from this file
+# (ThingsBoard: docker-compose.thingsboard.yml; Leshan: not measured in 068).
+name: evicon-probe-owner
+services:
+  mosquitto:
+    profiles: [mosquitto]
+    image: ${MOSQUITTO_IMAGE:-eclipse-mosquitto:2.0.20}
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    restart: "no"
+
+  emqx:
+    profiles: [emqx]
+    image: ${EMQX_IMAGE:-emqx/emqx:5.8.6}
+    ports: ["1884:1883", "18083:18083"]
+    environment:
+      EMQX_NODE__NAME: emqx@127.0.0.1
+      EMQX_MQTT__SESSION_EXPIRY_INTERVAL: 2h
+      EMQX_MQTT__MAX_MQUEUE_LEN: "10000"
+    volumes: [emqx-data:/opt/emqx/data]
+    restart: "no"
+
+  nats:
+    profiles: [nats]
+    image: ${NATS_IMAGE:-nats:2.10.22}
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports: ["4222:4222", "8222:8222"]
+    volumes: [nats-data:/data]
+    restart: "no"
+
+volumes:
+  mosquitto-data: {}
+  emqx-data: {}
+  nats-data: {}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "name": "zephyr-mqtt-stop",
+  "adapter": "mqtt5_rpc",
+  "adapter_config": {
+    "broker": "127.0.0.1:21883",
+    "broker_name": "Mosquitto 2.x -> Zephyr EviCon firmware (native_sim, stop mode)",
+    "device_id": "zephyr-1",
+    "reply_mode": "payload",
+    "qos": 1,
+    "plant_url": "http://192.168.107.154:18090",
+    "client_timeout_s": 3.0,
+    "firmware_stop": true,
+    "declared": {
+      "D_h": -1,
+      "Q_A": true,
+      "Q_S": true,
+      "F": true
+    },
+    "keepalive_s": 60
+  },
+  "faults": {
+    "kind": "toxiproxy",
+    "api": "http://127.0.0.1:8474",
+    "proxy": "mosquitto",
+    "listen": "0.0.0.0:21883",
+    "upstream": "192.168.107.152:1883",
+    "create": true
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P6",
+    "P9",
+    "P9F",
+    "P8",
+    "P5",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 64,
+    "beyond_gap_s": 600.0
+  },
+  "repetitions": 3,
+  "system_version": "Zephyr v4.2.0 EviCon firmware (native_sim/native/64, -evc_mode=stop) + eclipse-mosquitto:2.0.20 (evicon_review.py records the firmware SHA-256 and the Zephyr revision)",
+  "references": [
+    "firmware/zephyr-cutoff/README_VI.md"
+  ],
+  "testbed": {
+    "harness": "VM-C",
+    "owner": "VM-E zephyr-cutoff.exe -evc_mode=stop (native_sim/native/64, built by deploy/setup/build_iot.sh) + evicon-plant -tcp 127.0.0.1:18092",
+    "broker": "VM-B mosquitto (EviCon's compose project)"
+  },
+  "notes": "Run with: python3 evicon_review.py measure zephyr-stop (release 074), after 'bash deploy/setup/build_iot.sh start' reports BUILD_OK. The cutoff mode plus the per-identity stop (durable tombstone table, EVC_TOMB_SLOTS entries; a full table answers UNCERTAIN TOMBSTONE_TABLE_FULL, never a silent drop). P9N measures the stop. Data and control paths as for zephyr-mqtt. Release 074 (experiment C2): one firmware binary, three evidence modes chosen at start (-evc_mode); the driver starts it with -evc_mode=cutoff|stop|plain, -evc_device=zephyr-1 and VM-B's broker on the command line. Commands are published with QoS 1 (at least once: the usual MQTT command channel, and the call shape of 068-070), the call shape experiment C2 uses. P9 (stop, then the held request arrives) measures Q_S; P9N its tombstone under pressure.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

@@ -1,0 +1,40 @@
+# VM-B: ThingsBoard CE for `measure thingsboard` (release 068), the layout of ThingsBoard's own
+# docker install (tb-node + PostgreSQL, in-memory queue). evicon_review.py first installs the
+# schema with demo data (INSTALL_TB=true LOAD_DEMO=true, one-off container), starts both
+# services, replaces the demo tenant and sysadmin passwords with random ones, then creates the
+# probe device. All passwords are random per measurement, come from the environment (ssh stdin)
+# and never live in a file; the volumes are removed after every measurement.
+name: evicon-probe-thingsboard
+services:
+  tb-postgres:
+    image: ${TB_PG_IMAGE:-postgres:16.10}
+    pull_policy: missing
+    environment:
+      POSTGRES_DB: thingsboard
+      POSTGRES_PASSWORD: ${TB_PG_PASSWORD:?set TB_PG_PASSWORD}
+    volumes: [tb-pg-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d thingsboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: "no"
+
+  thingsboard-ce:
+    image: ${TB_IMAGE:-thingsboard/tb-node:4.3.1.6}
+    pull_policy: missing
+    ports: ["18088:8080", "1885:1883"]
+    environment:
+      TB_SERVICE_ID: tb-ce-node
+      TB_QUEUE_TYPE: in-memory
+      SPRING_DATASOURCE_URL: jdbc:postgresql://tb-postgres:5432/thingsboard
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${TB_PG_PASSWORD:?set TB_PG_PASSWORD}
+      JAVA_OPTS: -Xms512m -Xmx2048m
+    depends_on:
+      tb-postgres:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  tb-pg-data: {}

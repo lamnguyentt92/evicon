@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "name": "zephyr-mqtt-mcu",
+  "adapter": "mqtt5_rpc",
+  "adapter_config": {
+    "broker": "127.0.0.1:21883",
+    "broker_name": "Mosquitto 2.x -> Zephyr EviCon firmware (Arm Cortex-M3, QEMU mps2-an385, cutoff mode)",
+    "device_id": "zephyr-1",
+    "reply_mode": "payload",
+    "qos": 1,
+    "plant_url": "http://192.168.107.154:18090",
+    "client_timeout_s": 3.0,
+    "firmware_stop": false,
+    "declared": {
+      "D_h": -1,
+      "Q_A": true,
+      "F": true
+    },
+    "keepalive_s": 60
+  },
+  "faults": {
+    "kind": "toxiproxy",
+    "api": "http://127.0.0.1:8474",
+    "proxy": "mosquitto",
+    "listen": "0.0.0.0:21883",
+    "upstream": "192.168.107.152:1883",
+    "create": true
+  },
+  "probes": [
+    "P4",
+    "P2",
+    "P1",
+    "P3",
+    "P6",
+    "P9F",
+    "P8",
+    "P5",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "pressure_n": 64,
+    "beyond_gap_s": 600.0
+  },
+  "repetitions": 3,
+  "system_version": "Zephyr v4.2.0 EviCon firmware (firmware/zephyr-mcu: the sources of firmware/zephyr-cutoff, board mps2/an385, Cortex-M3 under qemu-system-arm, Zephyr's TCP/IP stack and LAN9118 driver, cutoff mode) + eclipse-mosquitto:2.0.20 (evicon_review.py records the image SHA-256, the Zephyr revision and the QEMU version)",
+  "references": [
+    "firmware/zephyr-mcu/README.md"
+  ],
+  "testbed": {
+    "harness": "VM-C",
+    "owner": "VM-E qemu-system-arm -machine mps2-an385 -kernel zephyr-mcu-qemu.elf (user-mode networking: the plant evicon-plant -tcp 127.0.0.1:18092 is 10.0.2.2:18092 for the guest; VM-B's broker through QEMU's NAT)",
+    "broker": "VM-B mosquitto (EviCon's compose project)"
+  },
+  "notes": "Run with: python3 evicon_review.py measure zephyr-mcu (release 077), after 'bash deploy/setup/build_iot.sh start' reports MCU_BUILD_OK. The same probes, parameters and repetitions as zephyr-mqtt (the native_sim measurement of the same sources), on the firmware built for an Arm Cortex-M3 MCU and run by QEMU: Zephyr's own TCP/IP stack and Ethernet driver instead of the host's sockets, NVS on a simulated flash instead of a file. The MCU image has no command line: device zephyr-1, cutoff mode, VM-B's broker and the plant at 10.0.2.2 are Kconfig values of the build, which the driver checks against the testbed before it runs. Fault model as zephyr-mqtt: network loss/delay, client abandon; owner up.",
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 45000,
+  "id": "hyp-lwm2m-execute",
+  "notes": "non-idempotent Execute protected only by CoAP response cache",
+  "operation": "Execute",
+  "references": [
+    "https://avsystem.com/hubfs/Anjay_Docs/AdvancedTopics/AT-RetransmissionsTimeoutsCaching.html"
+  ],
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "LwM2M Execute (Leshan + client)"
+}

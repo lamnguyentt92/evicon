@@ -1,0 +1,13 @@
+{
+  "capabilities": [],
+  "dedup_horizon_ms": 0,
+  "id": "doc-azure-direct-method",
+  "notes": "504 when device does not respond within responseTimeoutInSeconds; docs do not state whether the device executed; method requests are QoS 0",
+  "operation": "invoke direct method",
+  "references": [
+    "https://learn.microsoft.com/azure/iot-hub/iot-hub-devguide-direct-methods"
+  ],
+  "schema_version": 1,
+  "source": "DOCUMENTED",
+  "system": "Azure IoT Hub direct methods"
+}

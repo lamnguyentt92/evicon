@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "name": "device-k1f",
+  "adapter": "evicon_device",
+  "adapter_config": {
+    "contract": "K1F",
+    "device_id": "pump-1",
+    "data_url": "http://{proxy}/d/pump-1",
+    "control_url": "http://192.168.107.154:18100/d/pump-1",
+    "admin_url": "http://192.168.107.154:18101/d/pump-1",
+    "plant_url": "http://192.168.107.154:18090",
+    "client_timeout_s": 2.0,
+    "dedup_horizon_hint_s": 45.0
+  },
+  "faults": {
+    "kind": "proxy",
+    "proto": "tcp",
+    "target_host": "192.168.107.154",
+    "target_port": 18100,
+    "linger_s": 3.0
+  },
+  "probes": [
+    "P4",
+    "P6",
+    "P2",
+    "P1",
+    "P8",
+    "P3",
+    "P9",
+    "P9F",
+    "P9T",
+    "P7",
+    "P5",
+    "P5B",
+    "P2N",
+    "P5N",
+    "P9N"
+  ],
+  "params": {
+    "settle_s": 1.0,
+    "late_factor": 2.5,
+    "within_gap_s": 2.0,
+    "offline_s": 40.0,
+    "pressure_n": 64,
+    "bisect_resolution_s": 5.0,
+    "bisect_max_steps": 5
+  },
+  "repetitions": 3,
+  "system_version": "",
+  "references": [],
+  "testbed": {
+    "harness": "VM-C",
+    "owner": "VM-E evicon-device + evicon-plant"
+  },
+  "notes": "Negative/positive control on VM-E (release 065, experiment A fence upgrade of K1): evicon-device -contract K1F -listen 0.0.0.0:18100 -admin-listen 0.0.0.0:18101 -plant unix:/run/evicon/plant.sock",
+  "expect": {
+    "capabilities": [
+      "D_h",
+      "F"
+    ],
+    "no_false_evidence": true
+  },
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)"
+}

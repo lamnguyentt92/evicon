@@ -1,0 +1,13 @@
+id,family,scenario,policy,from,to,metric,test,margin,n,sim_mean,sim_sd,power
+U-1,unbounded,unbounded_minio,EVICON,MINIO_PLAIN,MINIO_COND,clean_fulfilled,at_least,5,8,14.75,11.84,0.45
+U-2,unbounded,unbounded_zephyr,EVICON,ZEPHYR_PLAIN_DIRECT,ZEPHYR_F_DIRECT,clean_fulfilled,at_least,5,8,14.6,11.71,0.42
+U-3,unbounded,unbounded_zephyr,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled_confirmed,at_least,5,8,14.97,10.9,0.56
+U-4,unbounded,unbounded_zephyr,EVICON,ZEPHYR_PLAIN,ZEPHYR_CUTOFF,clean_fulfilled,equivalent,3,8,1.38,1.91,0.7
+O-1,orphan,noorphan,EVICON,K0F,K0S,clean_fulfilled,equivalent,5,8,-0.12,0.62,1.0
+O-2,orphan,noorphan,EVICON,K0,K0F,clean_fulfilled,at_least,10,8,39.11,25.16,0.9
+K-1,k2,k2rep,EVICON,K2,K3F,clean_fulfilled,equivalent,2,5,0.06,0.8,0.94
+K-2,k2,k2rep,RES_PERIODIC,K2,K3F,clean_fulfilled,equivalent,2,5,0.09,0.63,0.96
+V-1,regime,mild,EVICON,K0,K0F,clean_fulfilled,at_least,5,8,21.64,25.6,0.27
+V-2,regime,mild,EVICON,K0,K0S,clean_fulfilled,at_least,5,8,22.32,25.54,0.3
+WAN-1,wan,wan,EVICON,K0,K0F,clean_fulfilled,at_least,10,8,35.66,25.02,0.81
+WAN-2,wan,wan,EVICON,K0,K0S,clean_fulfilled,at_least,10,8,40.27,24.35,0.91

@@ -1,0 +1,10 @@
+# TLC results, development run (release 062), 2026-10-13T04:25Z, tla2tools v1.7.4 (TLC 2.19), java: openjdk version "21.0.12.1" 2026-08-18
+# Bounded model checking of MCEviconFence (2 intents, <=2 attempts, <=1 owner crash). Not a proof about the Go/C code.
+safe       PASS_NO_ERROR                                           EXPECTED   26848691 states generated, 2891569 distinct states found, 0 states left on queue.
+reconcile  PASS_NO_ERROR                                           EXPECTED   1162855 states generated, 141497 distinct states found, 0 states left on queue.
+nodedup    PASS_NO_ERROR                                           EXPECTED   4420709 states generated, 640957 distinct states found, 0 states left on queue.
+stoponly   PASS_NO_ERROR                                           EXPECTED   152101 states generated, 23973 distinct states found, 0 states left on queue.
+fenceonly  PASS_NO_ERROR                                           EXPECTED   85813 states generated, 17929 distinct states found, 0 states left on queue.
+naive      VIOLATION:Invariant NoFalseStopped is violated          EXPECTED   39 states generated, 24 distinct states found, 14 states left on queue.
+blindretry VIOLATION:Invariant BoundSafety is violated             EXPECTED   57 states generated, 35 distinct states found, 21 states left on queue.
+sealorphans VIOLATION:Invariant NoFalseStopped is violated          EXPECTED   143 states generated, 69 distinct states found, 30 states left on queue.

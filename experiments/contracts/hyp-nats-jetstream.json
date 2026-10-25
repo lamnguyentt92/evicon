@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 120000,
+  "id": "hyp-nats-jetstream",
+  "notes": "default duplicate window 2m0s",
+  "operation": "publish with Nats-Msg-Id",
+  "references": [
+    "https://docs.nats.io/nats-concepts/jetstream/streams"
+  ],
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "NATS JetStream"
+}

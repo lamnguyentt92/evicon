@@ -1,0 +1,57 @@
+mainmenu "EviCon cutoff firmware"
+
+config EVC_FOOTPRINT_ONLY
+	bool "Build the core without networking (footprint report)"
+
+config EVC_DEVICE_ID
+	string "Device ID (MQTT client ID, topic segment, plant device)"
+	default "zephyr-1"
+
+config EVC_BROKER_ADDR
+	string "MQTT broker IPv4 address"
+	default "192.168.107.152"
+
+config EVC_BROKER_PORT
+	int "MQTT broker port"
+	default 1883
+
+config EVC_PLANT_ADDR
+	string "evicon-plant TCP line-protocol address"
+	default "127.0.0.1"
+
+config EVC_PLANT_PORT
+	int "evicon-plant TCP line-protocol port"
+	default 18092
+
+config EVC_RING_SLOTS
+	int "Receipt/dedup ring entries"
+	default 32
+
+config EVC_TOMB_SLOTS
+	int "Durable tombstone table entries (stop fails with ENOSPC when full)"
+	default 16
+
+config EVC_DEDUP_HORIZON_MS
+	int "Dedup horizon in ms (0 none, -1 ring-bounded only)"
+	default -1
+
+config EVC_BOUND
+	int "Device-side cumulative limit (0 none)"
+	default 0
+
+config EVC_STOP
+	bool "Per-identity stop (durable tombstone table, EVC_TOMB_SLOTS entries)"
+
+config EVC_GUARD_EVICTED
+	bool "Answer UNCERTAIN instead of executing an identity whose receipt may be lost"
+	default y
+	help
+	  With this guard a command whose sequence is at or below the eviction
+	  watermark (ring eviction, effect with unknown result, or reboot) and that
+	  has no receipt is never executed again. Disable only as a negative control
+	  (ring-bounded dedup that duplicates after eviction).
+
+config EVC_EXPIRY
+	bool "Owner-enforced expiry (needs SNTP-synchronised CLOCK_REALTIME)"
+
+source "Kconfig.zephyr"

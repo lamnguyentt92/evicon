@@ -1,0 +1,14 @@
+{
+  "capabilities": [
+    "T"
+  ],
+  "clock_skew_ms": 100,
+  "dedup_horizon_ms": 0,
+  "expiry_ms": 5000,
+  "id": "hyp-matter-timed-invoke",
+  "notes": "device rejects an invoke arriving after the timed-request window; no evidence is reported back to the client",
+  "operation": "Timed Request + Invoke",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "Matter Timed Invoke"
+}

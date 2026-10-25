@@ -1,0 +1,15 @@
+# build outputs and run results (evicon_review.py writes them)
+/bin/
+/results/
+/.tools/
+/.isolated/
+__pycache__/
+*.pyc
+/testbed.json
+/formal/states/
+/formal/*_TTrace_*
+firmware/zephyr-cutoff/tests/host/build/
+# release packaging (the zip carries a manifest and the operator's run guide)
+/MANIFEST.sha256
+/EVICON_*_RUN_GUIDE_VI.md
+/RELEASE_NOTES_VI.md

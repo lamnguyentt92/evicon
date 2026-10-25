@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "D_h"
+  ],
+  "dedup_horizon_ms": 247000,
+  "id": "hyp-coap-con",
+  "notes": "Recipient deduplicates a Confirmable message (same Message ID and source endpoint) for EXCHANGE_LIFETIME, 247 s with the default transmission parameters (RFC 7252 4.5, 4.8.2). Corrected in 065.1: up to 065 this hypothesis said 45 s (MAX_TRANSMIT_SPAN, which is the sender's retransmission window, not the recipient's dedup window); the 065 testbed measurement of aiocoap 0.4.17 bracketed the horizon in [243.9, 260) s, which exposed the error. Bounded further by the stack's dedup cache capacity.",
+  "operation": "CON POST",
+  "references": [
+    "https://www.rfc-editor.org/rfc/rfc7252"
+  ],
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "CoAP confirmable POST"
+}

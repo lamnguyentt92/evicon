@@ -1,0 +1,2 @@
+# The options of the cutoff firmware (../zephyr-cutoff/Kconfig, unchanged), which also sources Kconfig.zephyr.
+rsource "../zephyr-cutoff/Kconfig"

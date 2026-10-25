@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "profile": "ACCEPTANCE_ONLY",
+  "placement": "single_host_unmeasured_default",
+  "default_cost_us": 1000,
+  "costs_us": {},
+  "note": "Acceptance default only. Replace with calibrate_query_costs.py output before a pilot/final comparison."
+}

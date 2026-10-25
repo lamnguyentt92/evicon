@@ -1,0 +1,39 @@
+{
+  "capabilities": [
+    "D_h",
+    "Q_A",
+    "Q_S"
+  ],
+  "declared_unverified": [
+    "D_h_unbounded"
+  ],
+  "dedup_horizon_ms": 600000,
+  "fault_model": "network loss/delay, client abandon; owner up (no owner crash or reboot)",
+  "id": "meas-minio-s3-api-put-object-if-none-match",
+  "notes": "no duplicate after 600.0s: horizon >= 600.0s under the probe's load (lower bound); declared unbounded horizon not established; measured lower bound 600.0s; late effect after a client-visible failure in P3; aggregated over 3 repetitions; Q_S: observed but not declared; compare_with=hyp-minio-conditional",
+  "operation": "PUT object If-None-Match: *",
+  "provenance": {
+    "D_h": "P4,P2,P6,P5,P5N x3 repetitions",
+    "D_h_horizon": "min over repetitions of: lower bound 600.0s (P5:gap=600.0s;P5N:intervening=32:retained)",
+    "Q_A": "P2,P2N:receipts_retained=True@32 x3 repetitions",
+    "Q_S": "P9,P1,P9N:tombstones_retained@32 x3 repetitions"
+  },
+  "references": [
+    "https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html",
+    "https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html"
+  ],
+  "schema_version": 1,
+  "source": "MEASURED",
+  "system": "MinIO (S3 API)",
+  "verified_test_ids": [
+    "P1",
+    "P2",
+    "P2N",
+    "P4",
+    "P5",
+    "P5N",
+    "P6",
+    "P9",
+    "P9N"
+  ]
+}
