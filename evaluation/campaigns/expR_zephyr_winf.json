@@ -116,7 +116,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run U-Zephyr): the Zephyr EviCon firmware behind Mosquitto at an UNBOUNDED window (max_outstanding 1000), EVICON, same seed 20261017 as C2/C3 (same arrivals and fault windows per episode): plain and the full measured cutoff contract on the queue channel (as C2), plain and {F} on the direct channel (as C3). Binding qos1 for every contract (the C2/C3 call shape, so that only the window differs from C2/C3). Runner: evaluation/campaign_zephyr_ext077.py (on the C3 runner) with the 077 gateway, which arms the crash fault after answering the arming request."
 }

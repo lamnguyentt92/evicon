@@ -77,7 +77,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run RR-queue): the RELEASE_ON_READ baseline (state-read reconciliation, as a client reading a device shadow), UNSAFE BY DESIGN: 10 s after its creation a command without terminal evidence is looked up at the owner; an APPLIED or STOPPED receipt is recorded, a command the owner does not report (NOT_FOUND, or the owner cannot be reached) is committed STOPPED and the client re-issues its intent. Against EVICON in the same run, on the contract K2 (D_h, Q_A: the owner answers receipt reads), W = 6, queue channel, seed 20261017 (episodes 0-4 replay the schedules of expW-queue-w6). Runner: evaluation/campaign_ext077.py (campaign.py with the two baselines added). With the release-077 validity cut of resends (authority.resend_until 30s = validity_s - deadline_s)."
 }

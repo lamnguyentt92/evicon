@@ -86,7 +86,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run Mild): a sensitivity point of the dosing regime with HALF the fault rate (1 fault window per minute per device instead of 2; same mix and durations), K0, K0F, K0S, EVICON, W = 6, queue channel, new seed 20261026."
 }

@@ -22,7 +22,7 @@
 # Writes only under $BUILD_ROOT (default /root/evicon-build); never touches other programs.
 set -uo pipefail
 ZEPHYR_TAG="${ZEPHYR_TAG:-v4.2.0}"
-EVC_BROKER_ADDR="${EVC_BROKER_ADDR:-192.168.107.152}"   # VM-B (testbed.json vm_b, passed by build_iot.sh)
+EVC_BROKER_ADDR="${EVC_BROKER_ADDR:?VM-B address missing: start the build with deploy/setup/build_iot.sh on VM-C (078: from testbed.json)}"
 EVC_BROKER_PORT="${EVC_BROKER_PORT:-1883}"
 [[ "$EVC_BROKER_ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "EVC_BROKER_ADDR must be an IPv4 address"; exit 2; }
 BUILD_ROOT="${BUILD_ROOT:-/root/evicon-build}"

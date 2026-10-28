@@ -1,5 +1,38 @@
 # Changelog
 
+## 078 — 2026-10-28
+
+Testbed set-up from the VMs' current addresses, and the runs of earlier releases read from their result bundles.
+No change to the Go code (except `buildinfo.Release`), the runners, the analyses or any file a plan freezes; the
+077 plan states the release (section 7) and was frozen again before its first run; every other plan still verifies.
+
+- **`deploy/setup/testbed_init.sh`.** `detect` (VM-C's address, interface, network), `scan` (hosts with SSH on that
+  network, with hostname and banner), `write --vm-a --vm-b --vm-d --vm-e [--vm-c] [--ssh-user]` (`testbed.json`,
+  VM-C's address detected; the previous file kept as `testbed.json.bak-<time>`), `keys [--login USER]
+  [--reset-host-keys]` (VM-C's ed25519 key in root's `authorized_keys` on every VM, directly or through a sudo
+  user; host keys accepted on first use, a changed host key reported), `check` (SSH, hostname, OS, CPUs, memory,
+  disk, clock offset to VM-C, NTP, HTTPS to github.com, with the resources each role needs).
+- **`testbed.json` required and checked.** On the testbed the driver, `setup_all.sh`, `build_iot.sh` and the
+  per-VM scripts take the addresses only from `testbed.json` (`deploy/setup/testbed_env.py`); they stop when it is
+  missing, when an address is not IPv4, when two roles share one, or when `vm_c` is not an address of the machine.
+  The shipped configs' addresses are replaced in one pass and as whole addresses, so a new address may equal
+  another role's shipped one. `build_zephyr.sh` takes the broker address only from `build_iot.sh`.
+- **`evicon_review.py import-results <bundles or directories> --archive DIR [--lean]`** (`scripts/import_results.py`):
+  each bundle checked against its `.sha256` file when present (a mismatch skips it), every member checked before
+  anything is written (no absolute path, `..` or link), the incremental bundles of one review run merged oldest
+  first, a file a later bundle wrote never replaced by an earlier bundle (`DIR/provenance.json`), files already
+  present skipped by size and CRC; schedule files a bundle left out regenerated from the run's `config.json` with
+  `campaign.schedule` (listed in `schedule_regenerated.json`), archived ones compared byte for byte; `DIR/ARCHIVE.md`
+  and `archive.json`: bundles, review runs with their release, campaign runs (cells, VALID, complete, traces,
+  schedules) and the reference runs of `PREREG_review_077.md`. `--lean` keeps the authority traces of the reference
+  runs and the RQ4 load runs only; without it the free space is checked first.
+- **`report --archive DIR`** reads the runs the newest report in the archive read and that report's own run (as
+  `--sources-of` reads a release directory), before the runs of `--from`; a run it names that the archive lacks
+  stops the report with the bundle to import (`--archive-missing-ok`: go on, listed as WARN). `import-results`
+  lists these runs too, and warns about zips in a directory whose name is not a bundle's.
+  `scripts/make_data_archive.py pack` packs an archived run under the release directory of its bundles.
+- Tests: `evaluation/test_release078.py` (C1-C5).
+
 ## 077 — 2026-10-25
 
 The review experiments: new preregistered runs for every question the internal review of the paper draft could

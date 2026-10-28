@@ -59,7 +59,7 @@ machine (`DEV_LOCAL`) are not measurements.
 | `docs/spec/` | API and semantics specifications |
 | `evicon_review.py` | **Reviewer driver**: one command on VM-C for every stage, measurement, campaign and report |
 | `ARTIFACT.md`, `CITATION.cff` | Claims -> evidence map for artifact review; citation metadata |
-| `deploy/setup/` | Per-VM environment setup (`vm-{a,b,c,d,e}.sh`, `setup_all.sh` from VM-C, `build_iot.sh` for the firmware) |
+| `deploy/setup/` | Testbed addresses and SSH keys (`testbed_init.sh`), per-VM environment setup (`vm-{a,b,c,d,e}.sh`, `setup_all.sh` from VM-C, `build_iot.sh` for the firmware) |
 
 ## Quick start (one machine, development)
 
@@ -74,6 +74,10 @@ python3 evicon_review.py latency-control --local --quick  # the latency control 
 On the 5-VM testbed (VM-C as root; addresses in `testbed.json`, see `ARTIFACT.md` section 5):
 
 ```bash
+bash deploy/setup/testbed_init.sh detect             # VM-C's address and network
+bash deploy/setup/testbed_init.sh write --vm-a <IP> --vm-b <IP> --vm-d <IP> --vm-e <IP>   # -> testbed.json
+bash deploy/setup/testbed_init.sh keys               # VM-C's SSH key on the four other VMs
+bash deploy/setup/testbed_init.sh check              # SSH, resources, clock offset, internet
 bash deploy/setup/setup_all.sh                       # environment of all five VMs, once
 python3 evicon_review.py all --quick                 # regression: build, tests, controls, pilots
 bash deploy/setup/build_iot.sh start                 # Zephyr firmware, in the background on VM-D
@@ -81,7 +85,8 @@ python3 evicon_review.py plan                        # every stage, measurement 
 python3 evicon_review.py measure zephyr-plain zephyr # contracts of the firmware, measured in this run
 python3 evicon_review.py campaign expR_zephyr_winf   # one preregistered campaign (resumable)
 python3 evicon_review.py latency-control             # the RQ4 loads against a no-op endpoint
-python3 evicon_review.py report --from <older run>   # every analysis and the paper tables over several runs
+python3 evicon_review.py import-results <bundles> --archive /root/evicon-archive   # runs of earlier releases
+python3 evicon_review.py report --archive /root/evicon-archive   # every analysis and the paper tables
 ```
 
 Every command writes its output to files under `results/` (`results/logs/make-*.log`, per-run

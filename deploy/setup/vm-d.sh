@@ -29,11 +29,15 @@ diagnose() {
 }
 if [ "${1:-}" = "--diagnose" ]; then diagnose; exit 0; fi
 
-log "== VM-D setup (EviCon 073)"
+log "== VM-D setup (EviCon 078)"
 apt_install iproute2 tar ca-certificates
 time_sync
 evicon_dirs
 mkdir -p /var/lib/evicon/measure
+if [ "${SKIP_TEMPORAL:-0}" = 1 ]; then
+  log "EviCon's Temporal not set up (SKIP_TEMPORAL=1; only 'measure temporal' needs it: bash deploy/setup/setup_all.sh d)"
+  log "VM-D ready"; exit 0
+fi
 if [ -n "${TEMPORAL_ADDRESS:-}" ]; then
   log "testbed.json temporal_address=$TEMPORAL_ADDRESS: measure temporal uses that Temporal, not EviCon's own"
   log "VM-D ready"; exit 0
@@ -45,8 +49,8 @@ else
   die "$EXE missing or does not run: run 'bash deploy/setup/setup_all.sh d' on VM-C (it copies the pinned Temporal CLI here)"
 fi
 # VM-C (probes) and VM-A (worker) connect to it
-ufw_allow "${VM_C:-192.168.107.150}" "$PORT" tcp
-ufw_allow "${VM_A:-192.168.107.151}" "$PORT" tcp
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" "$PORT" tcp
+ufw_allow "${VM_A:?VM_A unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" "$PORT" tcp
 stop_own "$SD"   # EviCon's own server, left by an interrupted measurement or setup
 o=$(port_owner "$PORT")
 [ -z "$o" ] || warn "port $PORT is in use: $o (measure temporal needs it free; EviCon never stops other programs)"

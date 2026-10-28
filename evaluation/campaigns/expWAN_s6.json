@@ -92,7 +92,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run WAN): experiment S at W = 6 (K0, K0+Q_S, K0+F; EVICON; queue channel) with a WAN between the authorities (VM-A) and the devices (VM-E): every request and every reply of the device API is delayed 100 ms +/- 25 ms one way (evicon-device -wan-delay 100ms -wan-jitter 25ms: a round trip of about 200 ms, a cellular IoT link), on top of the fault windows. Same seed 20261017 as expS_w6: episodes 0-7 replay its arrivals and fault windows, so the WAN effect is paired per episode with the LAN run S. Runner: evaluation/campaign.py (unchanged)."
 }

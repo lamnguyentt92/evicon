@@ -4,7 +4,7 @@
 # copies conformance/compose/vm-b here).
 . "$(dirname "$0")/common.sh"
 need_root
-log "== VM-B setup (EviCon 073)"
+log "== VM-B setup (EviCon 078)"
 apt_install libsqlite3-0 iproute2 tar ca-certificates
 time_sync
 evicon_dirs
@@ -47,23 +47,23 @@ elif [ -f "$MINIO_CTX/Dockerfile" ]; then
     log "built $MINIO_REF: $(docker run --rm "$MINIO_REF" --version 2>/dev/null | head -1)"
   else
     tail -n 15 /var/lib/evicon/builds/minio-image.log | sed 's/^/   | /' >&2
-    warn "building $MINIO_REF failed (needs github.com, proxy.golang.org and Docker Hub from VM-B); only 'measure minio' needs it"
+    warn "building $MINIO_REF failed (needs github.com, proxy.golang.org and Docker Hub from VM-B); 'measure minio' and the MinIO campaigns (expR_minio_winf, expC16_minio) need it and build it again when it is missing"
   fi
 else
   warn "$MINIO_CTX/Dockerfile missing (run this script through setup_all.sh, which copies it); 'measure minio' builds the image"
 fi
-ufw_allow "${VM_C:-192.168.107.150}" 18181 tcp
-ufw_allow "${VM_C:-192.168.107.150}" 1883 tcp
-ufw_allow "${VM_E:-192.168.107.154}" 1883 tcp
-ufw_allow "${VM_C:-192.168.107.150}" 1884 tcp     # 067: EMQX
-ufw_allow "${VM_E:-192.168.107.154}" 1884 tcp
-ufw_allow "${VM_C:-192.168.107.150}" 4222 tcp     # 067: NATS
-ufw_allow "${VM_C:-192.168.107.150}" 9000 tcp     # 067: MinIO
-ufw_allow "${VM_A:-192.168.107.151}" 5433 tcp     # 068: PostgreSQL of the DBOS app (VM-A)
-ufw_allow "${VM_C:-192.168.107.150}" 5433 tcp     # 068: the driver checks that PostgreSQL serves
-ufw_allow "${VM_C:-192.168.107.150}" 16443 tcp    # 068: k3s API server
-ufw_allow "${VM_C:-192.168.107.150}" 18088 tcp    # 068: ThingsBoard REST
-ufw_allow "${VM_E:-192.168.107.154}" 1885 tcp     # 068: ThingsBoard MQTT (reference device on VM-E)
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 18181 tcp
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 1883 tcp
+ufw_allow "${VM_E:?VM_E unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 1883 tcp
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 1884 tcp     # 067: EMQX
+ufw_allow "${VM_E:?VM_E unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 1884 tcp
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 4222 tcp     # 067: NATS
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 9000 tcp     # 067: MinIO
+ufw_allow "${VM_A:?VM_A unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 5433 tcp     # 068: PostgreSQL of the DBOS app (VM-A)
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 5433 tcp     # 068: the driver checks that PostgreSQL serves
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 16443 tcp    # 068: k3s API server
+ufw_allow "${VM_C:?VM_C unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 18088 tcp    # 068: ThingsBoard REST
+ufw_allow "${VM_E:?VM_E unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 1885 tcp     # 068: ThingsBoard MQTT (reference device on VM-E)
 o=$(port_owner 1883); [ -z "$o" ] || warn "port 1883 is in use: $o (measure mosquitto|zephyr needs it free; EviCon never stops other programs)"
 for pp in 1884 18083 4222 8222 9000 9001 5433 16443 18088 1885; do
   o=$(port_owner $pp); [ -z "$o" ] || warn "port $pp is in use: $o (measure emqx|nats|minio|dbos|k3s|thingsboard needs it free)"

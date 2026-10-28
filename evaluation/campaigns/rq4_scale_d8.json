@@ -59,6 +59,6 @@
   "notes": "Release 077, PREREG_review_077.md (run Scale): the RQ4 load (no faults, 5 commands/s per device, every command admitted) with 8 domains: 8 authorities on VM-A and 8 devices on VM-E, contracts K2 and K0F, policies M0 and EVICON, 2 episodes of 120 s. With rq4-load-r5 (4 domains) it gives the authority's cost per command and the admission latency as the number of domains grows. Run with `python3 evicon_review.py scale` (samples CPU/RSS of the authorities on VM-A and of the devices on VM-E).",
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   }
 }

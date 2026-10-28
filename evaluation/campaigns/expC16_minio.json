@@ -102,7 +102,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run C16): EviCon on MinIO (MINIO_PLAIN, MINIO_COND), EVICON, at W = 16, between experiment C (W = 6) and run Rm (W = unbounded); same seed 20261017 (episodes 0-7 replay C's arrivals and fault windows). Runner: evaluation/campaign_real.py (unchanged)."
 }

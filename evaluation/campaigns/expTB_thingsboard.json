@@ -100,7 +100,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run TB): EviCon on a device-management platform, ThingsBoard CE 4.3.1.6's persistent server-side RPC (a command record with the lifecycle QUEUED, SENT, DELIVERED, SUCCESSFUL, TIMEOUT, EXPIRED, as cloud IoT command services offer), with the contract `measure thingsboard` measures in the same review run for the gateway's call shape (thingsboard-rpc-r0: Q_A by reading the RPC record, T by its expirationTime; no D_h: every attempt is a new RPC). Policies EVICON, M1 and NAIVE (M1 without the T4 retry guard: a blind retry, the real-system negative control), W = 6, same seed 20261017 as C (episodes 0-5 replay C's arrivals and fault windows); offline windows take the device's MQTT connection to ThingsBoard down. Runner: evaluation/campaign_tb.py; gateway conformance/reference/tb_owner_gateway.py."
 }

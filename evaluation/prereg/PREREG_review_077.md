@@ -472,8 +472,12 @@ script of section 5.
 Every file frozen by `PREREG_expC3_075.md` is frozen here too, with the same SHA-256 (none changed in
 releases 076 and 077).
 
-The Go code is built from release 077 (the run's `source.json` records its source). Since release 076
-it changed in these places: the two baseline policies (a separate branch of the authority that EVICON
+The Go code is built from release 077 or 078 (the run's `source.json` records its source; release 078
+changes `buildinfo.Release` only). Release 078 adds the testbed set-up from the VMs' current addresses
+(`deploy/setup/testbed_init.sh`, `testbed.json`) and reads the reference runs of earlier releases from
+their result bundles (`evicon_review.py import-results`, `report --archive`); the runners, the analyses
+and every file frozen here are those of release 077. Since release 076
+the Go code changed in these places: the two baseline policies (a separate branch of the authority that EVICON
 never takes; tests F44-F46); the validity cut of resends (`-resend-until`, off unless set; test F47); the
 dispatch attempt number sent with every request and the device's record of the attempt that took effect
 (test `TestEffectAttemptLogged`); the device's crash-point override (run O; `TestEffectiveCrashPoint`) and

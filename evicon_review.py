@@ -11,6 +11,9 @@
     python3 evicon_review.py campaign <config.json> [--episodes N] [--max-cells N]   # long runtime campaign (release 065)
     python3 evicon_review.py overhead               # RQ4 load campaigns + resource sampling (release 068)
     python3 evicon_review.py report [--from RUN ...]   # paper tables over this run and older ones (release 068; 070)
+    python3 evicon_review.py report --archive DIR      # ... and the runs the newest report in an archive of result bundles read (078)
+    python3 evicon_review.py import-results BUNDLE.zip|DIR ... [--archive DIR] [--lean]   # 078: result bundles of
+                                                       # earlier releases -> an archive the report reads
     python3 evicon_review.py twin2 [--from RUN ...]    # exploratory simulator twin v2 vs testbed (release 068)
 
 Stages (in order):
@@ -58,7 +61,8 @@ Commands (release 065-068; run after `all` has passed build, distribute and cont
                 this run and the --from runs (SIMULATION_ONLY, not preregistered)
 
 Options:
-    --testbed FILE  VM addresses (default: testbed.json if present, else 192.168.107.150-154)
+    --testbed FILE  VM addresses (default: testbed.json; required on the testbed since release 078:
+                    `bash deploy/setup/testbed_init.sh write ...` writes it from the VMs' current addresses)
     --run DIR       run directory (default: a new results/review-<stamp>; 'all' and single
                     stages continue the latest run unless --new is given)
     --new           start a new run directory
@@ -67,6 +71,10 @@ Options:
     --local         self-test: every role on this host (development only, not a measurement)
     --episodes N, --max-cells N, --new-campaign   campaign options
     --from RUN      report/twin2: also read this run directory (repeatable)
+    --archive DIR   report: also read the runs the newest report under DIR/runs read, and that report's own run
+                    (the archive import-results writes; 078); import-results: the archive to write (default
+                    /root/evicon-archive). --archive-missing-ok: go on when the archive lacks some of them
+    --lean          import-results: leave out the authority traces of runs the 077 plan does not reference
 
 Every stage writes logs/<stage>.log and a summary in stages.json; REVIEW_LOG.md is the
 human-readable record; errors.log collects every FAIL, WARN and driver error (with traceback).
@@ -307,9 +315,43 @@ class Testbed:
         sh(["scp", "-q", "-o", "BatchMode=yes", *map(str, files), f"{self.ssh_target(role)}:{dest}/"])
 
     def substitute(self, text: str) -> str:
-        for ip, role in CONFIG_IPS.items():
-            text = text.replace(ip, self.cfg[role])
-        return text
+        """The shipped configs' addresses -> this testbed's, in one pass (release 078: a new address may equal
+        another role's shipped one) and only as whole addresses (not inside a longer number)."""
+        pat = re.compile(r"(?<![\d.])(" + "|".join(re.escape(ip) for ip in CONFIG_IPS) + r")(?![\d])")
+        return pat.sub(lambda m: self.cfg[CONFIG_IPS[m.group(1)]], text)
+
+
+def local_ipv4() -> set:
+    """Every IPv4 address of this host (release 078: testbed.json must name VM-C by one of them)."""
+    out = {"127.0.0.1"}
+    try:
+        txt = subprocess.run(["ip", "-o", "-4", "addr", "show"], capture_output=True, text=True, timeout=10).stdout
+        out |= set(re.findall(r"\binet (\d+\.\d+\.\d+\.\d+)/", txt))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        out |= set(subprocess.run(["hostname", "-I"], capture_output=True, text=True, timeout=10).stdout.split())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {a for a in out if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", a)}
+
+
+def check_testbed_cfg(cfg: dict, where: str, own=None) -> None:
+    """Release 078: the five addresses are IPv4, distinct, and VM-C's is one of this host's own (a testbed.json
+    copied from an earlier installation names addresses that are gone)."""
+    ips = {}
+    for k in ("vm_a", "vm_b", "vm_c", "vm_d", "vm_e"):
+        v = str(cfg.get(k, ""))
+        if not re.fullmatch(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})", v) or any(int(x) > 255 for x in v.split(".")):
+            raise SystemExit(f"{where}: {k} must be an IPv4 address, not {v!r} (bash deploy/setup/testbed_init.sh write ...)")
+        if v in ips:
+            raise SystemExit(f"{where}: {k} and {ips[v]} have the same address {v}")
+        ips[v] = k
+    own = local_ipv4() if own is None else own
+    if cfg["vm_c"] not in own:
+        raise SystemExit(f"{where}: vm_c is {cfg['vm_c']}, which is not an address of this machine ({', '.join(sorted(own - {'127.0.0.1'})) or 'none'}). "
+                         f"testbed.json names the VMs of another installation: write it again from the current addresses: "
+                         f"bash deploy/setup/testbed_init.sh write --vm-a <IP> --vm-b <IP> --vm-d <IP> --vm-e <IP>")
 
 
 def load_testbed(path, local):
@@ -323,8 +365,15 @@ def load_testbed(path, local):
         ta = str(cfg.get("temporal_address") or "")
         if ta and not re.fullmatch(r"[A-Za-z0-9.\-]+:\d{1,5}", ta):
             raise SystemExit(f"{p}: temporal_address must be host:port (e.g. 192.168.107.153:7233) or empty, not {ta!r}")
+        if not local:
+            check_testbed_cfg(dict(DEFAULT_TESTBED, **cfg), str(p))
     elif path:
         raise SystemExit(f"testbed file {path} not found")
+    elif not local:
+        # release 078: never the shipped default addresses on a testbed (they belong to an earlier installation)
+        raise SystemExit(f"{p} missing: write it from the VMs' current addresses first:\n"
+                         f"  bash deploy/setup/testbed_init.sh detect        # this machine (VM-C)\n"
+                         f"  bash deploy/setup/testbed_init.sh write --vm-a <IP> --vm-b <IP> --vm-d <IP> --vm-e <IP>")
     return Testbed(cfg, local)
 
 
@@ -517,7 +566,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -3071,11 +3120,53 @@ def _report_sources(where: str) -> list:
     return out
 
 
+def _archive_sources(where: str, missing_ok: bool = False) -> list:
+    """Release 078 (`report --archive DIR`): the runs the newest report in the archive was written from,
+    then that review run itself, as `--sources-of` reads them from a release directory, but in the archive
+    scripts/import_results.py wrote from the result bundles (DIR/runs/review-*). A run the report names
+    that the archive lacks stops the report (its bundle was not imported), unless --archive-missing-ok."""
+    sys.path.insert(0, str(REPO / "scripts"))
+    from import_results import newest_report_sources
+    d = Path(where).resolve()
+    if not [p for p in (d / "runs").glob("review-*") if p.is_dir()]:
+        raise StageFail(f"--archive {where}: no review run under {d / 'runs'} (python3 evicon_review.py import-results "
+                        f"<bundles> --archive {where} first)")
+    rep, srcs = newest_report_sources(d)
+    if rep is None:
+        raise StageFail(f"--archive {where}: no review run there holds a report (report/REPORT.md); import the bundle of "
+                        f"the latest release that wrote one, or give the runs with --from")
+    gone = [f"{n} (import EVICON_{r or '<release>'}_result*.zip)" for n, r, ok in srcs if not ok]
+    if gone and not missing_ok:
+        raise StageFail(f"--archive {where}: {rep} read {len(gone)} run(s) the archive lacks: {gone}; import them "
+                        f"(python3 evicon_review.py import-results <zip> --archive {where}), or give --archive-missing-ok")
+    if gone:
+        RUN.log(f"WARN: report without {len(gone)} run(s) the earlier report read: {gone}")
+    runs = [str(d / "runs" / n) for n, _, ok in srcs if ok]
+    RUN.log(f"report sources from the archive {d} (those of {rep.relative_to(d)}): {len(runs)} run(s)")
+    return runs
+
+
+def cmd_import_results(a) -> int:
+    """Release 078: python3 evicon_review.py import-results <bundle.zip | dir> ... [--archive DIR] [--lean]: the
+    result bundles of earlier releases (EVICON_<release>_result*.zip) -> one archive that `report --archive DIR`
+    reads (scripts/import_results.py). Needs no VM and no review run."""
+    if len(a.stages) < 2:
+        raise SystemExit("usage: python3 evicon_review.py import-results <bundle.zip | directory with bundles> ... "
+                         "[--archive /root/evicon-archive] [--lean]")
+    args = [sys.executable, str(REPO / "scripts" / "import_results.py"), *a.stages[1:], "--archive", a.archive or "/root/evicon-archive"]
+    if a.lean:
+        args.append("--lean")
+    if a.force_space:
+        args.append("--force-space")
+    return subprocess.run(args).returncode
+
+
 def _sources(a) -> list:
-    """Run directories a report reads: those of --sources-of (074), the --from ones (in the order given),
-    then this run."""
+    """Run directories a report reads: those of --archive (078), of --sources-of (074), the --from ones (in the
+    order given), then this run."""
     out = []
-    for s in (_report_sources(a.sources_of) if getattr(a, "sources_of", "") else []) + list(a.from_run or []):
+    for s in ((_archive_sources(a.archive, getattr(a, "archive_missing_ok", False)) if getattr(a, "archive", "") else [])
+              + (_report_sources(a.sources_of) if getattr(a, "sources_of", "") else []) + list(a.from_run or [])):
         p = Path(s).resolve()
         if not p.is_dir():
             raise StageFail(f"--from {s}: not a directory (give a run directory, e.g. /root/EVICON_TOIT_067/results/review-...)")
@@ -3717,12 +3808,13 @@ def make_bundle(a) -> int:
     latest = results / "LATEST"
     if latest.exists() and (latest / "testbed.json").exists():
         remote_cfg = json.loads((latest / "testbed.json").read_text())
-    elif not latest.exists():
-        # no review run yet (e.g. setup failed): still ask the VMs, at the configured addresses
+    elif not latest.exists() and (REPO / "testbed.json").exists():
+        # no review run yet (e.g. setup failed): still ask the VMs, at the configured addresses (078: only those of
+        # testbed.json, never the shipped defaults)
         try:
-            remote_cfg = dict(DEFAULT_TESTBED, **(json.loads((REPO / "testbed.json").read_text()) if (REPO / "testbed.json").exists() else {}))
+            remote_cfg = dict(DEFAULT_TESTBED, **json.loads((REPO / "testbed.json").read_text()))
         except ValueError:
-            remote_cfg = dict(DEFAULT_TESTBED)
+            remote_cfg = None
     if remote_cfg and remote_cfg.get("vm_a") == "127.0.0.1":
         remote_cfg = None  # local self-test: there are no VMs to ask
     if remote_cfg and not a.no_remote:
@@ -3875,7 +3967,18 @@ def _main(argv):
     ap.add_argument("--sources-of", dest="sources_of", default="",
                     help="report (074): also read every run the newest report of this release directory (e.g. "
                          "/root/EVICON_TOIT_073) read, and that report's own run: one option instead of a --from per release")
+    ap.add_argument("--archive", default="",
+                    help="report (078): also read the runs the newest report in the archive read, and that report's "
+                         "own run (--sources-of on the archive import-results writes); import-results: the archive to "
+                         "write (default /root/evicon-archive)")
+    ap.add_argument("--archive-missing-ok", action="store_true",
+                    help="report --archive (078): go on when the archive lacks some of those runs (listed as WARN)")
+    ap.add_argument("--lean", action="store_true", help="import-results (078): leave out the authority traces of the runs "
+                                                        "the 077 plan does not reference")
+    ap.add_argument("--force-space", action="store_true", help="import-results (078): skip the free-space check")
     a = ap.parse_args(argv)
+    if a.stages[0] == "import-results":
+        return cmd_import_results(a)
     if a.stages == ["plan"]:
         for s in STAGES:
             print(f"{s:11s} {DURATION[s]:40s} {FUNCS[s].__name__}")
@@ -3910,7 +4013,8 @@ def _main(argv):
         print(f"{'latency-control':11s} {'077, RQ4 loads against a no-op: about 25 min':40s} python3 evicon_review.py latency-control")
         print(f"{'qos-dup':11s} {'077, MQTT QoS 1 vs 0 under PUBACK loss: 10 min':40s} python3 evicon_review.py qos-dup")
         print(f"{'scale':11s} {'077, RQ4 load with 8/16/32 domains: 1.2 h':40s} python3 evicon_review.py scale")
-        print(f"{'report':11s} {'2-5 min':40s} python3 evicon_review.py report [--from <run dir> ...]")
+        print(f"{'report':11s} {'2-5 min (078: 15-30 min with an archive)':40s} python3 evicon_review.py report [--archive <dir>] [--from <run dir> ...]")
+        print(f"{'import':11s} {'078, result bundles -> archive: 10-30 min':40s} python3 evicon_review.py import-results <bundles> --archive /root/evicon-archive")
         print(f"{'twin2':11s} {'about 5 min':40s} python3 evicon_review.py twin2 [--from <run dir>]")
         return 0
     if a.stages == ["bundle"]:

@@ -23,10 +23,13 @@ for w in $WHAT; do case "$w" in zephyr|matter) ;; *) echo "unknown build '$w' (z
 ZEPHYR_VM="${BUILD_VM:-${ZEPHYR_VM:-d}}"
 MATTER_VM="${BUILD_VM:-${MATTER_VM:-d}}"
 for v in "$ZEPHYR_VM" "$MATTER_VM"; do case "$v" in d|e|b) ;; *) echo "build VMs must be d, e or b"; exit 2;; esac; done
-ipof() {  # testbed.json address of VM-<x>, defaults 192.168.107.15x
-  python3 -c "import json,os,sys; c=json.load(open('testbed.json')) if os.path.exists('testbed.json') else {}; d={'a':'192.168.107.151','b':'192.168.107.152','c':'192.168.107.150','d':'192.168.107.153','e':'192.168.107.154'}; print(c.get('vm_'+sys.argv[1], d[sys.argv[1]]))" "$1"
+# 078: the addresses only from testbed.json (required, checked as the driver checks it; testbed_init.sh writes it)
+TB_ENV=$(python3 deploy/setup/testbed_env.py) || exit 2
+eval "$TB_ENV"
+ipof() {  # testbed.json address of VM-<x>
+  case "$1" in a) echo "$VM_A";; b) echo "$VM_B";; c) echo "$VM_C";; d) echo "$VM_D";; e) echo "$VM_E";; *) return 1;; esac
 }
-VM_B_IP=$(ipof b) || { echo "testbed.json: cannot read it"; exit 2; }
+VM_B_IP=$VM_B
 BD=/var/lib/evicon/builds
 ssh_to() { ssh -o BatchMode=yes -o ConnectTimeout=10 "root@$(ipof "$1")" "${@:2}"; }
 vm_of() { if [ "$1" = zephyr ]; then echo "$ZEPHYR_VM"; else echo "$MATTER_VM"; fi; }

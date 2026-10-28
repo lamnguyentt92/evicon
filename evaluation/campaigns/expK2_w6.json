@@ -87,7 +87,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run K2): experiment A's K2 configuration (K2, K3F; seed 20261018, 5 episodes, same arrivals and fault windows as expA_confirm_k2) on the release-077 runtime with an explicit window of 6 (experiment A ran at an effective window of about six through the 256-configuration cap), EVICON and RES_PERIODIC, with the validity cut of resends (authority.resend_until 30s = validity_s - deadline_s)."
 }

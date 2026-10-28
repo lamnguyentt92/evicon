@@ -12,7 +12,7 @@ testbed.
 |---|---|---|---|
 | **A. Offline, from the deposited data** | Python 3.10+, the data archive (`scripts/make_data_archive.py`) | minutes to an hour (the C and C2 runs: 1.5 min on 4 cores) | Every number of the paper is regenerated from the raw testbed traces: `python3 scripts/make_data_archive.py reproduce --archive <data> --work <empty dir>` runs `evicon_review.py report` over the deposited runs and writes `report/` (all preregistered analyses, the paper tables and number macros in `report/paper/`, the claims check in `report/claims/CLAIMS.md`) |
 | **B. One machine** | Linux, Go >= 1.22 (or `make go-toolchain`), Python 3.10+, Java 17 for TLC | tens of minutes | `make build verify` (Go tests, 65+ EviCon-Probe tests, firmware host tests with ASan/UBSan, analysis tests including every plan's freeze check); `make tlc` (bounded TLA+ model with negative controls); `python3 evicon_review.py all --local --quick` (the whole driver on one host). Results are labelled `DEV_LOCAL`: they check the code path, they are not measurements |
-| **C. The 5-VM testbed** | five Ubuntu 22.04 VMs on one LAN (VM-C: 4 vCPU, 8 GB), Docker on VM-B, root on VM-C | one night per experiment | `bash deploy/setup/setup_all.sh`, then the run guide of the release; every result is labelled `TESTBED` |
+| **C. The 5-VM testbed** | five Ubuntu 22.04 VMs on one LAN (VM-C: 4 vCPU, 8 GB), Docker on VM-B, root on VM-C | one night per experiment | `bash deploy/setup/testbed_init.sh` (addresses and SSH keys), `bash deploy/setup/setup_all.sh`, then the run guide of the release; every result is labelled `TESTBED` |
 
 Labels: only `TESTBED` numbers are measurements. `SIMULATION_ONLY` numbers come from the simulator
 (`cmd/evicon-des`) and are predictions; `DEV_LOCAL` numbers come from one machine. The driver writes
@@ -84,10 +84,35 @@ They are unrelated to the contributions C1-C3 of `README.md` (contract model, me
 Five Ubuntu 22.04 VMs on one LAN: VM-C (harness and driver, 4 vCPU, 8 GB), VM-A (authorities), VM-B (Docker:
 Mosquitto, MinIO and the other systems measured), VM-D (firmware builds, Temporal), VM-E (owners and the
 plant). The driver runs on VM-C as root and reaches the others over SSH (key-based, `BatchMode`). Addresses
-and paths come from an optional `testbed.json` next to `evicon_review.py`, a JSON object with any of the
-keys `vm_a` ... `vm_e`, `ssh_user`, `remote_root`, `state_dir` and `temporal_address` (defaults:
-192.168.107.150-154, `root`, `/root/evicon`, `/var/lib/evicon`, empty). EviCon stops only processes it
+and paths come from `testbed.json` next to `evicon_review.py`, a JSON object with the keys `vm_a` ... `vm_e`
+and optionally `ssh_user`, `remote_root`, `state_dir` and `temporal_address` (defaults: `root`,
+`/root/evicon`, `/var/lib/evicon`, empty). `deploy/setup/testbed_init.sh` writes it from the VMs' current
+addresses and installs VM-C's SSH key on the other four:
+
+    bash deploy/setup/testbed_init.sh detect          # VM-C's address, interface and network
+    bash deploy/setup/testbed_init.sh scan            # hosts with SSH on that network (hostname, banner)
+    bash deploy/setup/testbed_init.sh write --vm-a <IP> --vm-b <IP> --vm-d <IP> --vm-e <IP>
+    bash deploy/setup/testbed_init.sh keys [--login <user>]   # key-based root SSH from VM-C to every VM
+    bash deploy/setup/testbed_init.sh check           # SSH, OS, CPUs, memory, disk, clock offset, internet
+
+On the testbed the file is required: the driver, `setup_all.sh` and `build_iot.sh` stop when it is missing,
+when two roles share an address, or when `vm_c` is not an address of the machine they run on (a file
+copied from another installation). The campaign and probe configs name the VMs by the addresses
+192.168.107.150-154; the driver replaces them with the testbed's addresses when it distributes them (one
+pass, whole addresses only). The firmware is built for VM-B's address in `testbed.json`
+(`build_iot.sh`), so a change of VM-B's address needs a new build. EviCon stops only processes it
 started (by their pid files under its state directory) and removes only its own state directories.
+
+Runs of earlier releases that a report compares against (the reference runs of a plan) are read from
+their result bundles: `python3 evicon_review.py import-results <bundles or directories> --archive DIR
+[--lean]` (`scripts/import_results.py`) checks each bundle against its `.sha256` file, merges the
+incremental bundles of one review run, regenerates schedule files that a bundle left out with the
+frozen `campaign.py` (and checks the archived ones byte for byte), and lists in `DIR/ARCHIVE.md` which
+reference runs are present; `python3 evicon_review.py report --archive DIR` then reads the runs the newest
+report in the archive read (as `--sources-of` does for a release directory) and the current run, and stops
+when one of them is missing. `--lean` keeps the authority traces of the reference runs and the RQ4 load runs
+only (about 10 GB instead of 18 GB for the bundles of releases 065-076); the fence audit and the late
+attribution then cover those runs only.
 
 
 Go 1.27.1 on the testbed (`go.mod`: >= 1.22); Python 3.10 on the testbed (the analysis and the probe core use the
@@ -102,7 +127,8 @@ used (`bundle/environment.json`, `build.json`, `source.json`).
 ## 6. Data
 
 `python3 scripts/make_data_archive.py pack --sources-of <release directory> --out <dir>` (on VM-C)
-writes one zip per testbed run the newest report read, with `MANIFEST.sha256`, `SOURCES.txt` and a
+writes one zip per testbed run the newest report read (also the runs it read from an `import-results`
+archive, each under the release directory of its bundles), with `MANIFEST.sha256`, `SOURCES.txt` and a
 README, after scanning every text file for credentials. EviCon passes secrets only through environment
 variables; no run directory should contain one, and the pack stops if the scan finds anything that looks
 like one.

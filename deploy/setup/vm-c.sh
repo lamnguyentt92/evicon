@@ -3,7 +3,7 @@
 . "$(dirname "$0")/common.sh"
 need_root
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-log "== VM-C setup (EviCon 073) in $REPO"
+log "== VM-C setup (EviCon 078) in $REPO"
 apt_install python3 python3-pip gcc make pkg-config libsqlite3-dev curl tar unzip zip git ca-certificates \
             openjdk-17-jre-headless iproute2 openssh-client python3-matplotlib python3-yaml tmux openssl
 time_sync
@@ -24,7 +24,7 @@ if [ ! -f /root/.ssh/id_ed25519 ] && [ ! -f /root/.ssh/id_rsa ]; then
   log "created /root/.ssh/id_ed25519; copy it to every VM: ssh-copy-id root@<VM-A/B/D/E>"
 fi
 # VM-A reaches the campaign fault proxies and the Temporal plant proxy on VM-C:28200-28215
-ufw_allow "${VM_A:-192.168.107.151}" 28200:28215 tcp
+ufw_allow "${VM_A:?VM_A unset: run this script through deploy/setup/setup_all.sh, which sets it from testbed.json}" 28200:28215 tcp
 # measure temporal: the pinned Temporal CLI (its dev server runs on VM-D; setup_all.sh copies it there)
 python3 "$REPO/scripts/ensure_temporal_cli.py" \
   || warn "Temporal CLI missing: only 'measure temporal' needs it (no Internet on VM-C? python3 scripts/ensure_temporal_cli.py --archive <file>)"

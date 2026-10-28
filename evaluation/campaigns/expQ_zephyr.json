@@ -107,7 +107,7 @@
   },
   "preregistration": {
     "path": "evaluation/prereg/PREREG_review_077.md",
-    "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138"
+    "sha256": "db67640d1709b06dfa5e61f77e3444c07e7c5828dfe24e0e85d163f06a711a29"
   },
   "notes": "Release 077, PREREG_review_077.md (run Q): the delivery binding of MQTT commands on the Zephyr EviCon firmware behind Mosquitto, EVICON, W = 6, the queue channel, same seed 20261017 as C2 (episodes 0-5 replay C2's arrivals and fault windows), every offline window starting with a cut (real_owner.offline_cut: the link fails right after a command reached the broker, its acknowledgement lost). ZEPHYR_PLAIN_QOS1: the plain firmware with the C2 binding (QoS 1, at least once), the adapter premise DRIVER_NO_DUPLICATE_EFFECT broken on purpose; ZEPHYR_PLAIN_QOS0: the plain firmware with the 077 binding rule (auto: QoS 0, at most once, for a contract without D_h); ZEPHYR_CUTOFF_QOS1: the cutoff firmware with the rule's QoS 1 (D_h). Runner: evaluation/campaign_zephyr_ext077.py; gateway conformance/reference/mqtt_owner_gateway_ext077.py."
 }

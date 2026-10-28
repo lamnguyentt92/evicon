@@ -16,7 +16,9 @@ reproduction of the report from it.
              SOURCES.txt. The report (report/REPORT.md, the paper tables, the claims check) is then
              regenerated from the deposited data alone.
 
-    python3 scripts/make_data_archive.py pack --sources-of /root/EVICON_TOIT_075 --out /root/EVICON_DATA_075
+    python3 scripts/make_data_archive.py pack --sources-of /root/EVICON_TOIT_078 --out /root/EVICON_DATA_078
+      (release 078: the report's sources may lie in an import-results archive, <archive>/runs/review-*;
+       each is packed under the release directory of its bundles, EVICON_TOIT_0xx/results/review-*)
     python3 scripts/make_data_archive.py pack --run /root/EVICON_TOIT_074/results/review-20261024T031941 --out <dir>
     python3 scripts/make_data_archive.py reproduce --archive <dir> --work <empty dir> [--dry-run]
 """
@@ -83,9 +85,22 @@ def scan(run: Path, max_mb: float) -> list:
     return hits
 
 
+def release_dir(run: Path) -> str:
+    """EVICON_TOIT_0xx of a review run: its release directory, or, for a run of an archive written by
+    scripts/import_results.py (<archive>/runs/review-*, release 078), the release of its bundles."""
+    if run.parent.name == "results":
+        return run.parent.parent.name
+    st = run.parent.parent / "archive.json"
+    if run.parent.name == "runs" and st.exists():
+        import json
+        rel = (json.loads(st.read_text()).get("runs", {}).get(run.name) or {}).get("release")
+        if rel:
+            return f"EVICON_TOIT_{rel}"
+    raise SystemExit(f"{run}: neither <release directory>/results/review-* nor a run of an import-results archive")
+
+
 def archive_name(run: Path) -> str:
-    rel = run.parent.parent.name  # EVICON_TOIT_0xx
-    return f"{rel}__{run.name}.zip"
+    return f"{release_dir(run)}__{run.name}.zip"
 
 
 def pack(a) -> int:
@@ -102,13 +117,13 @@ def pack(a) -> int:
     manifest, sources = [], []
     for r in runs:
         z = out / archive_name(r)
-        base = r.parent.parent.parent  # the directory holding EVICON_TOIT_0xx
+        top = f"{release_dir(r)}/results/{r.name}"
         with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
             for p in sorted(r.rglob("*")):
                 if p.is_file() and not p.is_symlink():
-                    zf.write(p, str(p.relative_to(base)))
+                    zf.write(p, f"{top}/{p.relative_to(r).as_posix()}")
         manifest.append(f"{sha256(z)}  {z.name}")
-        sources.append(f"{r.parent.parent.name}/results/{r.name}")
+        sources.append(top)
         print(f"packed {r} -> {z.name} ({z.stat().st_size / 1e6:.1f} MB)")
     (out / "MANIFEST.sha256").write_text("\n".join(manifest) + "\n")
     (out / "SOURCES.txt").write_text("\n".join(sources) + "\n")

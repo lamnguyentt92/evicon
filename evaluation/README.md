@@ -180,7 +180,8 @@ Each cell takes about `duration_s + deadline_s + tail_s + 10 s`:
 - `sim_expC2.py`: the prediction; `expC2_summary.py`: one row per mode and policy, with the commands whose retry the
   T4 guard withheld and what the gateways saw (barriers, stops, link resets). `fidelity_check.py`: emulated against
   real owner at the same configuration (Welch interval, TOST ±5/±10 points; paired when the schedules are identical).
-- `report --sources-of <release directory>`: re-reads every run that release's newest report read.
+- `report --sources-of <release directory>`: re-reads every run that release's newest report read; `report --archive
+  DIR` (078): the same for an `import-results` archive (the runs its newest report read).
 - Tests: `test_campaign_zephyr.py` (Z-R1…Z-R3), `conformance/tests/test_mqtt_owner_gateway.py` (Z1–Z9), `test_predict.py`.
 
 ## Experiment C3, safety total, claims check (075-076)
@@ -250,3 +251,16 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
 - `sim_theta077.py` (exploratory): the action costs of the ski-rental rule (fence, stop, holding) one at a time,
   and the immediate rule, W = 6 and unbounded, queue (`sim_predictions/theta077_summary.csv`, `THETA077.md`).
 - Tests: `test_release077.py` (B1–B11); Go runtime tests F44–F48.
+
+## Release 078: testbed set-up and the archive of earlier runs
+
+- `deploy/setup/testbed_init.sh` (`detect`, `scan`, `write`, `keys`, `check`) writes `testbed.json` from the VMs'
+  current addresses and installs VM-C's SSH key; `deploy/setup/testbed_env.py` gives its values to the setup scripts.
+  The driver and the setup scripts require the file on the testbed and check it (IPv4, distinct, VM-C's address is
+  local); the shipped configs' addresses are replaced in one pass, whole addresses only.
+- `scripts/import_results.py` (`evicon_review.py import-results <bundles> --archive DIR [--lean]`): result bundles of
+  earlier releases -> `DIR/runs/review-*` (checksums checked, incremental bundles merged, a later bundle's file never
+  replaced by an earlier one, missing schedule files regenerated with `campaign.schedule` and archived ones compared
+  byte for byte), `DIR/ARCHIVE.md` with the reference runs of `PREREG_review_077.md`; `report --archive DIR` reads
+  the runs the newest report in the archive read. `scripts/make_data_archive.py pack` packs archived runs under the release directory of their bundles.
+- Tests: `test_release078.py` (C1-C5).
