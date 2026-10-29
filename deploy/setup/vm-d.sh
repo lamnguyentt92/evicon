@@ -29,7 +29,7 @@ diagnose() {
 }
 if [ "${1:-}" = "--diagnose" ]; then diagnose; exit 0; fi
 
-log "== VM-D setup (EviCon 078)"
+log "== VM-D setup (EviCon 079)"
 apt_install iproute2 tar ca-certificates
 time_sync
 evicon_dirs

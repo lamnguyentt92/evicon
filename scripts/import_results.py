@@ -13,6 +13,7 @@ incremental bundles of one review run add to each other):
     (environment snapshot, VM state, driver log) go to <archive>/bundles/<bundle name>/;
   - refuses members with an absolute path, a '..' component or a symbolic link (nothing is written
     outside the archive), and skips a file already present with the same size and CRC;
+  - (079) checks that every campaign run the newest report names is in the archive;
   - keeps, in <archive>/provenance.json, which bundle wrote each file, so that importing an earlier
     bundle again later never replaces a file a later bundle wrote (it is counted as superseded).
 Then, for every campaign run in the archive:
@@ -332,6 +333,24 @@ def newest_report_sources(archive: Path):
     return rep, [(n, rel, (archive / "runs" / n).is_dir()) for n, rel in out]
 
 
+CAMPAIGN_RUN_RE = re.compile(r"review-\d{8}T\d{6}/campaigns/[\w.-]+/\d{8}T\d{6}")
+
+
+def newest_report_campaigns(archive: Path):
+    """Release 079: the campaign runs the newest report in the archive names anywhere in its files (its tables
+    list every campaign run it read), and those the archive lacks (no runtime_episodes.csv): a review run can
+    be present while some of its campaigns are not, when only some incremental bundles of it were imported."""
+    rep, _ = newest_report_sources(archive)
+    if rep is None:
+        return [], []
+    named = set()
+    for f in rep.parent.rglob("*"):
+        if f.is_file() and f.suffix in (".md", ".csv", ".json", ".txt", ".tex"):
+            named |= set(CAMPAIGN_RUN_RE.findall(f.read_text(errors="replace")))
+    named = sorted(named)
+    return named, [n for n in named if not (archive / "runs" / n / "runtime_episodes.csv").exists()]
+
+
 def free_bytes(p: Path) -> int:
     q = p
     while not q.exists():
@@ -432,14 +451,19 @@ def main(argv=None) -> int:
     for k, v in present.items():
         md.append(f"| {k} | `{v['campaign']}` | {('`' + v['run'] + '`') if v['run'] else '**MISSING**'} | {v['traces']} |")
     rep, srcs = newest_report_sources(archive)
+    named, lacking = newest_report_campaigns(archive)
     state["report_sources"] = {"report": str(rep.relative_to(archive)) if rep else None,
-                               "runs": [{"run": n, "release": r, "present": ok} for n, r, ok in srcs]}
+                               "runs": [{"run": n, "release": r, "present": ok} for n, r, ok in srcs],
+                               "campaign_runs": named, "campaign_runs_missing": lacking}
     (archive / "archive.json").write_text(json.dumps(state, indent=2) + "\n")
     md += ["", "## Runs `report --archive` reads", ""]
     if rep:
         md += [f"The sources of the newest report in the archive (`{rep.relative_to(archive)}`):", "",
                "| review run | release | in the archive |", "|---|---|---|"]
         md += [f"| `{n}` | {r or '-'} | {'yes' if ok else '**MISSING** (import EVICON_' + (r or '<release>') + '_result*.zip)'} |" for n, r, ok in srcs]
+        md += ["", f"Campaign runs that report names: {len(named)}, in the archive: {len(named) - len(lacking)}"
+               + ("." if not lacking else "; **MISSING**: " + ", ".join(f"`{n}`" for n in lacking)
+                  + " (import the other incremental bundles of their release)")]
     else:
         md.append("No review run of the archive holds a report (`report --archive` needs one).")
     md += ["", "## Campaign runs", "", "| campaign | run | release | cells | VALID | complete | traces | schedules |", "|---|---|---|---|---|---|---|---|"]
@@ -459,6 +483,8 @@ def main(argv=None) -> int:
     if rep:
         log(f"runs of the newest report ({rep.parent.parent.name}), which `report --archive` reads: "
             + (f"all {len(srcs)} present" if not gone else f"MISSING {gone}"))
+        log(f"campaign runs that report names: {len(named)}, "
+            + ("all in the archive" if not lacking else f"MISSING {lacking} (import the other incremental bundles of their release)"))
     if differ:
         log(f"WARN: archived schedules differ from the frozen code's in {len(differ)} run(s): {differ[:4]}")
     return 1 if failed or differ else 0

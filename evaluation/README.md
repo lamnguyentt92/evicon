@@ -225,7 +225,8 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
   uses it for any config that names one of them. `RELEASE_ON_TIMEOUT`: a command unresolved 10 s after its creation
   is committed STOPPED and its intent re-issued under a new identity. `RELEASE_ON_READ`: after 10 s the owner's
   receipt is read; APPLIED or STOPPED is recorded, NOT_FOUND or an unreachable owner is committed STOPPED and
-  re-issued, UNCERTAIN is read again. `safety_total.py` counts their cells as planned violations.
+  re-issued, UNCERTAIN is read again. `safety_total.py` counts their cells as unsafe by design (079: apart from the
+  negative controls, whose every cell must detect a violation).
 - Run O passes `-crash-point-override AFTER_RECEIPT_BEFORE_REPLY` to `evicon-device` (`faults.device_args`; flag in
   `cmd/evicon-device/main.go`, test `TestEffectiveCrashPoint`): the owner still crashes in every crash window, but
   only after the receipt is durable, so no claim is left without a receipt. Run Rz needs `measure zephyr-plain zephyr`
@@ -264,3 +265,13 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
   byte for byte), `DIR/ARCHIVE.md` with the reference runs of `PREREG_review_077.md`; `report --archive DIR` reads
   the runs the newest report in the archive read. `scripts/make_data_archive.py pack` packs archived runs under the release directory of their bundles.
 - Tests: `test_release078.py` (C1-C5).
+
+## Release 079: the report's safety total and the archive's completeness
+
+- `safety_total.py`: four kinds of cell. Negative controls (NEG_*, a blind retry on an owner without dedup in C and C2):
+  every cell must detect a violation. Unsafe by design (`planned_unsafe`: the practice baselines, NAIVE on ThingsBoard's
+  RPC, QoS 1 on the plain firmware under the offline cut): a violation allowed, not required in every cell; the plans'
+  detection rules (RT-1 … RR-2, TB-1, Q-1) decide. Blind retry on owners with dedup. Guarded: every other cell.
+  `evicon_review.py` takes the planned groups of a real-owner campaign from `safety_total.planned_unsafe` (one rule).
+- `import_results.py`, `report --archive`: the campaign runs the newest report in the archive names must all be there.
+- Tests: `test_release079.py` (D1-D3).

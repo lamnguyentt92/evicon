@@ -653,6 +653,8 @@ def safety(report: Path, out: Path, N: dict) -> str:
         N["evSafetyBound"] = f"{m}\\times10^{{{int(e)}}}"
     N["evNegDetect"] = f"{s['controls'].get('detecting_cells', 0)}/{s['controls'].get('cells', 0)}"
     N["evBlindDedupSafe"] = f"{s['unguarded_dedup'].get('cells', 0) - s['unguarded_dedup'].get('cells_with_violation', 0)}/{s['unguarded_dedup'].get('cells', 0)}"
+    u = s.get("unsafe_by_design") or {}
+    N["evUnsafeByDesign"] = f"{u.get('cells_with_violation', 0)}/{u.get('cells', 0)}"  # release 079
     return f"safety macros: {s['verdict'].lower()} ({g.get('cells', 0)} cells, {g.get('admitted', 0)} commands)"
 
 

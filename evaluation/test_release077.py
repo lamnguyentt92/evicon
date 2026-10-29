@@ -6,7 +6,7 @@ power script.
   B2  the driver runs a config with a baseline on campaign_ext077.py, every other one on campaign.py, and
       plans the baseline's violations (and only those)
   B3  policy_compare pairs episodes only where the schedule files are byte-identical and counts violations
-  B4  safety_total counts the baselines' cells as planned controls, EVICON's in the same run as guarded
+  B4  safety_total counts the baselines' cells as unsafe by design (079; 077: planned controls), EVICON's in the same run as guarded
   B5  latency_control splits the latency correctly and runs against evicon-noop end to end
   B6  sim_sensitivity077's regime patches
   B7  the power script's rules are the plan's
@@ -185,8 +185,10 @@ class B4SafetyTotal(unittest.TestCase):
             out = T.read_run(run)
             self.assertEqual(out["guarded"]["cells"], 1)
             self.assertEqual(out["guarded"].get("bound_violations", 0) + out["guarded"].get("false_stopped", 0), 0)
-            self.assertIn("K2/RELEASE_ON_READ", out["control"])
-            self.assertEqual(out["control"]["K2/RELEASE_ON_READ"]["false_stopped"], 3)
+            # release 079: unsafe by design (a violation allowed, not required in every cell), not a negative control
+            self.assertIn("K2/RELEASE_ON_READ", out["unsafe"])
+            self.assertEqual(out["unsafe"]["K2/RELEASE_ON_READ"]["false_stopped"], 3)
+            self.assertEqual(dict(out["control"]), {})
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

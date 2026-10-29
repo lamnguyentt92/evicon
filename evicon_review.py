@@ -566,7 +566,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -1103,20 +1103,12 @@ EQUIVALENCE_BASES = ("K2",)
 
 
 def _expected_unsafe(cfg: dict) -> set:
-    """Release 073: (contract, policy) groups planned to violate safety on a real owner: a pseudo-policy
-    with the T4 retry guard off (blind retry) on an owner call shape without dedup (mode PLAIN)."""
-    ro = cfg.get("real_owner") or {}
-    out = set()
-    for pol, p in ro.get("policies", {}).items():
-        if pol in cfg["policies"] and p.get("authority", {}).get("retry_guard") is False:
-            # release 077, experiment TB: ThingsBoard's RPC has no idempotency key (no D_h), as the plain modes
-            out |= {(ct, pol) for ct in cfg["contracts"] if ro["contracts"][ct].get("mode") == "PLAIN" or ro.get("system") == "thingsboard"}
-    # release 077, experiment Q: the plain firmware with an at-least-once binding (QoS 1) under the offline cut
-    # breaks the adapter premise DRIVER_NO_DUPLICATE_EFFECT on purpose (duplicates created below the runtime)
-    if ro.get("offline_cut"):
-        out |= {(ct, pol) for ct in cfg["contracts"] for pol in cfg["policies"]
-                if ro["contracts"][ct]["mode"] == "PLAIN" and ro["contracts"][ct].get("binding") == "qos1"}
-    return out
+    """Release 073: (contract, policy) groups planned to violate safety on a real owner (a pseudo-policy with
+    the T4 retry guard off on an owner call shape without dedup; 077: ThingsBoard's RPC, and the plain
+    firmware with an at-least-once binding under the offline cut). Release 079: the definition is
+    evaluation/safety_total.py's planned_unsafe, so the report's safety total classifies the same cells."""
+    from safety_total import planned_unsafe
+    return planned_unsafe(cfg)
 
 
 def _real_owner_campaign(tb, a, src: Path, cfg: dict):
@@ -3124,9 +3116,10 @@ def _archive_sources(where: str, missing_ok: bool = False) -> list:
     """Release 078 (`report --archive DIR`): the runs the newest report in the archive was written from,
     then that review run itself, as `--sources-of` reads them from a release directory, but in the archive
     scripts/import_results.py wrote from the result bundles (DIR/runs/review-*). A run the report names
-    that the archive lacks stops the report (its bundle was not imported), unless --archive-missing-ok."""
+    that the archive lacks stops the report (its bundle was not imported), unless --archive-missing-ok; 079: so does a
+    campaign run that report names."""
     sys.path.insert(0, str(REPO / "scripts"))
-    from import_results import newest_report_sources
+    from import_results import newest_report_campaigns, newest_report_sources
     d = Path(where).resolve()
     if not [p for p in (d / "runs").glob("review-*") if p.is_dir()]:
         raise StageFail(f"--archive {where}: no review run under {d / 'runs'} (python3 evicon_review.py import-results "
@@ -3136,6 +3129,8 @@ def _archive_sources(where: str, missing_ok: bool = False) -> list:
         raise StageFail(f"--archive {where}: no review run there holds a report (report/REPORT.md); import the bundle of "
                         f"the latest release that wrote one, or give the runs with --from")
     gone = [f"{n} (import EVICON_{r or '<release>'}_result*.zip)" for n, r, ok in srcs if not ok]
+    # release 079: a review run can be there while some of its campaign runs are not (only some incremental bundles)
+    gone += [f"campaign run {n} (import the other incremental bundles of its release)" for n in newest_report_campaigns(d)[1]]
     if gone and not missing_ok:
         raise StageFail(f"--archive {where}: {rep} read {len(gone)} run(s) the archive lacks: {gone}; import them "
                         f"(python3 evicon_review.py import-results <zip> --archive {where}), or give --archive-missing-ok")

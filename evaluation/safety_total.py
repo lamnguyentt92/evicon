@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safety over every testbed campaign (release 075).
+"""Safety over every testbed campaign (release 075; release 079: the cells unsafe by design apart).
 
 Each preregistered plan checks safety in its own run. This script adds them up: over every VALID cell of
 every TESTBED campaign it reads, the safety counts (bound_violations, duplicate_effects,
@@ -9,6 +9,11 @@ negative controls, where the plan expected violations:
   negative control   a NEG_* contract (owners built to break their contract, release 072), or a
                      pseudo-policy with the T4 retry guard off (NAIVE) on an owner without dedup (a real
                      owner's mode PLAIN, experiments C and C2): violations planned
+  unsafe by design   (release 079) cells planned to be able to violate safety, without a violation being
+                     required in every cell: the practice baselines RELEASE_ON_TIMEOUT and RELEASE_ON_READ
+                     (release 077), a blind retry (NAIVE) on ThingsBoard's RPC (experiment TB), and the plain
+                     firmware with an at-least-once binding under the offline cut (experiment Q); the same
+                     (contract, policy) groups as the driver's planned violations (planned_unsafe)
   unguarded, dedup   NAIVE on an owner with dedup (MinIO's conditional PUT, the firmware's cutoff mode):
                      no violation planned (C2 of experiment C, C2-2 of experiment C2)
   guarded            every other cell: EVICON, M1, the same-capability baselines, the pilots, the RQ4
@@ -16,7 +21,8 @@ negative controls, where the plan expected violations:
 
 For the guarded cells it reports the totals and, with zero violations among N admitted commands (or
 cells), the exact one-sided 95 % upper bound on the violation probability, 1 - 0.05^(1/N) (about 3/N).
-For the negative controls it reports how many cells detected a violation (the harness's sensitivity).
+For the negative controls it reports how many cells detected a violation (the harness's sensitivity; every
+cell must); for the cells unsafe by design, how many had a violation (the plans' detection rules decide).
 Late effects (validity, not safety) are reported separately. DEV_LOCAL campaigns are listed, not counted.
 
     python3 evaluation/safety_total.py --out <dir> <campaign run dir> ...
@@ -55,26 +61,59 @@ def plain(cfg: dict, contract: str) -> bool:
     return ((cfg.get("real_owner") or {}).get("contracts") or {}).get(contract, {}).get("mode") == "PLAIN"
 
 
+BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")
+
+
+def planned_unsafe(cfg: dict) -> set:
+    """(contract, policy) groups of a real-owner campaign planned to violate safety (release 079: the one
+    definition, also used by evicon_review.py): a pseudo-policy with the T4 retry guard off on an owner call
+    shape without dedup (mode PLAIN; ThingsBoard's RPC, which has no idempotency key), and, with the
+    offline cut (experiment Q), the plain firmware with an at-least-once binding (QoS 1), which breaks the
+    adapter premise of no duplicate below the runtime on purpose."""
+    ro = cfg.get("real_owner") or {}
+    cts = ro.get("contracts") or {}
+    out = set()
+    for pol in unguarded(cfg):
+        if pol in cfg.get("policies", []):
+            out |= {(ct, pol) for ct in cfg.get("contracts", [])
+                    if (cts.get(ct) or {}).get("mode") == "PLAIN" or ro.get("system") == "thingsboard"}
+    if ro.get("offline_cut"):
+        out |= {(ct, pol) for ct in cfg.get("contracts", []) for pol in cfg.get("policies", [])
+                if (cts.get(ct) or {}).get("mode") == "PLAIN" and (cts.get(ct) or {}).get("binding") == "qos1"}
+    return out
+
+
+def kind(cfg: dict, contract: str, policy: str, planned: set = None) -> str:
+    """control (a violation must be detected in every cell), unsafe (by design), unguarded_dedup, guarded."""
+    planned = planned_unsafe(cfg) if planned is None else planned
+    if contract.startswith("NEG_"):
+        return "control"
+    if policy in unguarded(cfg) and plain(cfg, contract) and (cfg.get("real_owner") or {}).get("system") != "thingsboard":
+        return "control"  # a blind retry on an owner without dedup under the testbed's faults (experiments C, C2)
+    if policy in BASELINES or (contract, policy) in planned:
+        return "unsafe"
+    if policy in unguarded(cfg):
+        return "unguarded_dedup"
+    return "guarded"
+
+
 def read_run(run: Path) -> dict:
     cfg = json.loads((run / "config.json").read_text()) if (run / "config.json").exists() else {}
     man = json.loads((run / "manifest.json").read_text()) if (run / "manifest.json").exists() else {}
-    off = unguarded(cfg)
+    planned = planned_unsafe(cfg)
     out = {"run": f"{cfg.get('name', run.parent.name)}/{run.name}", "dir": str(run), "release": man.get("release", ""),
            "scope": man.get("scope", ""), "cells": 0, "invalid": 0, "guarded": Counter(), "control": defaultdict(Counter),
-           "unguarded_dedup": defaultdict(Counter)}
+           "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter)}
     with open(run / "runtime_episodes.csv", newline="") as fh:
         for r in csv.DictReader(fh):
             if not str(r.get("cell_status", "")).startswith("VALID"):
                 out["invalid"] += 1
                 continue
             out["cells"] += 1
-            # release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines break rule R2 on purpose
-            # (planned violations)
-            neg = (r["contract"].startswith("NEG_") or (r["policy"] in off and plain(cfg, r["contract"]))
-                   or r["policy"] in ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ"))
+            k_ = kind(cfg, r["contract"], r["policy"], planned)
             viol = {k: _f(r.get(k)) for k in KINDS}
-            if neg or r["policy"] in off:
-                c = out["control" if neg else "unguarded_dedup"][f"{r['contract']}/{r['policy']}"]
+            if k_ != "guarded":
+                c = out[k_][f"{r['contract']}/{r['policy']}"]
                 c["cells"] += 1
                 c["detecting_cells"] += any(viol.values())
                 for k, v in viol.items():
@@ -98,11 +137,14 @@ def summarize(runs: list) -> dict:
     for r in tb:
         g.update(r["guarded"])
     viol = int(sum(g[k] for k in KINDS))
-    ctl, ud = Counter(), Counter()
+    ctl, ud, us = Counter(), Counter(), Counter()
     for r in tb:
         for c in r["control"].values():
             ctl["cells"] += c["cells"]
             ctl["detecting_cells"] += c["detecting_cells"]
+        for c in r.get("unsafe", {}).values():
+            us["cells"] += c["cells"]
+            us["cells_with_violation"] += c["detecting_cells"]
         for c in r["unguarded_dedup"].values():
             ud["cells"] += c["cells"]
             ud["cells_with_violation"] += c["detecting_cells"]
@@ -110,7 +152,8 @@ def summarize(runs: list) -> dict:
             "upper95_per_admitted_command": upper95(int(g["admitted"])) if viol == 0 else None,
             "upper95_per_dispatch_attempt": upper95(int(g["dispatch_attempts"])) if viol == 0 else None,
             "upper95_per_cell": upper95(int(g["cells"])) if viol == 0 else None,
-            "controls": {k: int(v) for k, v in ctl.items()}, "unguarded_dedup": {k: int(v) for k, v in ud.items()},
+            "controls": {k: int(v) for k, v in ctl.items()}, "unsafe_by_design": {k: int(v) for k, v in us.items()},
+            "unguarded_dedup": {k: int(v) for k, v in ud.items()},
             "verdict": "NO VIOLATION IN ANY GUARDED CELL" if viol == 0 else "VIOLATIONS IN GUARDED CELLS"}
 
 
@@ -126,14 +169,17 @@ def markdown(runs: list, s: dict) -> str:
               f"attempt {s['upper95_per_dispatch_attempt']:.2e}, per cell {s['upper95_per_cell']:.3f}.", ""]
     L += [f"Negative controls (violations planned): {s['controls'].get('detecting_cells', 0)} of {s['controls'].get('cells', 0)} cells detected a "
           f"violation. Blind retry on owners with dedup (no violation planned): {s['unguarded_dedup'].get('cells_with_violation', 0)} of "
-          f"{s['unguarded_dedup'].get('cells', 0)} cells with a violation.", "",
-          "| campaign | release | scope | VALID cells | INVALID | guarded cells | admitted | guarded violations | late effects | negative controls: cells detecting / cells |",
-          "|---|---|---|---|---|---|---|---|---|---|"]
+          f"{s['unguarded_dedup'].get('cells', 0)} cells with a violation. Unsafe by design (the practice baselines, a blind retry on "
+          f"ThingsBoard, QoS 1 on the plain firmware; a violation allowed, not required in every cell): "
+          f"{s.get('unsafe_by_design', {}).get('cells_with_violation', 0)} of {s.get('unsafe_by_design', {}).get('cells', 0)} cells with a violation.", "",
+          "| campaign | release | scope | VALID cells | INVALID | guarded cells | admitted | guarded violations | late effects | negative controls: cells detecting / cells | unsafe by design: cells with a violation / cells |",
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in runs:
         gv = int(sum(r["guarded"][k] for k in KINDS))
         ctl = "; ".join(f"{k} {int(c['detecting_cells'])}/{int(c['cells'])}" for k, c in sorted(r["control"].items())) or "-"
+        uns = "; ".join(f"{k} {int(c['detecting_cells'])}/{int(c['cells'])}" for k, c in sorted(r.get("unsafe", {}).items())) or "-"
         L.append(f"| {r['run']} | {r['release']} | {r['scope']} | {r['cells']} | {r['invalid']} | {int(r['guarded']['cells'])} | "
-                 f"{int(r['guarded']['admitted'])} | {gv} | {int(r['guarded']['late_effects'])} | {ctl} |")
+                 f"{int(r['guarded']['admitted'])} | {gv} | {int(r['guarded']['late_effects'])} | {ctl} | {uns} |")
     return "\n".join(L) + "\n"
 
 
@@ -154,6 +200,7 @@ def main(argv=None):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     js = {"summary": s, "runs": [dict(r, guarded=dict(r["guarded"]), control={k: dict(v) for k, v in r["control"].items()},
+                                      unsafe={k: dict(v) for k, v in r["unsafe"].items()},
                                       unguarded_dedup={k: dict(v) for k, v in r["unguarded_dedup"].items()}) for r in runs]}
     (out / "safety.json").write_text(json.dumps(js, indent=1) + "\n")
     (out / "SAFETY.md").write_text(markdown(runs, s))

@@ -1,5 +1,25 @@
 # Changelog
 
+## 079 — 2026-10-29
+
+The report's safety total and the archive's completeness. No change to the runtime, the runners, the gateways, the
+firmware, the plans or any file a plan freezes; the runs of `PREREG_review_077.md` are made with release 078 and
+reported with this release.
+
+- **Cells unsafe by design apart in the safety total** (`evaluation/safety_total.py`). A cell planned to be able to
+  violate safety without a violation being required in every cell (the practice baselines RELEASE_ON_TIMEOUT and
+  RELEASE_ON_READ, a blind retry on ThingsBoard's RPC, the plain firmware with QoS 1 under the offline cut) is counted
+  in its own group, next to the guarded cells and to the negative controls (NEG_*, a blind retry on an owner without
+  dedup), whose every cell must detect a violation. The groups are those the driver plans for each real-owner
+  campaign: `evicon_review.py` takes them from `safety_total.planned_unsafe` (test D1: the same groups as before on
+  every shipped config). `SAFETY.md` lists them per campaign; `paper_tables.py` adds `\evUnsafeByDesign`.
+- **Campaign runs checked in the archive** (`scripts/import_results.py`, `report --archive`): every campaign run the
+  newest report in the archive names must be there, not only its review run (a review run is present when only some
+  of its incremental bundles were imported).
+- **`deploy/setup/vm-c.sh`** installs the mosquitto binary for the gateway tests of release 077 and disables the broker
+  service it installed (an installed mosquitto is left as it is).
+- Tests: `evaluation/test_release079.py` (D1-D3); `test_release077` B4 expects the baselines in the new group.
+
 ## 078 — 2026-10-28
 
 Testbed set-up from the VMs' current addresses, and the runs of earlier releases read from their result bundles.

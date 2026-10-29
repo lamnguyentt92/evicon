@@ -2,7 +2,7 @@
 package buildinfo
 
 // Release must equal the VERSION file at the repository root (checked by test).
-const Release = "078"
+const Release = "079"
 
 // PatchID identifies the build in /healthz answers and manifests.
 const PatchID = "evicon-" + Release

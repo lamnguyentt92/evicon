@@ -3,7 +3,7 @@
 . "$(dirname "$0")/common.sh"
 need_root
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-log "== VM-C setup (EviCon 078) in $REPO"
+log "== VM-C setup (EviCon 079) in $REPO"
 apt_install python3 python3-pip gcc make pkg-config libsqlite3-dev curl tar unzip zip git ca-certificates \
             openjdk-17-jre-headless iproute2 openssh-client python3-matplotlib python3-yaml tmux openssl
 time_sync
@@ -14,6 +14,17 @@ PY
 want="aiocoap==0.4.17 paho-mqtt==2.1.0 temporalio==1.34.0 nats-py==2.9.0"
 python3 -c 'import aiocoap, paho.mqtt.client, temporalio, nats' 2>/dev/null || pip_install $want
 py_check aiocoap paho.mqtt.client temporalio
+# release 079: the gateway tests of release 077 run against a real broker (conformance/tests/
+# test_mqtt_owner_gateway_ext077.py, started by the test on a free port): the mosquitto binary. When this
+# script installs the package, it also disables the broker service the package starts (EviCon does not use
+# a broker on VM-C); a mosquitto that was already installed is left as it is.
+if ! command -v mosquitto >/dev/null; then
+  apt_install mosquitto
+  systemctl disable --now mosquitto >/dev/null 2>&1 || true
+  log "mosquitto $(mosquitto -h 2>/dev/null | head -1 | awk '{print $3}') installed for the tests; its service disabled"
+else
+  log "mosquitto present: $(command -v mosquitto)"
+fi
 # measure k3s: the fault proxy terminates TLS with a throwaway certificate made by openssl (068)
 command -v openssl >/dev/null || die "openssl missing (apt-get install -y openssl)"
 # Go is pinned and installed by the driver into .tools/go (python3 evicon_review.py build)
