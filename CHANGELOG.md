@@ -1,5 +1,21 @@
 # Changelog
 
+## 082 — 2026-10-30
+
+The artifact's documents for the final report. No change to the runtime, the runners, the gateways, the firmware,
+the analyses, the plans or any file a plan freezes; the final report (run review-20261030T182927) was produced by
+release 081, whose analysis this release keeps unchanged.
+
+- `evaluation/prereg/RESULTS_review_077.md`: the outcome of `PREREG_review_077.md`, copied from the final report by
+  `evaluation/results_record.py` (bundle `EVICON_081_result.zip`, SHA-256 `e8e9ad5d...`), with an interpretation note
+  written after the run (`evaluation/prereg/notes/PREREG_review_077.md`: K-2, Theorem 3 on the traces, E-SIM).
+- `ARTIFACT.md`: release 082; the releases that collected the data (066-078) and the release whose analysis produced
+  the final report (081); the 077 plan's outcome; 80 EviCon-Probe tests.
+- `formal/TLC_RESULTS.txt`, `formal/tlc_logs/`: TLC 1.7.4 on the released model (identical in 081 and 082): the five safe
+  configurations end without error (`safe`: 2,891,569 distinct states, depth 30), the three negative controls violate
+  their invariant within 7 steps.
+- `CITATION.cff`: version 082. Tests: `evaluation/test_release082.py` (G1).
+
 ## 081 — 2026-10-30
 
 Theorem 3's check without the practice baselines, and the 077 plan's rule for K-1, K-2 in the paper tables. No change

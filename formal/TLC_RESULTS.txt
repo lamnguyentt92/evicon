@@ -1,0 +1,25 @@
+# TLC on the released model (formal/ of releases 081 and 082, byte-identical; SHA-256 of every model file below)
+# start 2026-10-30T14:32:10Z / end 2026-10-30T14:34:18Z; tla2tools v1.7.4 (sha256 936a2620...0e88), OpenJDK 21.0.12.1, 2 workers
+# Command: TMPDIR=/dev/shm TLA2TOOLS_JAR=<jar> bash formal/run_tlc.sh out
+config       result                                           generated   distinct  depth cex_states
+safe         no error                                          26848691    2891569     30 -
+reconcile    no error                                           1162855     141497     32 -
+nodedup      no error                                           4420709     640957     26 -
+stoponly     no error                                            152101      23973     21 -
+fenceonly    no error                                             85813      17929     25 -
+naive        Invariant NoFalseStopped is violated                    39         24      5 4
+blindretry   Invariant BoundSafety is violated                       51         33      5 5
+sealorphans  Invariant NoFalseStopped is violated                   163         80      7 6
+
+# SHA-256 of the model files
+24c1cf0200b6ae1bebf3d82697221029ca6349ffa099af37b6a14f71e9814999  formal/EviconFence.tla
+e6067c1b61b1657d8409b10669f86478b3e2f2477a1c967a44eb097ead1a8832  formal/MCEviconFence.tla
+83f6fd9a21edc0e6580abd55d2e9071bb96038bd519ac72ba8914376bf311bb0  formal/EviconFence_blindretry.cfg
+69e27d2783fde95f38855c51a138408afbee809c3ba751bf3d5276e48e4f82b7  formal/EviconFence_fenceonly.cfg
+aeb7eaa86fcf36d909528114a05e93fe3a4a5d7698f76bbb55e25f6618e96b9f  formal/EviconFence_naive.cfg
+71a601a1f78a33e415a0a685e70bb359a9d35bbeec5b681a7239eae1f14846a4  formal/EviconFence_nodedup.cfg
+08153f877599fe6da212e7771b39dd63769daf1283511bdb7c234655c9740e8a  formal/EviconFence_reconcile.cfg
+c4cf79572694c34f72ad6ff05b274c7e9faa01fca1c53d9663c20e03e5b0ab54  formal/EviconFence_safe.cfg
+2e33663a24b30f21f4daf54f132728c9ce1549af9efa369d919da8c815d190f7  formal/EviconFence_sealorphans.cfg
+718d834958326987cc0c8ad1fb49db27669c2e7eb78678ab2f15579d83896177  formal/EviconFence_stoponly.cfg
+84ca0d250ff4e2207131afeb17e61e38f86889d069e54e72d2e86778efb4cdf5  formal/run_tlc.sh
