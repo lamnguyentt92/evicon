@@ -3,7 +3,7 @@
 # or from VM-C with setup_all.sh.
 . "$(dirname "$0")/common.sh"
 need_root
-log "== VM-E setup (EviCon 080)"
+log "== VM-E setup (EviCon 081)"
 apt_install python3 python3-pip libsqlite3-0 iproute2 tar ca-certificates
 # release 077: measure zephyr-mcu runs the firmware's Cortex-M3 image under QEMU (machine mps2-an385)
 apt_install qemu-system-arm

@@ -3,7 +3,7 @@
 . "$(dirname "$0")/common.sh"
 need_root
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-log "== VM-C setup (EviCon 080) in $REPO"
+log "== VM-C setup (EviCon 081) in $REPO"
 apt_install python3 python3-pip gcc make pkg-config libsqlite3-dev curl tar unzip zip git ca-certificates \
             openjdk-17-jre-headless iproute2 openssh-client python3-matplotlib python3-yaml tmux openssl
 time_sync

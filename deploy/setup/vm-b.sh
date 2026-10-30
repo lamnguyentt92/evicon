@@ -4,7 +4,7 @@
 # copies conformance/compose/vm-b here).
 . "$(dirname "$0")/common.sh"
 need_root
-log "== VM-B setup (EviCon 080)"
+log "== VM-B setup (EviCon 081)"
 apt_install libsqlite3-0 iproute2 tar ca-certificates
 time_sync
 evicon_dirs
