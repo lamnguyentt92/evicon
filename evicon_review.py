@@ -566,7 +566,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -3319,6 +3319,21 @@ def cmd_report(tb, a):
             index.append("- [Simulator predictions against the testbed](predict/PREDICT.md)")
         else:
             RUN.problem("WARN", f"predict_check failed: {text[-400:]}")
+    # release 080: estimand E-SIM of PREREG_review_077.md (the earliest complete run of each config of the plan)
+    from esim077 import RUNS as ESIM_RUNS
+    esim_runs = []
+    for name in ESIM_RUNS:
+        rs = sorted({r for s in srcs for r in _find_complete_runs(s, name)}, key=lambda r: r.name)
+        if rs:
+            esim_runs.append(rs[0])
+    if esim_runs:
+        rc, text = sh([sys.executable, "evaluation/esim077.py", "--out", str(out / "esim077")] + [str(r) for r in esim_runs],
+                      timeout=1800, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-SIM (077)")
+            index.append("- [The runs of the 077 plan against its simulator prediction (E-SIM)](esim077/ESIM077.md)")
+        else:
+            RUN.problem("WARN", f"esim077 failed: {text[-400:]}")
     expc = sorted({r for s in srcs for r in _find_complete_runs(s, "expC-minio")}, key=lambda r: r.name)
     if expc:
         rc, text = sh([sys.executable, "evaluation/expC_summary.py", "--out", str(out / "expC"), str(expc[0])], timeout=900, quiet=True, check=False)
@@ -3452,6 +3467,8 @@ def cmd_report(tb, a):
     if mcu:
         (out / "mcu").mkdir(parents=True, exist_ok=True)
         shutil.copy2(mcu[-1], out / "mcu" / "MCU.md")
+        if (mcu[-1].parent / "measure.json").exists():  # release 080: X-MCU in the claims check
+            shutil.copy2(mcu[-1].parent / "measure.json", out / "mcu" / "measure.json")
         for f in sorted(mcu[-1].parent.rglob("footprint*.txt")):
             shutil.copy2(f, out / "mcu" / f.name)
         done.append("firmware on the emulated MCU")

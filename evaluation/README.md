@@ -275,3 +275,11 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
   `evicon_review.py` takes the planned groups of a real-owner campaign from `safety_total.planned_unsafe` (one rule).
 - `import_results.py`, `report --archive`: the campaign runs the newest report in the archive names must all be there.
 - Tests: `test_release079.py` (D1-D3).
+
+## Release 080: E-SIM and the remaining checks of the 077 plan
+
+- `esim077.py`: estimand E-SIM, the runs of `PREREG_review_077.md` against `sim_predictions/review077_summary.csv`
+  (levels, effects, release-on-timeout safety); reuses `predict_check.check` with the plan's run-to-scenario map.
+- `claims_check.py`: L2-1 (from `late/late_attribution.json`), X-Q0, X-MCU, X-AUTH in Part 1.
+- Tests: `test_release080.py` (E1-E3).
+

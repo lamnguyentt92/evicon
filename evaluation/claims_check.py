@@ -100,6 +100,52 @@ def hypotheses(report: Path) -> list:
     return rows
 
 
+def checks_077(report: Path) -> list:
+    """Release 080: the hypotheses of PREREG_review_077.md that pairs_report.py does not decide, with the plan's rules:
+    L2-1 from late_attribution.py (frozen) on run L2: no late effect from a resend sent after the intent's validity in
+    any VALID K2/EVICON cell; X-Q0 (qos-dup: commands delivered twice or more > 0 at QoS 1 and = 0 at QoS 0); X-MCU (the
+    emulated MCU's measured contract is {D_h, Q_A, F}, K3); X-AUTH (cases A1-A13 all PASS). A check without data in the
+    report is left out."""
+    rows = []
+    la = load(report / "late" / "late_attribution.json")
+    l2 = [r for r in (la or []) if isinstance(r, dict) and r.get("campaign") == "expL2-sleepy"]
+    if l2:
+        cells = [c for r in l2 for c in r.get("cells", []) if c.get("contract") == "K2" and c.get("policy") == "EVICON"]
+        after = sum(int(c.get("late_resend", 0)) - int(c.get("late_resend_sent_in_validity", 0)) for c in cells)
+        bad = sum(1 for c in cells if int(c.get("late_resend", 0)) - int(c.get("late_resend_sent_in_validity", 0)) > 0)
+        late = sum(int(c.get("late_effects", 0)) for c in cells)
+        first = sum(int(c.get("late_first_send", 0)) for c in cells)
+        rows.append({"plan": "PREREG_review_077", "id": "L2-1", "test": "late_attribution",
+                     "verdict": ("MET" if bad == 0 else "NOT MET") if cells else "NOT RUN",
+                     "estimate": f"{bad} of {len(cells)} cells with a late effect from a resend sent after the validity ({after}); "
+                                 f"late effects {late}: first send {first}, resend sent within the validity {late - first - after}",
+                     "p_holm": None})
+    q = load(report / "qos_dup" / "qos_dup_check.json")
+    if q:
+        by = {r.get("qos"): r for r in q.get("results", [])}
+        d1 = (by.get(1) or {}).get("commands_delivered_twice_or_more")
+        d0 = (by.get(0) or {}).get("commands_delivered_twice_or_more")
+        ok = d1 is not None and d0 is not None and d1 > 0 and d0 == 0
+        rows.append({"plan": "PREREG_review_077", "id": "X-Q0", "test": "check", "verdict": "PASS" if ok else "FAIL",
+                     "estimate": f"QoS 1: {d1} of {(by.get(1) or {}).get('commands')} commands delivered twice or more; QoS 0: {d0}",
+                     "p_holm": None})
+    m = load(report / "mcu" / "measure.json")
+    if m:
+        res = [r for r in m.get("results", []) if r.get("config") == "zephyr-mqtt-mcu"]
+        caps = sorted(res[0].get("capabilities", [])) if res else []
+        ok = bool(res) and caps == sorted(["D_h", "Q_A", "F"]) and res[0].get("level") == "K3"
+        rows.append({"plan": "PREREG_review_077", "id": "X-MCU", "test": "check", "verdict": "PASS" if ok else "FAIL",
+                     "estimate": f"zephyr-mqtt-mcu: {caps} ({res[0].get('level') if res else '-'})", "p_holm": None})
+    a = load(report / "auth" / "auth.json")
+    if a:
+        cases = a.get("cases", [])
+        npass = sum(1 for c in cases if c.get("result") == "PASS")
+        ok = a.get("verdict") == "PASS" and len(cases) == 13 and npass == 13
+        rows.append({"plan": "PREREG_review_077", "id": "X-AUTH", "test": "check", "verdict": "PASS" if ok else "FAIL",
+                     "estimate": f"{npass} of {len(cases)} cases PASS", "p_holm": None})
+    return rows
+
+
 def claim_safety(report: Path) -> dict:
     s = load(report / "safety" / "safety.json")
     if not s:
@@ -204,7 +250,7 @@ def main(argv=None):
     ap.add_argument("--report", required=True)
     a = ap.parse_args(argv)
     report = Path(a.report)
-    hyp = hypotheses(report)
+    hyp = hypotheses(report) + checks_077(report)
     claims = [claim_safety(report), claim_t3(report), claim_contracts(report), claim_simulator(report), claim_fidelity(report),
               claim_reboot(report)]
     out = report / "claims"

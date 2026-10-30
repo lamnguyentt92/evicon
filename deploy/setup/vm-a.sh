@@ -2,7 +2,7 @@
 # VM-A (authorities; Temporal activity worker; DBOS app). Run as root on VM-A, or from VM-C with setup_all.sh.
 . "$(dirname "$0")/common.sh"
 need_root
-log "== VM-A setup (EviCon 079)"
+log "== VM-A setup (EviCon 080)"
 apt_install python3 python3-pip libsqlite3-0 iproute2 tar ca-certificates
 time_sync
 evicon_dirs

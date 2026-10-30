@@ -1,5 +1,20 @@
 # Changelog
 
+## 080 — 2026-10-30
+
+The last estimand and checks of `PREREG_review_077.md` in the report. No change to the runtime, the runners, the
+gateways, the firmware, the plans or any file a plan freezes; the runs of the plan are made with release 078.
+
+- **E-SIM** (`evaluation/esim077.py`): the runs Rm, Rz, O, K2, V, WAN, RTq and RTd against the simulator prediction of
+  the plan's section 1(g) (`sim_predictions/review077_summary.csv`): levels, effects with `predict_check.py`'s agreement
+  rules, and the release-on-timeout runs' safety violations per episode. An estimand: the scoring of the simulator claim
+  is unchanged. `report` runs it on the earliest complete run of each config (`report/esim077/ESIM077.md`).
+- **The plan's remaining verdicts in the claims check** (`claims_check.py`): L2-1 by the plan's rule on the output of the
+  frozen `late_attribution.py` (no late effect from a resend sent after the intent's validity in any K2/EVICON cell of
+  run L2), X-Q0 (qos-dup), X-MCU (the emulated MCU's measured contract, now copied into `report/mcu/measure.json`) and
+  X-AUTH (cases A1-A13).
+- Tests: `evaluation/test_release080.py` (E1-E3).
+
 ## 079 — 2026-10-29
 
 The report's safety total and the archive's completeness. No change to the runtime, the runners, the gateways, the
