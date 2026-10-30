@@ -1,5 +1,27 @@
 # Changelog
 
+## 081 — 2026-10-30
+
+Theorem 3's check without the practice baselines, and the 077 plan's rule for K-1, K-2 in the paper tables. No change
+to the runtime, the runners, the gateways, the firmware, the plans or any file a plan freezes; the runs of
+`PREREG_review_077.md` are made with release 078.
+
+- **Theorem 3 without the practice baselines** (`evaluation/t3_attribution.py`, `claims_check.py`, `paper_tables.py`).
+  The cells of RELEASE_ON_TIMEOUT and RELEASE_ON_READ release a request without evidence of non-occurrence by design
+  (the plan's detection rules RT-1 to RT-3, RR-1, RR-2), so they are outside the theorem's premise, as `safety_total.py`
+  already treats them (079). They were counted as counterexamples: `T3.md` said "Prediction FAILS" for the five RT and
+  RR runs, the claim T3 read NOT SUPPORTED and `\evTThreeCounterexamples` was 168. They are now listed apart, like the
+  negative controls, with their own totals (`baseline_total`; `\evTThreeBaselineReopen`, `\evTThreeBaselineRuns`); a
+  guarded counterexample is still reported and still fails the claim.
+- **K-1, K-2 by the plan's rule** (`paper_tables.py`): with K-1, K-2 not both MET, the plan has the paper report the
+  replication instead of experiment A's K2 numbers, so the K2 rows of `tab_expA.tex` and the K2 points of
+  `fig_expA_effects.pdf` are the plan-077 run's (K-1, K-2), and the 072 K2 replication's macros are left out.
+- `CITATION.cff`: version 081.
+- `conformance/tests/test_mqtt_owner_gateway_ext077.py` (test only): at QoS 1 the cut test waits up to 12 s for the
+  broker's re-sent copy instead of a fixed 4 s (a loaded host reconnects later; it missed once while a report ran on
+  the same machine). The gateway and every frozen file are unchanged.
+- Tests: `evaluation/test_release081.py` (F1-F3).
+
 ## 080 — 2026-10-30
 
 The last estimand and checks of `PREREG_review_077.md` in the report. No change to the runtime, the runners, the

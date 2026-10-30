@@ -182,7 +182,15 @@ class CutAgainstBroker(unittest.TestCase):
             time.sleep(0.5)
             self.assertFalse(gw.link.describe()["up"])
             gw.set_online(True)
-            time.sleep(4.0)  # paho reconnects after 1-2 s and, at QoS 1, re-sends the unacknowledged command
+            # paho reconnects after 1-2 s and, at QoS 1, re-sends the unacknowledged command. Wait at least 4 s (the
+            # at-most-once check needs the full wait); 081: at QoS 1 wait up to 12 s for the re-sent copy, as a loaded
+            # host reconnects later (a fixed 4 s missed it once while a report ran on the same machine)
+            t0, limit = time.monotonic(), (12.0 if binding == "qos1" else 4.0)
+            while True:
+                waited = time.monotonic() - t0
+                if waited >= limit or (waited >= 4.0 and fw.effects.get("c2", 0) >= 2):
+                    break
+                time.sleep(0.2)
             return {"qos": gw.a.qos_cmd, "effects": dict(fw.effects), "cuts": gw.link.describe()["cuts"]}
         finally:
             fw.close()

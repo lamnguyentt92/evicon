@@ -9,7 +9,9 @@ Part 2 checks the cross-cutting claims, each against the file it rests on:
   safety       no safety violation in any guarded testbed cell (safety/safety.json), with the exact 95 %
                upper bound; every negative-control cell detected a violation
   T3           no capacity re-opening after APPLIED-only evidence or no evidence, and no ADMITTED after a
-               re-test on APPLIED-only evidence, in any run except the NEG_* negative controls (t3/t3.json)
+               re-test on APPLIED-only evidence, in any run except the NEG_* negative controls and (release 081)
+               the practice baselines RELEASE_ON_TIMEOUT, RELEASE_ON_READ, which release without evidence by
+               design and are counted apart (t3/t3.json)
   contracts    the same system offers different measured contracts for different uses of its API
                (contract_map.csv: systems with more than one measured level)
   simulator    every scored effect has the sign the simulator predicted (predict/predict.json)
@@ -34,6 +36,8 @@ from pathlib import Path
 
 # fidelity pairs whose contracts are equal (the other pairs differ in capabilities or fault model)
 MATCHED = {("MINIO_PLAIN", "K0"), ("ZEPHYR_PLAIN", "K0"), ("ZEPHYR_PLAIN_DIRECT", "K0")}
+# release 081: the practice baselines of PREREG_review_077 (= safety_total.BASELINES, t3_attribution.BASELINES)
+T3_BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")
 
 
 def _g(x) -> str:
@@ -163,19 +167,25 @@ def claim_t3(report: Path) -> dict:
     t = load(report / "t3" / "t3.json")
     if not t:
         return {"id": "T3", "status": "NO DATA"}
-    bad, retested = [], 0
+    bad, retested, base_runs, base_open = [], 0, set(), 0
     for run, r in t.items():
         for grp, g in (r.get("groups") or {}).items():
             if grp.startswith("NEG_"):
                 continue
             cap = g.get("capacity") or {}
+            if grp.split("/")[-1] in T3_BASELINES:  # 081: released without evidence by design (rules RT, RR of plan 077)
+                base_runs.add(run)
+                base_open += cap.get("APPLIED_ONLY", 0) + cap.get("NONE", 0)
+                continue
             adm = (g.get("retested_after_applied") or {}).get("ADMITTED", 0)
             retested += sum((g.get("retested_after_applied") or {}).values())
             if cap.get("APPLIED_ONLY", 0) or cap.get("NONE", 0) or adm:
                 bad.append(f"{run} {grp}: {cap} admitted after APPLIED {adm}")
+    base = (f"; practice baselines left out ({', '.join(T3_BASELINES)}, unsafe by design: {base_open} re-openings without "
+            f"evidence of non-occurrence in {len(base_runs)} runs)") if base_runs else ""
     return {"id": "T3", "status": "SUPPORTED" if not bad else "NOT SUPPORTED",
             "evidence": (f"{len(t)} runs, {retested} re-tests after APPLIED-only evidence, 0 re-openings without evidence of non-occurrence"
-                         if not bad else "; ".join(bad[:5])), "file": "t3/t3.json"}
+                         if not bad else "; ".join(bad[:5])) + base, "file": "t3/t3.json"}
 
 
 def claim_contracts(report: Path) -> dict:

@@ -160,6 +160,22 @@ def contract_map(report: Path, out: Path, N: dict) -> str:
             + (f" (superseded by a later measurement of the same firmware, left out: {', '.join(dropped)})" if dropped else ""))
 
 
+def k2_077(report: Path) -> dict:
+    """Release 081, the rule of PREREG_review_077.md for K-1, K-2: MET -> experiment A's K2 result holds on the
+    release-077 runtime; NOT MET -> the paper reports the replication instead of experiment A's K2 numbers.
+    Returns {policy: hypothesis} when both are decided and not both MET (the replication replaces A's K2 rows),
+    else {}."""
+    src = report / "pairs" / "PREREG_review_077" / "results.json"
+    if not src.exists():
+        return {}
+    hs = {h["id"]: h for h in json.loads(src.read_text()).get("hypotheses", []) if h.get("id") in ("K-1", "K-2")}
+    if set(hs) != {"K-1", "K-2"} or not all(h.get("n") for h in hs.values()):
+        return {}
+    if all(h.get("verdict") == "MET" for h in hs.values()):
+        return {}
+    return {h["spec"]["policy"]: h for h in hs.values()}
+
+
 def expA(report: Path, out: Path, N: dict) -> str:
     src = report / "confirm_expA" / "results.json"
     if not src.exists():
@@ -196,7 +212,14 @@ def expA(report: Path, out: Path, N: dict) -> str:
         line += f" & {ci(rp['H-A1c'], 2)}, {ok(rp['H-A1c']['pass'])}"
     L.append(line + " \\\\")
     N["evAControlPP"] = num(c["effect_pp"], 2)
+    k2 = k2_077(report)
     for pol, name in (("EVICON", "EviCon"), ("RES_PERIODIC", "periodic reconciliation")):
+        if k2:  # release 081: PREREG_review_077 K-1/K-2 not all MET -> the replication replaces experiment A's K2 numbers
+            h = k2[pol]
+            L.append(f"{tex(h['id'])} ({name}, release-077 runtime, $W$ 6) & K2 $\\to$ K3F, pp & {signed(h['mean'], 2)} "
+                     f"[{signed(h['t95'][0], 2)}, {signed(h['t95'][1], 2)}], {'equivalent' if h['verdict'] == 'MET' else 'not equivalent'}"
+                     + (" & --" if rp else "") + " \\\\")
+            continue
         v = H["H-A2"]["policies"][pol]
         rep_col = ""
         if rp2:
@@ -236,12 +259,13 @@ def expA(report: Path, out: Path, N: dict) -> str:
     if fe["RES_PERIODIC"]:
         N["evFenceRatio"] = f"{fe['EVICON'] / fe['RES_PERIODIC']:.1f}"
     N["evReplicates"] = ("yes" if rp["replicates"] else "no") if rp else "--"
-    if rp2:
+    if rp2 and not k2:  # 081: superseded by plan 077's K2 run when the plan's rule replaces A's K2 numbers
         N["evKTwoReplicates"] = "yes" if rp2["replicates"] else "no"
         fz = rp2.get("fences", {})
         if fz:
             N["evKTwoRepFencesEvicon"] = str(fz.get("EVICON", "--"))
-    return f"tab_expA.tex: preregistered run{' + replication' if rp else ''}{' + K2 replication' if rp2 else ''}"
+    return (f"tab_expA.tex: preregistered run{' + replication' if rp else ''}{' + K2 replication' if rp2 and not k2 else ''}"
+            + (" (K2 rows: PREREG_review_077 K-1, K-2, the plan's rule)" if k2 else ""))
 
 
 def _rq4_rows(report: Path) -> list:
@@ -509,7 +533,12 @@ def t3(report: Path, out: Path, N: dict) -> str:
     N["evTThreeRetested"], N["evTThreeCounterexamples"] = str(retest_block), str(counter)
     N["evTThreeReopenStopped"] = str(sum(v["capacity_total"].get("STOPPED", 0) for v in r.values()))
     N["evTThreeRuns"] = str(len(r))
-    return f"T3 numbers: {retest_block} re-tested blocks, {counter} counterexamples over {len(r)} runs"
+    # release 081: the practice baselines (release without evidence by design) are outside the totals above
+    base = sum(v.get("baseline_total", {}).get("APPLIED_ONLY", 0) + v.get("baseline_total", {}).get("NONE", 0) for v in r.values())
+    N["evTThreeBaselineReopen"] = str(base)
+    N["evTThreeBaselineRuns"] = str(sum(1 for v in r.values() if v.get("baseline_groups")))
+    return (f"T3 numbers: {retest_block} re-tested blocks, {counter} counterexamples over {len(r)} runs"
+            + (f"; practice baselines apart: {base} re-openings without evidence" if base else ""))
 
 
 # ---------------------------------------------------------------------------------- release 073
@@ -692,6 +721,10 @@ def fig_expA(report: Path, out: Path) -> str:
              ("control, K0$\\to$K0F", H["H-A1c"], rep and rep["H-A1c"]),
              ("EviCon, K2$\\to$K3F", H["H-A2"]["policies"]["EVICON"], None),
              ("periodic, K2$\\to$K3F", H["H-A2"]["policies"]["RES_PERIODIC"], None)]
+    k2 = k2_077(report)
+    if k2:  # release 081: the plan-077 rule for K-1, K-2 (the replication replaces experiment A's K2 numbers)
+        items[3:] = [(f"{label} ({k2[pol]['id']})", {"effect_pp": k2[pol]["mean"], "ci95_pp": k2[pol]["t95"]}, None)
+                     for label, pol in (("EviCon, K2$\\to$K3F", "EVICON"), ("periodic, K2$\\to$K3F", "RES_PERIODIC"))]
     fig, ax = plt.subplots(figsize=(5.2, 2.0))
     ys = list(range(len(items)))[::-1]
     for y, (label, o, p) in zip(ys, items):

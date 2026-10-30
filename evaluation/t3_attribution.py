@@ -35,6 +35,13 @@ contract on purpose, NEGCTL_072.md) are reported in their own group but left out
 the prediction: their evidence is false by construction, so they test the checker, not Theorem 3 (072
 counted them, 19 re-tests in the N1 run).
 
+Practice baselines (release 081): cells of the policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ
+(PREREG_review_077.md, the same set as safety_total.BASELINES) are listed in their own groups and left out
+of every total and of the prediction too: they release a request without evidence of non-occurrence by
+design, so they are outside the theorem's premise (the guard's belief), and their re-openings without
+evidence are what the plan's rules RT-1 to RT-3 and RR-1, RR-2 detect. Their totals are reported apart
+(baseline_total, baseline_retested_total).
+
 Reads only. Writes T3.md and t3.json into --out.
 
     python3 evaluation/t3_attribution.py --out <dir> <run dir> [<run dir> ...]
@@ -48,6 +55,12 @@ from collections import defaultdict
 from pathlib import Path
 
 WINDOW = ("OUTSTANDING_BUDGET_EXHAUSTED", "CONFIGURATION_BUDGET_EXHAUSTED")
+BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")  # release 081: = safety_total.BASELINES (unsafe by design)
+
+
+def is_baseline(group: str) -> bool:
+    """'<contract>/<policy>' of a practice baseline that releases without evidence."""
+    return group.split("/")[-1] in BASELINES
 RELEVANT = ('"DECISION_RECORDED"', '"EVIDENCE_COMMITTED"', '"OUTBOX_RECEIPT_COMMITTED"', '"BARRIER_ANCHOR_COMMITTED"')
 
 
@@ -134,43 +147,64 @@ def scan(runs: list) -> dict:
         out[key] = {"groups": {k: {"cells": v["cells"], "capacity": dict(v["capacity"]), "window": dict(v["window"]),
                                    "retested_after_applied": dict(v["retested_after_applied"]), "never_reopened": v["never_reopened"]} for k, v in sorted(groups.items())},
                     "counterexamples": examples}
-        cap, ret = defaultdict(int), defaultdict(int)
+        cap, ret, bcap, bret = defaultdict(int), defaultdict(int), defaultdict(int), defaultdict(int)
         out[key]["excluded_groups"] = sorted(g for g in groups if g.split("/")[0].startswith("NEG_"))
+        out[key]["baseline_groups"] = sorted(g for g in groups if is_baseline(g) and g not in out[key]["excluded_groups"])
         for g, v in groups.items():
             if g in out[key]["excluded_groups"]:
                 continue  # 073: negative controls are not evidence about Theorem 3
+            c_acc, r_acc = (bcap, bret) if g in out[key]["baseline_groups"] else (cap, ret)  # 081: baselines apart
             for c, n in v["capacity"].items():
-                cap[c] += n
+                c_acc[c] += n
             for c, n in v["retested_after_applied"].items():
-                ret[c] += n
+                r_acc[c] += n
         out[key]["capacity_total"] = dict(cap)
         out[key]["retested_total"] = dict(ret)
+        out[key]["baseline_total"] = dict(bcap)
+        out[key]["baseline_retested_total"] = dict(bret)
         out[key]["prediction_holds"] = cap.get("APPLIED_ONLY", 0) == 0 and cap.get("NONE", 0) == 0 and ret.get("ADMITTED", 0) == 0
-        neg = [x for x in examples if x.split()[0].split("/")[1].startswith("NEG_")]
-        out[key]["counterexamples"] = [x for x in examples if x not in neg]
+
+        def grp(x):  # "ep0/K0/EVICON file cid: kind" -> "K0/EVICON"
+            return "/".join(x.split()[0].split("/")[1:3])
+        neg = [x for x in examples if grp(x).startswith("NEG_")]
+        base = [x for x in examples if x not in neg and is_baseline(grp(x))]
+        out[key]["counterexamples"] = [x for x in examples if x not in neg and x not in base]
         out[key]["negative_control_examples"] = neg
+        out[key]["baseline_examples"] = base
     return out
 
 
 def markdown(res: dict) -> str:
     L = ["# Theorem 3: evidence that re-opens a blocked request", "",
          "Capacity re-openings: ADMITTED after a BLOCK of the same command, split by the evidence committed in the domain in between. "
-         "Theorem 3 predicts APPLIED_ONLY = NONE = 0. Window re-openings (after a window DEFER) are the contrast.", ""]
+         "Theorem 3 predicts APPLIED_ONLY = NONE = 0. Window re-openings (after a window DEFER) are the contrast. "
+         "Negative controls (NEG_*) and the practice baselines that release without evidence (" + ", ".join(BASELINES) + "; "
+         "unsafe by design, detected by the rules RT and RR of PREREG_review_077) are listed apart and left out of the totals.", ""]
     for run, r in res.items():
         tot = r["capacity_total"]
         rt = r["retested_total"]
         excl = r.get("excluded_groups", [])
-        L += [f"## {run}", "", f"Prediction {'holds' if r['prediction_holds'] else '**FAILS**'}"
-              + (f" (negative controls {', '.join(excl)} excluded from the totals)" if excl else "") + ": capacity re-openings "
-              f"STOPPED {tot.get('STOPPED', 0)}, APPLIED_ONLY {tot.get('APPLIED_ONLY', 0)}, NONE {tot.get('NONE', 0)}; "
-              f"verdicts after APPLIED-only evidence: BLOCK {rt.get('BLOCK', 0)}, ADMITTED {rt.get('ADMITTED', 0)}.", "",
-              "| contract/policy | cells | capacity: STOPPED | APPLIED_ONLY | NONE | never re-opened | re-tested after APPLIED: BLOCK | ADMITTED "
+        base = r.get("baseline_groups", [])
+        left = ([f"negative controls {', '.join(excl)}"] if excl else []) + ([f"practice baselines {', '.join(base)}"] if base else [])
+        L += [f"## {run}", ""]
+        if base and len(base) == len(set(r["groups"]) - set(excl)):
+            bt, bq = r.get("baseline_total", {}), r.get("baseline_retested_total", {})
+            L.append(f"Practice baselines only (no guarded cell; outside the theorem's premise): capacity re-openings STOPPED "
+                     f"{bt.get('STOPPED', 0)}, APPLIED_ONLY {bt.get('APPLIED_ONLY', 0)}, NONE {bt.get('NONE', 0)}; verdicts after "
+                     f"APPLIED-only evidence: BLOCK {bq.get('BLOCK', 0)}, ADMITTED {bq.get('ADMITTED', 0)}.")
+        else:
+            L.append(f"Prediction {'holds' if r['prediction_holds'] else '**FAILS**'}"
+                     + (f" ({'; '.join(left)} excluded from the totals)" if left else "") + ": capacity re-openings "
+                     f"STOPPED {tot.get('STOPPED', 0)}, APPLIED_ONLY {tot.get('APPLIED_ONLY', 0)}, NONE {tot.get('NONE', 0)}; "
+                     f"verdicts after APPLIED-only evidence: BLOCK {rt.get('BLOCK', 0)}, ADMITTED {rt.get('ADMITTED', 0)}.")
+        L += ["", "| contract/policy | cells | capacity: STOPPED | APPLIED_ONLY | NONE | never re-opened | re-tested after APPLIED: BLOCK | ADMITTED "
               "| window: STOPPED | APPLIED_ONLY | NONE |",
               "|---|---|---|---|---|---|---|---|---|---|---|"]
         for g, v in r["groups"].items():
             c, w = v["capacity"], v["window"]
             rr = v["retested_after_applied"]
-            L.append(f"| {g}{' (negative control, excluded)' if g in excl else ''} | {v['cells']} | {c.get('STOPPED', 0)} | {c.get('APPLIED_ONLY', 0)} | {c.get('NONE', 0)} | {v['never_reopened']} | "
+            tag = " (negative control, excluded)" if g in excl else (" (practice baseline, excluded)" if g in base else "")
+            L.append(f"| {g}{tag} | {v['cells']} | {c.get('STOPPED', 0)} | {c.get('APPLIED_ONLY', 0)} | {c.get('NONE', 0)} | {v['never_reopened']} | "
                      f"{rr.get('BLOCK', 0)} | {rr.get('ADMITTED', 0)} | {w.get('STOPPED', 0)} | {w.get('APPLIED_ONLY', 0)} | {w.get('NONE', 0)} |")
         if r["counterexamples"]:
             L += ["", "Counterexamples (first 50):", ""] + [f"- {x}" for x in r["counterexamples"]]
@@ -191,6 +225,10 @@ def main(argv=None):
     for run, r in res.items():
         t = r["capacity_total"]
         rt = r["retested_total"]
+        if r.get("baseline_groups") and len(r["baseline_groups"]) == len(set(r["groups"]) - set(r.get("excluded_groups", []))):
+            b = r["baseline_total"]
+            print(f"{run}: practice baselines only (excluded): capacity re-openings APPLIED_ONLY {b.get('APPLIED_ONLY', 0)}, NONE {b.get('NONE', 0)}")
+            continue
         print(f"{run}: capacity re-openings STOPPED {t.get('STOPPED', 0)}, APPLIED_ONLY {t.get('APPLIED_ONLY', 0)}, NONE {t.get('NONE', 0)}; "
               f"after APPLIED-only evidence BLOCK {rt.get('BLOCK', 0)}, ADMITTED {rt.get('ADMITTED', 0)} "
               f"-> prediction {'holds' if r['prediction_holds'] else 'FAILS'}")

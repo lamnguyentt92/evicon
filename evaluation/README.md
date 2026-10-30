@@ -283,3 +283,13 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
 - `claims_check.py`: L2-1 (from `late/late_attribution.json`), X-Q0, X-MCU, X-AUTH in Part 1.
 - Tests: `test_release080.py` (E1-E3).
 
+## Release 081: Theorem 3 without the practice baselines; K-1, K-2 by the plan's rule
+
+- `t3_attribution.py`, `claims_check.py` (claim T3), `paper_tables.py` (T3 macros): the cells of RELEASE_ON_TIMEOUT and
+  RELEASE_ON_READ (unsafe by design, the same set as `safety_total.BASELINES`) are listed apart and left out of the
+  totals and of the prediction, with their own totals (`baseline_total`).
+- `paper_tables.py`: K-1, K-2 of `PREREG_review_077.md` not both MET -> the K2 rows of `tab_expA.tex` and the K2 points
+  of `fig_expA_effects.pdf` come from the plan-077 run (the plan's rule: the replication replaces experiment A's K2
+  numbers).
+- Tests: `test_release081.py` (F1-F3).
+
