@@ -113,7 +113,8 @@ func TestNotFoundTerminalOnlyAfterOwnerExpiry(t *testing.T) {
 	if onlyT.BackwardEvidence() || onlyT.Level() != K0 {
 		t.Fatalf("T alone is not backward evidence: level %s", onlyT.Level())
 	}
-	tq := EvidenceContract{SchemaVersion: 1, ID: "tq", Source: SourceHypothesis, Capabilities: []EvidenceCapability{CapDedup, CapQueryApplied, CapExpiry}, DedupHorizonMS: UnboundedHorizonMS, ExpiryMS: 5000, ClockSkewMS: 200}
+	tq := EvidenceContract{SchemaVersion: 1, ID: "tq", Source: SourceHypothesis, Capabilities: []EvidenceCapability{CapDedup, CapQueryApplied, CapExpiry}, DedupHorizonMS: UnboundedHorizonMS, ExpiryMS: 5000, ClockSkewMS: 200,
+		RecordRetentionMS: UnboundedRetentionMS} // release 084: ER needs r = infinity
 	if tq.Admit(OutcomeNotFound, ChannelQuery, 5100).Admissible {
 		t.Fatal("must wait tau+epsilon")
 	}
@@ -125,8 +126,9 @@ func TestNotFoundTerminalOnlyAfterOwnerExpiry(t *testing.T) {
 	}
 	finite := tq
 	finite.DedupHorizonMS = 1000
+	finite.RecordRetentionMS = 1000 // release 084: the record, not the suppression horizon, must be kept
 	if finite.Admit(OutcomeNotFound, ChannelQuery, 1<<40).Admissible {
-		t.Fatal("a forgotten (finite-horizon) record could make NOT_FOUND lie")
+		t.Fatal("a forgotten (finite-retention) record could make NOT_FOUND lie")
 	}
 	broker := EvidenceContract{SchemaVersion: 1, ID: "b", Source: SourceHypothesis}
 	if broker.Admit(OutcomeExpired, ChannelExpiryClock, 1<<40).Admissible || broker.NoFutureEffect(1<<40) {

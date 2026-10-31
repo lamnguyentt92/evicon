@@ -434,6 +434,116 @@ def extra083(report: Path, out: Path, N: dict) -> str:
     return ", ".join(made) or "tab_extra083_*.tex: no levels"
 
 
+EXTRA084 = "PREREG_extra_084"
+
+
+def camel(s: str) -> str:
+    """'eoo_unresolved_at_end' -> 'EooUnresolvedAtEnd' (letters only)."""
+    return macro_id("".join(w[:1].upper() + w[1:] for w in re.split(r"[^A-Za-z0-9]+", str(s)) if w))
+
+
+def extra084(report: Path, out: Path, N: dict) -> str:
+    """Release 084: the results of PREREG_extra_084.md (levels of the (a) and (c) runs and their reference runs, from pairs_ext083.py),
+    the estimands E-FI / E-PF (report/fi084/fi084.json) and the Level-2 analyses (report/l2_084/l2_084.json): tables and macros. The
+    hypotheses' macros come from pairs() (\\evextraeightyfour<ID>Mean, ...Verdict)."""
+    made = []
+    src = report / "pairs" / EXTRA084 / "results.json"
+    if src.exists():
+        lv = (json.loads(src.read_text()).get("ext_levels") or {})
+        keys = [k for k in ("FIs6", "S", "FIsi", "Si", "PFz6", "C2", "PFzi", "Rz", "PFm6", "C", "PFmi", "Rm") if k in lv]
+        cols = (("clean_pp", "Clean \\%", 1), ("confirmed_pp", "Confirmed \\%", 1), ("violations", "Violations / ep.", 1),
+                ("fences", "Fences / ep.", 1), ("stops", "Stops / ep.", 1), ("queries", "Queries / ep.", 1), ("unresolved_at_end", "Unresolved at end", 1))
+        L = [HEADER.format(src=f"report/pairs/{EXTRA084}/results.json"), "\\begin{tabular}{ll" + "r" * len(cols) + "}", "\\toprule",
+             "Run & Contract/policy & " + " & ".join(c[1] for c in cols) + " \\\\", "\\midrule"]
+        rel = {"FIs6", "FIsi", "PFz6", "PFzi", "PFm6", "PFmi"}
+        want = {"S": ("K0F/EVICON", "K0S/EVICON"), "Si": ("K0F/EVICON", "K0S/EVICON"), "C2": ("ZEPHYR_CUTOFF/EVICON",), "Rz": ("ZEPHYR_CUTOFF/EVICON",),
+                "C": ("MINIO_COND/EVICON",), "Rm": ("MINIO_COND/EVICON",)}
+        for k in keys:
+            for g, v in lv[k].items():
+                if k not in rel and g not in want.get(k, ()):
+                    continue
+                L.append(f"{tex(k)} & {tex(g)} & " + " & ".join("--" if v.get(c[0]) is None else num(v[c[0]], c[2]) for c in cols) + " \\\\")
+                if k in rel and v.get("clean_pp") is not None:
+                    ct, pol = g.split("/", 1)
+                    N[f"evX{macro_id(k + ct + pol)}Clean"] = num(v["clean_pp"])
+        L += ["\\bottomrule", "\\end{tabular}", ""]
+        (out / "tab_extra084.tex").write_text("\n".join(L))
+        made.append("tab_extra084.tex")
+    fi = report / "fi084" / "fi084.json"
+    if fi.exists():
+        for g in json.loads(fi.read_text()).get("groups", []):
+            mid = macro_id(g["run"] + g["contract"] + g["policy"])
+            for k, name in (("aborted_owner_uncertain", "Aborted"), ("per_identity", "PerIdentity"), ("terminal_answers_per_fence", "TermPerFence"),
+                            ("orphans_listed", "Orphans"), ("owner_calls", "OwnerCalls"), ("fences", "Fences"), ("unresolved_at_end", "Unresolved"),
+                            ("mean_time_to_terminal_s", "TimeToTerminal")):
+                if isinstance(g.get(k), (int, float)):
+                    N[f"evFI{mid}{name}"] = num(g[k], 2 if k in ("terminal_answers_per_fence", "mean_time_to_terminal_s") else 1)
+        made.append("E-FI/E-PF macros")
+    l2 = report / "l2_084"
+    if (l2 / "l2_084.json").exists():
+        for k, v in json.loads((l2 / "l2_084.json").read_text()).items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                N[f"evL{camel(k)}"] = num(v, 0) if isinstance(v, int) else num(v, 1)
+        adm = json.loads((l2 / "admission" / "admission.json").read_text()) if (l2 / "admission" / "admission.json").exists() else {"groups": []}
+        if adm["groups"]:
+            L = [HEADER.format(src="report/l2_084/admission/admission.json"), "\\begin{tabular}{lllrrrrr}", "\\toprule",
+                 "Campaign & Contract & Policy & Offered & Admitted & Not admitted & Admitted after deadline & Deadline misses \\\\", "\\midrule"]
+            for g in adm["groups"]:
+                aad = g["admitted_after_deadline"]
+                L.append(f"{tex(g['run'].split('@')[0])} & {tex(g['contract'])} & {tex(POLICY.get(g['policy'], g['policy']))} & {g['offered']} & {g['admitted']} & "
+                         f"{g['not_admitted']} & {aad if isinstance(aad, int) else '--'} & {g['deadline_misses']} \\\\")
+            L += ["\\bottomrule", "\\end{tabular}", ""]
+            (out / "tab_l2_admission.tex").write_text("\n".join(L))
+            made.append("tab_l2_admission.tex")
+        cf = json.loads((l2 / "r5cf" / "r5cf.json").read_text()) if (l2 / "r5cf" / "r5cf.json").exists() else {"groups": []}
+        if cf["groups"]:
+            L = [HEADER.format(src="report/l2_084/r5cf/r5cf.json"), "\\begin{tabular}{lllrrrrr}", "\\toprule",
+                 "Campaign & Contract & Policy & Aborted fences & Listed terminal & Unlisted, sealable & Listed UNCERTAIN & Distinct resolvable \\\\", "\\midrule"]
+            for g in cf["groups"]:
+                L.append(f"{tex(g['run'].split('@')[0])} & {tex(g['contract'])} & {tex(POLICY.get(g['policy'], g['policy']))} & {g['aborted_owner_uncertain']} & "
+                         f"{g['listed_terminal_pending']} & {g['unlisted_sealable']} & {g['listed_uncertain']} & {g['distinct_resolvable']} \\\\")
+            L += ["\\bottomrule", "\\end{tabular}", ""]
+            (out / "tab_l2_r5cf.tex").write_text("\n".join(L))
+            made.append("tab_l2_r5cf.tex")
+        ln = json.loads((l2 / "latency_n" / "latency_n.json").read_text()) if (l2 / "latency_n" / "latency_n.json").exists() else {"rows": []}
+        if ln.get("rows"):
+            L = [HEADER.format(src="report/l2_084/latency_n/latency_n.json"), "\\begin{tabular}{lllrrr}", "\\toprule",
+                 "Profile & System & Action & $n$ & p50 (ms) & p95 (ms) \\\\", "\\midrule"]
+            for r in ln["rows"]:
+                flag = "$^{\\dagger}$" if r["flag"] else ""
+                L.append(f"{tex(r['profile'])} & {tex(r['system'])} & {tex(r['action'])} & {r['n']}{flag} & {num(r['p50_ms'], 1)} & {num(r['p95_ms'], 1)} \\\\")
+            L += ["\\bottomrule", "\\end{tabular}", "% \\dagger: fewer than 20 samples; p95 is close to the maximum", ""]
+            (out / "tab_l2_latency_n.tex").write_text("\n".join(L))
+            made.append("tab_l2_latency_n.tex")
+        tb = json.loads((l2 / "tb_late" / "tb_late.json").read_text()) if (l2 / "tb_late" / "tb_late.json").exists() else {"late_effects": []}
+        if tb["late_effects"]:
+            L = [HEADER.format(src="report/l2_084/tb_late/tb_late.json"), "\\begin{tabular}{llrrrr}", "\\toprule",
+                 "Campaign & Identity & $t^0$ (s) & $V_i$ (s) & $t^0+e+\\epsilon$ (s) & Effect (s) \\\\", "\\midrule"]
+            for x in tb["late_effects"]:
+                L.append(f"{tex(x['run'].split('@')[0])} & {tex(x['identity'])} & {num(x['created_s']) if x['created_s'] is not None else '--'} & "
+                         f"{num(x['validity_s'])} & {num(x['expiry_bound_s']) if x['expiry_bound_s'] is not None else '--'} & {num(x['effect_s'])} \\\\")
+            L += ["\\bottomrule", "\\end{tabular}", "% times after the request (the client's arrival)", ""]
+            (out / "tab_l2_tb_late.tex").write_text("\n".join(L))
+            made.append("tab_l2_tb_late.tex")
+        sv = json.loads((l2 / "service" / "service.json").read_text()) if (l2 / "service" / "service.json").exists() else {"rows": []}
+        rows = [g for g in sv.get("rows", []) if g.get("n")]
+        if rows:  # review M10: the per-request sum lock + eval + commit (p50/p95/p99) next to the sum of the component medians
+            L = [HEADER.format(src="report/l2_084/service/service.json"), "\\begin{tabular}{lllrrrrr}", "\\toprule",
+                 "Campaign & Contract & Policy & Requests & Sum p50 (ms) & Sum p95 (ms) & Sum p99 (ms) & Sum of medians (ms) \\\\", "\\midrule"]
+            for g in rows:
+                L.append(f"{tex(g['campaign'])} & {tex(g['contract'])} & {tex(POLICY.get(g['policy'], g['policy']))} & {g['n']} & "
+                         f"{num(g['sum_p50_ms'], 2)} & {num(g['sum_p95_ms'], 2)} & {num(g['sum_p99_ms'], 2)} & {num(g['sum_of_medians_ms'], 2)} \\\\")
+                mid = macro_id(g["campaign"] + g["contract"] + g["policy"])
+                for k, name in (("sum_p50_ms", "PFifty"), ("sum_p95_ms", "PNinetyFive"), ("sum_p99_ms", "PNinetyNine"),
+                                ("sum_of_medians_ms", "SumOfMedians")):
+                    N[f"evLsvc{mid}{name}"] = num(g[k], 2)
+            L += ["\\bottomrule", "\\end{tabular}", "% per admitted first-attempt request: lock + evaluation + commit in the authority (nearest-rank percentiles)", ""]
+            (out / "tab_l2_service.tex").write_text("\n".join(L))
+            made.append("tab_l2_service.tex")
+        made.append("Level-2 macros (evL*)")
+    return ", ".join(made) or "tab_extra084.tex, Level-2: skipped (no 084 results)"
+
+
 def admit_late(report: Path, out: Path, N: dict) -> str:
     """Release 083 (analysis A2): the share of admitted requests whose admission came after their deadline, per campaign
     and policy (report/overhead/overhead.json)."""
@@ -827,6 +937,15 @@ def safety(report: Path, out: Path, N: dict) -> str:
         if s.get("upper95_per_schedule") is not None:
             N["evSafetyBoundSchedule"] = num(s["upper95_per_schedule"], 3)
             N["evSafetyBoundSchedulePct"] = num(100 * s["upper95_per_schedule"], 1)
+    pf = s.get("phi1_fault_model")
+    if pf is not None and s.get("cells_with_faults"):  # release 084: Phi1 on the fault model (dagger) and the cells testing Theorem 1
+        fmt = lambda v: f"{int(v):,}".replace(",", "{,}")  # noqa: E731
+        N["evSafetyCellsDagger"] = fmt(pf.get("cells", 0))
+        N["evSafetyCellsTheoremOne"] = fmt(s.get("theorem1_cells_with_faults", 0))
+        for why, n in (pf.get("by_reason") or {}).items():
+            N[f"evSafetyCellsDagger{macro_id(camel(why))}"] = fmt(n)
+        for exp, n in (pf.get("by_experiment") or {}).items():
+            N[f"evSafetyCellsDagger{macro_id(camel(exp))}"] = fmt(n)
     return f"safety macros: {s['verdict'].lower()} ({g.get('cells', 0)} cells, {g.get('admitted', 0)} commands)"
 
 
@@ -1009,7 +1128,7 @@ def main(argv=None):
     done = []
     if (report / "contract_map.csv").exists():
         done.append(contract_map(report, out, N))
-    for step in (expA, cadence, pairs, latency, t3, predict, expC, expC2, expC3, safety, rq4, fence_cost, admit_late, extra083, footprint,
+    for step in (expA, cadence, pairs, latency, t3, predict, expC, expC2, expC3, safety, rq4, fence_cost, admit_late, extra083, extra084, footprint,
                  fig_expA, fig_rq4, fig_phase):
         done.append(step(report, out, N) if step not in (fig_expA, fig_rq4, fig_phase) else step(report, out))
     tl = report / "timeline" / "timeline.pdf"

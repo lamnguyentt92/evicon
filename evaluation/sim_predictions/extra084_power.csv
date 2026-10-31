@@ -1,0 +1,6 @@
+id,family,scenario,from,to,metric,test,margin,n,sim_mean,sim_sd,power
+FI-1,fi-w6,a_s6,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled,at_least,10.0,8,22.22,19.08,0.46
+PF-1,pf-fw,c_fw_w6,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled,equivalent,3.0,8,-0.01,0.09,1.0
+PF-2,pf-fw,c_fw_winf,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled,equivalent,3.0,8,-0.01,0.09,1.0
+PF-3,pf-minio,c_minio_w6,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled,equivalent,3.0,8,-0.0,0.36,1.0
+PF-4,pf-minio,c_minio_winf,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled,equivalent,3.0,8,0.02,0.29,1.0

@@ -479,3 +479,22 @@ func TestEffectAttemptLogged(t *testing.T) {
 		t.Fatalf("want one record of attempt 3, got %q", raw)
 	}
 }
+
+// Release 084: the emulated device answers its queries from its journal, which keeps every record: its contracts with
+// Q_A declare r = infinity, so K3T (the D06 settings) keeps expiry-revealed evidence; a contract without Q_A declares nothing.
+func TestDeviceRetention084(t *testing.T) {
+	k3t := newRig(t, func(c *Config) {
+		c.DedupHorizon = -1
+		c.EnforceExpiry = true
+		c.ExpiryHint = 30 * time.Second
+		c.Query = true
+	})
+	c := k3t.dev.Contract()
+	if c.RecordRetentionMS != contract.UnboundedRetentionMS || !c.ExpiryRevealsStopped() || c.Level() != contract.K3 {
+		t.Fatalf("emulated K3T keeps ER: %+v", c)
+	}
+	k0f := newRig(t, func(c *Config) { c.Fence = true })
+	if c := k0f.dev.Contract(); c.RecordRetentionMS != 0 {
+		t.Fatalf("no query, no retention declaration: %+v", c)
+	}
+}

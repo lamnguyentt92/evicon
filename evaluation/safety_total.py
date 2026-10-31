@@ -29,6 +29,12 @@ one fault window, N_s, and gives the per-schedule bound 1 - 0.05^(1/N_s) next to
 For the negative controls it reports how many cells detected a violation (the harness's sensitivity; every
 cell must); for the cells unsafe by design, how many had a violation (the plans' detection rules decide).
 Late effects (validity, not safety) are reported separately. DEV_LOCAL campaigns are listed, not counted.
+Release 084: among the guarded VALID cells with faults, the cells whose Phi1 (no duplicate below the runtime) rests on the
+fault model rather than on the delivery binding are counted apart (the paper marks them with a dagger): the plain
+firmware's cells at QoS 1 (mode PLAIN of the Zephyr firmware, which executes every delivery, with the command binding
+QoS 1: the 074/075 gateway's only call shape, or binding "qos1"; binding "auto" and "qos0" give QoS 0 to the plain
+firmware), and ThingsBoard's guarded cells (the platform delivers at QoS 1 to a reference device without deduplication).
+The remaining guarded cells with faults test Theorem 1. Per experiment (the campaign's name) and in total.
 
     python3 evaluation/safety_total.py --out <dir> <campaign run dir> ...
 Writes SAFETY.md and safety.json.
@@ -107,6 +113,21 @@ def kind(cfg: dict, contract: str, policy: str, planned: set = None) -> str:
     return "guarded"
 
 
+def phi1_on_fault_model(cfg: dict, contract: str) -> str:
+    """Release 084: why a guarded cell's Phi1 rests on the fault model rather than on the binding ("" = it does not):
+    "plain_firmware_qos1" or "thingsboard"."""
+    ro = cfg.get("real_owner") or {}
+    if ro.get("system") == "thingsboard":
+        return "thingsboard"
+    if ro.get("system") != "zephyr":
+        return ""
+    spec = (ro.get("contracts") or {}).get(contract) or {}
+    if spec.get("mode") != "PLAIN":
+        return ""
+    qos = {"qos0": 0, "qos1": 1, "auto": 0}.get(spec.get("binding"), int(ro.get("qos_cmd", 1) or 1))  # auto: QoS 1 iff D_h; PLAIN has none
+    return "plain_firmware_qos1" if qos == 1 else ""
+
+
 def fault_schedule_digest(run: Path, episode) -> str:
     """SHA-256 of the fault windows of one episode's schedule (release 083, A1): the 'faults' list of
     schedule_ep<e>.json in canonical JSON. Empty when the file is missing or has no fault window."""
@@ -128,7 +149,8 @@ def read_run(run: Path) -> dict:
     planned = planned_unsafe(cfg)
     out = {"run": f"{cfg.get('name', run.parent.name)}/{run.name}", "dir": str(run), "release": man.get("release", ""),
            "scope": man.get("scope", ""), "cells": 0, "invalid": 0, "guarded": Counter(), "control": defaultdict(Counter),
-           "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter), "guarded_fault_schedules": {}}
+           "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter), "guarded_fault_schedules": {},
+           "experiment": cfg.get("name", run.parent.name), "phi1_fault_model": Counter()}
     digests = {}
     with open(run / "runtime_episodes.csv", newline="") as fh:
         for r in csv.DictReader(fh):
@@ -161,6 +183,9 @@ def read_run(run: Path) -> dict:
                     if digests[ep]:
                         g["cells_with_faults"] += 1
                         out["guarded_fault_schedules"][digests[ep]] = out["guarded_fault_schedules"].get(digests[ep], 0) + 1
+                        why = phi1_on_fault_model(cfg, r["contract"])  # release 084
+                        if why:
+                            out["phi1_fault_model"][why] += 1
                     else:
                         g["cells_with_faults_no_schedule"] += 1
     return out
@@ -187,6 +212,13 @@ def summarize(runs: list) -> dict:
     for r in tb:
         sched.update(r.get("guarded_fault_schedules", {}))
     n_s = len(sched)
+    # release 084: the guarded cells with faults whose Phi1 rests on the fault model (dagger), per experiment and reason
+    by_exp, by_reason = Counter(), Counter()
+    for r in tb:
+        for why, n in r.get("phi1_fault_model", {}).items():
+            by_exp[r.get("experiment", r["run"].split("/")[0])] += n
+            by_reason[why] += n
+    dag = int(sum(by_exp.values()))
     return {"testbed_runs": len(tb), "guarded": {k: int(v) for k, v in g.items()}, "guarded_violations": viol,
             "distinct_fault_schedules": n_s, "cells_with_faults": int(g["cells_with_faults"]),
             "cells_with_faults_no_schedule": int(g["cells_with_faults_no_schedule"]),
@@ -198,6 +230,8 @@ def summarize(runs: list) -> dict:
             "upper95_per_cell": upper95(int(g["cells"])) if viol == 0 else None,
             "controls": {k: int(v) for k, v in ctl.items()}, "unsafe_by_design": {k: int(v) for k, v in us.items()},
             "unguarded_dedup": {k: int(v) for k, v in ud.items()},
+            "phi1_fault_model": {"cells": dag, "by_experiment": dict(sorted(by_exp.items())), "by_reason": dict(sorted(by_reason.items()))},
+            "theorem1_cells_with_faults": int(g["cells_with_faults"]) - dag,
             "verdict": "NO VIOLATION IN ANY GUARDED CELL" if viol == 0 else "VIOLATIONS IN GUARDED CELLS"}
 
 
@@ -219,6 +253,14 @@ def markdown(runs: list, s: dict) -> str:
               + (f"; {s['cells_with_faults_no_schedule']} cells without a schedule file are not counted" if s.get("cells_with_faults_no_schedule") else "")
               + (f". Exact one-sided 95 % upper bound per schedule, 1 - 0.05^(1/N_s): **{ub:.3f}** (per cell with faults: "
                  f"{s['upper95_per_cell_with_faults']:.4f})." if ub is not None else "."), ""]
+    pf = s.get("phi1_fault_model") or {}
+    if s.get("cells_with_faults"):
+        per = ", ".join(f"{k} {v}" for k, v in (pf.get("by_experiment") or {}).items()) or "none"
+        L += [f"Phi1 on the fault model (release 084; dagger in the paper): **{pf.get('cells', 0)} of the {s['cells_with_faults']} guarded cells "
+              f"with faults** rest on the fault model rather than on the binding (the plain firmware at QoS 1: "
+              f"{(pf.get('by_reason') or {}).get('plain_firmware_qos1', 0)}; ThingsBoard, QoS 1 to a device without deduplication: "
+              f"{(pf.get('by_reason') or {}).get('thingsboard', 0)}; per experiment: {per}); the other "
+              f"**{s.get('theorem1_cells_with_faults', 0)}** test Theorem 1.", ""]
     L += [f"Negative controls (violations planned): {s['controls'].get('detecting_cells', 0)} of {s['controls'].get('cells', 0)} cells detected a "
           f"violation. Blind retry on owners with dedup (no violation planned): {s['unguarded_dedup'].get('cells_with_violation', 0)} of "
           f"{s['unguarded_dedup'].get('cells', 0)} cells with a violation. Unsafe by design (the practice baselines, a blind retry on "
@@ -253,6 +295,7 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     js = {"summary": s, "runs": [dict(r, guarded=dict(r["guarded"]), control={k: dict(v) for k, v in r["control"].items()},
                                       guarded_fault_schedules=len(r.get("guarded_fault_schedules", {})),
+                                      phi1_fault_model=dict(r.get("phi1_fault_model", {})),
                                       unsafe={k: dict(v) for k, v in r["unsafe"].items()},
                                       unguarded_dedup={k: dict(v) for k, v in r["unguarded_dedup"].items()}) for r in runs]}
     (out / "safety.json").write_text(json.dumps(js, indent=1) + "\n")

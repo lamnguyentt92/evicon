@@ -173,7 +173,7 @@ func (a *Authority) resolveLocked(dcur journal.Domain, origin, mode string, unre
 	}
 	blockedByUncertain := []string{}
 	for _, u := range unresolved {
-		if a.isOwnerUncertain(u.CommandID) {
+		if a.excludedFromTargets(u.CommandID) { // release 084: also fence-uncertain under rule R5'
 			blockedByUncertain = append(blockedByUncertain, u.CommandID)
 			delete(targets, u.CommandID) // T2: the owner cannot certify its past
 		}
@@ -203,6 +203,7 @@ func (a *Authority) resolveLocked(dcur journal.Domain, origin, mode string, unre
 	if err != nil {
 		return "", err
 	}
+	stats.LastAction = d.Action
 	if a.cfg.Trace != nil {
 		_ = a.cfg.Trace.Write(trace.Event{DomainID: dcur.ID, CommandID: origin, Event: "EVICON_DECISION", Policy: string(a.cfg.Policy),
 			Outcome: string(d.Action), Revision: dcur.Revision, Reason: fmt.Sprintf("mode=%s;%s;targets=%s;threshold_ms=%d;age_ms=%d", mode, d.Reason, strings.Join(d.Targets, ","), d.ThresholdMS, d.AgeMS)})
@@ -229,56 +230,70 @@ func (a *Authority) resolveLocked(dcur journal.Domain, origin, mode string, unre
 		}
 		return "", nil
 	case contract.ActionFence:
-		if len(blockedByUncertain) > 0 && !c.Has(contract.CapStop) {
+		if a.cfg.FenceIntake == FenceIntakePerIdentity {
+			// release 084 (rule R5'): the fence's answer for an owner-uncertain identity does not stop the
+			// intake for the others; a fence that could certify nothing new is not sent
+			if a.fenceCoversOnlyUncertain(unresolved) {
+				return "EVICON_FENCE_ONLY_OWNER_UNCERTAIN", nil
+			}
+		} else if len(blockedByUncertain) > 0 && !c.Has(contract.CapStop) {
 			// a full-frontier fence would include an identity the owner cannot
 			// certify; it would abort again (see runBarrierLocked)
 			return "EVICON_FENCE_BLOCKED_BY_OWNER_UNCERTAIN", nil
 		}
-		stats.ProbeCount++
-		token := fmt.Sprintf("evicon-%s-%s-r%d", strings.ToLower(mode), origin, dcur.Revision)
-		// A pending barrier (an earlier fence whose owner call failed, e.g. the
-		// device was offline) keeps the domain paused: retry that barrier with
-		// its own token and cutoff instead of starting a new one.
-		if pb, ok, err := a.cfg.Store.PendingBarrier(dcur.ID); err != nil {
-			return "", err
-		} else if ok {
-			token = pb.Token
-		} else {
-			// A barrier aborted at this revision (the owner could not certify a crash orphan)
-			// is never retried under the same token: BeginBarrier refuses an ABORTED token
-			// forever, and the revision does not move while admission is blocked, so the
-			// domain could never fence again (release 066; 065 testbed run: 331 x
-			// 409 BARRIER_ABORTED in one cell). A fresh token contacts the owner again; the
-			// owner-uncertain back-off above keeps such retries rare.
-			base := token
-			for n := 1; ; n++ {
-				prev, er := a.cfg.Store.GetBarrierLifecycle(dcur.ID, dcur.Generation, token)
-				if errors.Is(er, journal.ErrNotFound) {
-					break
-				}
-				if er != nil {
-					return "", er
-				}
-				if prev.Status != "ABORTED" {
-					break
-				}
-				token = fmt.Sprintf("%s-a%d", base, n)
-			}
-		}
-		status, out := a.runBarrierLocked(protocol.BarrierRequest{SchemaVersion: 1, DomainID: dcur.ID, Generation: dcur.Generation, Token: token})
-		if a.cfg.Trace != nil {
-			raw, _ := json.Marshal(out)
-			_ = a.cfg.Trace.Write(trace.Event{DomainID: dcur.ID, CommandID: origin, Event: "EVICON_FENCE_RESULT", Policy: string(a.cfg.Policy), Outcome: fmt.Sprint(status), Reason: truncate(string(raw), 400)})
-		}
-		if status/100 != 2 {
-			return fmt.Sprintf("EVICON_FENCE_FAILED_%d", status), nil
-		}
-		return "", nil
+		return a.fenceLocked(dcur, origin, mode, stats)
 	case contract.ActionEscalate:
 		return "EVICON_NO_BACKWARD_EVIDENCE", nil
 	default:
 		return "EVICON_WAIT:" + d.Reason, nil
 	}
+}
+
+// fenceLocked sends one full-frontier fence for the resolver (release 084: factored out of resolveLocked
+// unchanged, so that PERIODIC_FULL sends its fences the same way). It returns "" when the fence completed
+// (2xx) or a DEFER reason. Caller holds a.mu.
+func (a *Authority) fenceLocked(dcur journal.Domain, origin, mode string, stats *policyStats) (string, error) {
+	stats.ProbeCount++
+	token := fmt.Sprintf("evicon-%s-%s-r%d", strings.ToLower(mode), origin, dcur.Revision)
+	// A pending barrier (an earlier fence whose owner call failed, e.g. the
+	// device was offline) keeps the domain paused: retry that barrier with
+	// its own token and cutoff instead of starting a new one.
+	if pb, ok, err := a.cfg.Store.PendingBarrier(dcur.ID); err != nil {
+		return "", err
+	} else if ok {
+		token = pb.Token
+	} else {
+		// A barrier aborted at this revision (the owner could not certify a crash orphan)
+		// is never retried under the same token: BeginBarrier refuses an ABORTED token
+		// forever, and the revision does not move while admission is blocked, so the
+		// domain could never fence again (release 066; 065 testbed run: 331 x
+		// 409 BARRIER_ABORTED in one cell). A fresh token contacts the owner again; the
+		// owner-uncertain back-off above keeps such retries rare. Release 084: a token that
+		// completed with per-identity intake (PARTIAL) is skipped the same way.
+		base := token
+		for n := 1; ; n++ {
+			prev, er := a.cfg.Store.GetBarrierLifecycle(dcur.ID, dcur.Generation, token)
+			if errors.Is(er, journal.ErrNotFound) {
+				break
+			}
+			if er != nil {
+				return "", er
+			}
+			if prev.Status != "ABORTED" && prev.Status != "PARTIAL" {
+				break
+			}
+			token = fmt.Sprintf("%s-a%d", base, n)
+		}
+	}
+	status, out := a.runBarrierLocked(protocol.BarrierRequest{SchemaVersion: 1, DomainID: dcur.ID, Generation: dcur.Generation, Token: token})
+	if a.cfg.Trace != nil {
+		raw, _ := json.Marshal(out)
+		_ = a.cfg.Trace.Write(trace.Event{DomainID: dcur.ID, CommandID: origin, Event: "EVICON_FENCE_RESULT", Policy: string(a.cfg.Policy), Outcome: fmt.Sprint(status), Reason: truncate(string(raw), 400)})
+	}
+	if status/100 != 2 {
+		return fmt.Sprintf("EVICON_FENCE_FAILED_%d", status), nil
+	}
+	return "", nil
 }
 
 // recentlyQueried: a query in the last AmbiguityAfter window counts as done,
@@ -423,6 +438,9 @@ func (a *Authority) SweepOnce() error {
 		return nil
 	}
 	stats := policyStats{}
+	if a.cfg.ResolveTrigger == TriggerPeriodicFull {
+		return a.periodicFullLocked(dcur, unresolved, targets, created, &stats) // release 084
+	}
 	_, err = a.resolveLocked(dcur, "", modeSweep, unresolved, targets, created, &stats)
 	return err
 }

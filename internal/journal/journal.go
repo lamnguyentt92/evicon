@@ -22,6 +22,10 @@ var (
 	ErrBarrierInProgress      = errors.New("barrier already in progress")
 	ErrBarrierAlreadyComplete = errors.New("barrier already complete")
 	ErrBarrierAborted         = errors.New("barrier aborted")
+	// ErrBarrierPartial (release 084): the token's fence completed with per-identity intake (rule R5',
+	// -fence-intake per-identity): terminal answers taken in, unlisted identities sealed, no anchor. The
+	// token keeps that meaning; a retry cannot give it a new one.
+	ErrBarrierPartial = errors.New("barrier completed with per-identity intake")
 	// ErrTerminalReversal: owner evidence contradicts a committed terminal outcome
 	// (APPLIED vs STOPPED for one identity). Terminal evidence is monotone, so the
 	// write is refused; release 068 wraps it so callers can escalate instead of retrying.
@@ -992,6 +996,9 @@ func (s *Store) BeginBarrier(domainID, token string, generation, cutoff, expecte
 			if st == "ABORTED" {
 				return ErrBarrierAborted
 			}
+			if st == "PARTIAL" {
+				return ErrBarrierPartial
+			}
 			return nil
 		}
 		if uint64(rv) != expectedRevision {
@@ -1053,6 +1060,9 @@ func (s *Store) CommitBarrierLifecycleSeal(domainID, token string, generation, c
 		}
 		if bs == "COMPLETE" {
 			return ErrBarrierAlreadyComplete
+		}
+		if bs == "PARTIAL" {
+			return ErrBarrierPartial
 		}
 		mx, err := tx.Query(`SELECT MAX(sequence) FROM commands WHERE domain_id=? AND decision='ADMITTED'`, domainID)
 		if err != nil {

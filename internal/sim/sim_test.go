@@ -516,3 +516,70 @@ func TestQueryOnlyAndGreedy083(t *testing.T) {
 		t.Fatal("unknown certificate search accepted")
 	}
 }
+
+// TestFenceIntakeAndPeriodicFull084 (release 084): fence_uncertain "per_identity" (rule R5' of
+// evicon-authority -fence-intake per-identity) is safe and never resolves less than "abort" (rule R5) on the
+// stop experiment's setting (K0+F, queue, W = 6, crash orphans); PERIODIC_FULL (every aged ambiguous command
+// each second, query first, then stop or fence under the threshold rule) is safe on the firmware's cutoff
+// contract and a MinIO-like stop contract.
+func TestFenceIntakeAndPeriodicFull084(t *testing.T) {
+	base := loadCfg(t, "iot_dosing_testbed.json")
+	base.Sweep = nil
+	base.Episodes = 4
+	base.Workload.DurationMS = 180000
+	base.Authority.MaxOutstanding = 6
+	base.Authority.AssumedMaxDelayMS = -1
+	clean := func(rs []Row) int { return sum(rs, func(r Row) int { return r.CleanFulfilled }) }
+	safe := func(name string, rs []Row) {
+		if s := sum(rs, func(r Row) int { return r.SafetyViolations + r.FalseStopped + r.DuplicateEffects }); s != 0 {
+			t.Fatalf("%s unsafe: %d", name, s)
+		}
+	}
+	runFence := func(mode string) []Row {
+		c := base
+		c.Owner.Contract = "sim-k0+F"
+		c.Owner.Channel = "queue"
+		c.Policies = []string{PolicyEvicon}
+		c.Authority.FenceUncertain = mode
+		if err := c.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := Run(c, catalog(t), 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		safe(mode, rows)
+		return rows
+	}
+	abort, perID := runFence("abort"), runFence("per_identity")
+	if sum(abort, func(r Row) int { return r.FenceAborts }) == 0 {
+		t.Fatal("the setting must have crash orphans under fences")
+	}
+	if n := sum(perID, func(r Row) int { return r.FenceAborts }); n != 0 {
+		t.Fatalf("per_identity never aborts a fence, got %d", n)
+	}
+	if clean(perID) < clean(abort) {
+		t.Fatalf("per-identity intake cannot resolve less than all-or-nothing: abort %d, per_identity %d", clean(abort), clean(perID))
+	}
+	t.Logf("K0+F queue W=6 EVICON clean: abort (R5) %d, per_identity (R5') %d; fence aborts %d / 0", clean(abort), clean(perID), sum(abort, func(r Row) int { return r.FenceAborts }))
+	for _, ct := range []string{"sim-k3-fence", "sim-k3-stop"} {
+		c := base
+		c.Owner.Contract = ct
+		c.Policies = []string{PolicyPeriodicFull, PolicyEvicon}
+		rows, err := Run(c, catalog(t), 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bp := byPolicy(rows)
+		safe(ct+" PERIODIC_FULL", bp[PolicyPeriodicFull])
+		if sum(bp[PolicyPeriodicFull], func(r Row) int { return r.Stops + r.Fences + r.Queries }) == 0 {
+			t.Fatalf("%s: PERIODIC_FULL never acted", ct)
+		}
+		t.Logf("%s W=6 clean: PERIODIC_FULL %d, EVICON %d", ct, clean(bp[PolicyPeriodicFull]), clean(bp[PolicyEvicon]))
+	}
+	bad := base
+	bad.Authority.FenceUncertain = "some"
+	if err := bad.Validate(); err == nil {
+		t.Fatal("unknown fence_uncertain accepted")
+	}
+}

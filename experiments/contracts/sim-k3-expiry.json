@@ -8,7 +8,8 @@
   "dedup_horizon_ms": -1,
   "expiry_ms": 30000,
   "id": "sim-k3-expiry",
-  "notes": "owner-enforced validity window",
+  "notes": "owner-enforced validity window; the simulator owner keeps its records (record_retention_ms -1, release 084)",
+  "record_retention_ms": -1,
   "schema_version": 1,
   "source": "HYPOTHESIS",
   "system": "simulator owner"

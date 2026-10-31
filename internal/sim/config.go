@@ -136,15 +136,19 @@ type AuthoritySpec struct {
 	// below the cutoff as UNCERTAIN (a crash orphan). "partial" (default): the certified
 	// identities become terminal and the orphan stays ambiguous. "abort": the whole barrier is
 	// aborted and nothing is resolved, which is what evicon-authority does (release 062
-	// AbortBarrier; release 066 makes the twin match the runtime).
+	// AbortBarrier; release 066 makes the twin match the runtime). "per_identity" (release 084):
+	// "partial" as evicon-authority -fence-intake per-identity runs it (rule R5'): an attempt the
+	// answer lists UNCERTAIN also leaves the resolver's targets for good.
 	FenceUncertain string `json:"fence_uncertain,omitempty"`
 	// Certificate (release 083): the certificate search of a resolver policy: "enumerate" (default,
 	// probe.EnumerateContinuationCertificates up to certificate_depth) or "greedy" (the greedy certificate
 	// of an additive domain, probe.GreedyContinuationCertificate; other domains use the enumeration).
-	Certificate      string          `json:"certificate,omitempty"`
-	FixedThresholdMS int64           `json:"fixed_threshold_ms,omitempty"`
-	PeriodicMS       int64           `json:"periodic_ms,omitempty"`
-	Extra            json.RawMessage `json:"extra,omitempty"`
+	Certificate      string `json:"certificate,omitempty"`
+	FixedThresholdMS int64  `json:"fixed_threshold_ms,omitempty"`
+	PeriodicMS       int64  `json:"periodic_ms,omitempty"`
+	// PeriodicFullMS (release 084): the sweep period of PERIODIC_FULL (default 1000, EviCon's sweep).
+	PeriodicFullMS int64           `json:"periodic_full_ms,omitempty"`
+	Extra          json.RawMessage `json:"extra,omitempty"`
 }
 
 type Config struct {
@@ -193,9 +197,14 @@ const (
 	// M1W (also queries the oldest ambiguous commands when a waiting request is deferred because the
 	// window is full). Both use the resolver's query budget per tick and re-query interval, never stop or
 	// fence, and keep the T4 retry rule (horizon-aware) as every testbed policy.
-	PolicyQueryOnly        = "QUERY_ONLY"
-	PolicyQueryOnlyW       = "QUERY_ONLY_W"
-	defaultTickMS    int64 = 50
+	PolicyQueryOnly  = "QUERY_ONLY"
+	PolicyQueryOnlyW = "QUERY_ONLY_W"
+	// Release 084 (PREREG_extra_084.md (c)): full periodic reconciliation. Every periodic_full_ms every
+	// ambiguous command is a target (no certificate, no blocked-request trigger), with the resolver's own
+	// policy (query first, then stop or fence under the threshold rule): evicon-authority -resolve-trigger
+	// PERIODIC_FULL.
+	PolicyPeriodicFull       = "PERIODIC_FULL"
+	defaultTickMS      int64 = 50
 )
 
 var knownPolicies = map[string]bool{
@@ -203,12 +212,12 @@ var knownPolicies = map[string]bool{
 	PolicyB4Unsafe: true, PolicyB5SelectorM4: true, PolicyEvicon: true,
 	PolicyResImmediate: true, PolicyResQueryFirst: true, PolicyResFixed: true, PolicyResPeriodic: true,
 	PolicyReplayM0: true, PolicyReplayM1: true, PolicyReplayM2: true, PolicyReplayM3: true, PolicyReplayM4: true,
-	PolicyQueryOnly: true, PolicyQueryOnlyW: true,
+	PolicyQueryOnly: true, PolicyQueryOnlyW: true, PolicyPeriodicFull: true,
 }
 
 // ResolverPolicies are the policies that use backward evidence through package
 // resolve under the cell's contract.
-var ResolverPolicies = []string{PolicyEvicon, PolicyResImmediate, PolicyResQueryFirst, PolicyResFixed, PolicyResPeriodic}
+var ResolverPolicies = []string{PolicyEvicon, PolicyResImmediate, PolicyResQueryFirst, PolicyResFixed, PolicyResPeriodic, PolicyPeriodicFull}
 
 func IsResolver(p string) bool {
 	for _, x := range ResolverPolicies {
@@ -269,6 +278,9 @@ func (c *Config) applyDefaults() {
 	}
 	if a.PeriodicMS <= 0 {
 		a.PeriodicMS = 10000
+	}
+	if a.PeriodicFullMS <= 0 {
+		a.PeriodicFullMS = 1000
 	}
 	if a.Resolve.Mode == "" {
 		a.Resolve.Mode = resolve.ModeSkiRental
@@ -361,8 +373,8 @@ func (c Config) Validate() error {
 	if n.ReqLossProb+n.ReqLateProb > 1 || n.RespLossProb+n.RespHideProb > 1 {
 		return errors.New("loss + late/hide probabilities must not exceed 1")
 	}
-	if fu := c.Authority.FenceUncertain; fu != "" && fu != "partial" && fu != "abort" {
-		return errors.New("authority fence_uncertain must be partial or abort")
+	if fu := c.Authority.FenceUncertain; fu != "" && fu != "partial" && fu != "abort" && fu != "per_identity" {
+		return errors.New("authority fence_uncertain must be partial, abort or per_identity")
 	}
 	if ce := c.Authority.Certificate; ce != "" && ce != "enumerate" && ce != "greedy" {
 		return errors.New("authority certificate must be enumerate or greedy")

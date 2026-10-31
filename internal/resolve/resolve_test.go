@@ -16,6 +16,9 @@ func k(caps ...contract.EvidenceCapability) contract.EvidenceContract {
 	if c.Has(contract.CapExpiry) {
 		c.ExpiryMS = 1000
 	}
+	if c.Has(contract.CapQueryApplied) {
+		c.RecordRetentionMS = contract.UnboundedRetentionMS // release 084: an owner that keeps its records (ER needs r = infinity)
+	}
 	return c
 }
 

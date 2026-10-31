@@ -20,6 +20,8 @@ type policyStats struct {
 	ProbeCostUS      int64
 	SelectorNS       int64
 	AnalyzedRevision uint64
+	// LastAction (release 084): the action of the resolver's last decision in this evaluation
+	LastAction contract.Action
 }
 
 type fetchedProbe struct {
@@ -40,8 +42,8 @@ func (a *Authority) evaluateWithPolicy(d journal.Domain, req protocol.CommandReq
 		return res, stats, err
 	}
 	if a.cfg.Policy == probe.EVICON && res.Verdict != analyzer.Safe {
-		if a.cfg.ResolveTrigger == TriggerSweepOnly {
-			// periodic baseline: only the background sweep resolves
+		if a.cfg.ResolveTrigger == TriggerSweepOnly || a.cfg.ResolveTrigger == TriggerPeriodicFull {
+			// periodic baselines: only the background sweep resolves (release 084: also PERIODIC_FULL)
 			return res, stats, nil
 		}
 		// The resolver also handles a full outstanding budget (review RV01),

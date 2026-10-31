@@ -1,0 +1,25 @@
+scenario,from,to,metric,n,mean_pp,sd_pp,label
+a_s6,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled,200,22.22,19.08,(a) W=6 K0F R5 -> R5'
+a_s6,K0S/EVICON,K0F/EVICON_FI,clean_fulfilled,200,0.16,1.05,(a) W=6 stop -> K0F R5'
+a_s6,K0F/EVICON,K0S/EVICON,clean_fulfilled,200,22.06,19.02,(a) W=6 K0F R5 -> stop (the stop experiment's contrast)
+a_s6,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled_confirmed,200,23.08,19.1,(a) W=6 K0F R5 -> R5' confirmed
+a_sinf,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled,200,1.29,1.61,(a) W=inf K0F R5 -> R5'
+a_sinf,K0S/EVICON,K0F/EVICON_FI,clean_fulfilled,200,0.37,1.94,(a) W=inf stop -> K0F R5'
+a_sinf,K0F/EVICON,K0S/EVICON,clean_fulfilled,200,0.92,2.77,(a) W=inf K0F R5 -> stop (the stop experiment's contrast)
+a_sinf,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled_confirmed,200,5.18,4.98,(a) W=inf K0F R5 -> R5' confirmed
+a_s6_base,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled,200,4.47,11.78,"(a) W=6, base twin K0F R5 -> R5'"
+a_s6_base,K0S/EVICON,K0F/EVICON_FI,clean_fulfilled,200,0.12,0.63,"(a) W=6, base twin stop -> K0F R5'"
+a_s6_base,K0F/EVICON,K0S/EVICON,clean_fulfilled,200,4.35,11.83,"(a) W=6, base twin K0F R5 -> stop (the stop experiment's contrast)"
+a_s6_base,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled_confirmed,200,4.98,12.4,"(a) W=6, base twin K0F R5 -> R5' confirmed"
+a_sinf_base,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled,200,0.41,0.99,"(a) W=inf, base twin K0F R5 -> R5'"
+a_sinf_base,K0S/EVICON,K0F/EVICON_FI,clean_fulfilled,200,0.36,1.87,"(a) W=inf, base twin stop -> K0F R5'"
+a_sinf_base,K0F/EVICON,K0S/EVICON,clean_fulfilled,200,0.05,2.19,"(a) W=inf, base twin K0F R5 -> stop (the stop experiment's contrast)"
+a_sinf_base,K0F/EVICON,K0F/EVICON_FI,clean_fulfilled_confirmed,200,1.25,2.42,"(a) W=inf, base twin K0F R5 -> R5' confirmed"
+c_fw_w6,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled,200,-0.01,0.09,(c) ZEPHYR_CUTOFF W=6 EVICON -> PERIODIC_FULL
+c_fw_w6,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled_confirmed,200,-0.01,0.09,(c) ZEPHYR_CUTOFF W=6 EVICON -> PERIODIC_FULL confirmed
+c_fw_winf,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled,200,-0.01,0.09,(c) ZEPHYR_CUTOFF W=inf EVICON -> PERIODIC_FULL
+c_fw_winf,ZEPHYR_CUTOFF/EVICON,ZEPHYR_CUTOFF/PERIODIC_FULL,clean_fulfilled_confirmed,200,-0.01,0.09,(c) ZEPHYR_CUTOFF W=inf EVICON -> PERIODIC_FULL confirmed
+c_minio_w6,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled,200,-0.0,0.36,(c) MINIO_COND W=6 EVICON -> PERIODIC_FULL
+c_minio_w6,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled_confirmed,200,-0.0,0.36,(c) MINIO_COND W=6 EVICON -> PERIODIC_FULL confirmed
+c_minio_winf,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled,200,0.02,0.29,(c) MINIO_COND W=inf EVICON -> PERIODIC_FULL
+c_minio_winf,MINIO_COND/EVICON,MINIO_COND/PERIODIC_FULL,clean_fulfilled_confirmed,200,0.02,0.29,(c) MINIO_COND W=inf EVICON -> PERIODIC_FULL confirmed

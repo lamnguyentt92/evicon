@@ -77,6 +77,12 @@ type AuthorityConfig struct {
 	// CertificateEnumerate (default: the bounded enumeration of releases 061-082) or CertificateGreedy
 	// (the greedy certificate of additive domains; other domains fall back to the enumeration).
 	Certificate string
+	// FenceIntake (release 084) is how a fence answer that is complete (premise FC) but lists
+	// identities the owner cannot certify (UNCERTAIN, e.g. crash orphans) is taken in:
+	// FenceIntakeAllOrNothing (default; rule R5, releases 062-083: abort, seal nothing, anchor nothing)
+	// or FenceIntakePerIdentity (rule R5': take in every listed terminal answer, seal every unlisted
+	// identity at or below the cutoff as STOPPED, keep each UNCERTAIN identity pending and owner-uncertain).
+	FenceIntake string
 	// Test-only synchronization hook used to force a domain revision change
 	// after analysis and verify that the authority recomputes before commit.
 	AfterPolicyEvaluationForTest func()
@@ -98,6 +104,11 @@ type Authority struct {
 	// conflicted (release 068): domains whose owner evidence contradicted a committed
 	// terminal outcome; the resolver escalates for them instead of acting.
 	conflicted map[string]time.Time
+	// fenceUncertain (release 084, FenceIntakePerIdentity only): identities a complete fence answer
+	// listed UNCERTAIN. The cutoff that answer installed is durable, so no later fence or stop can
+	// certify their past; they stay pending (reservation and window slot kept) and out of the
+	// resolver's targets for the authority's lifetime, until an operator reconciles them.
+	fenceUncertain map[string]time.Time
 }
 
 // Resolve triggers (release 062).
@@ -107,6 +118,12 @@ const (
 	// release 083: the certificate search of EVICON's resolver
 	CertificateEnumerate = "enumerate"
 	CertificateGreedy    = "greedy"
+	// release 084: the full periodic reconciliation baseline PERIODIC_FULL (no certificate search, no
+	// window or budget trigger; every sweep: query, then stop or fence under the threshold rule)
+	TriggerPeriodicFull = "PERIODIC_FULL"
+	// release 084: fence intake (rules R5 and R5')
+	FenceIntakeAllOrNothing = "all-or-nothing"
+	FenceIntakePerIdentity  = "per-identity"
 )
 
 const runtimeAnalyzer = "RELATIONAL_ONLINE_BELIEF"
@@ -184,7 +201,7 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 		switch cfg.ResolveTrigger {
 		case "":
 			cfg.ResolveTrigger = TriggerBlockAndSweep
-		case TriggerBlockAndSweep, TriggerSweepOnly:
+		case TriggerBlockAndSweep, TriggerSweepOnly, TriggerPeriodicFull:
 		default:
 			return nil, fmt.Errorf("unknown resolve trigger %q", cfg.ResolveTrigger)
 		}
@@ -212,6 +229,13 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 	case CertificateEnumerate, CertificateGreedy:
 	default:
 		return nil, fmt.Errorf("unknown certificate search %q (want %s or %s)", cfg.Certificate, CertificateEnumerate, CertificateGreedy)
+	}
+	switch cfg.FenceIntake {
+	case "":
+		cfg.FenceIntake = FenceIntakeAllOrNothing
+	case FenceIntakeAllOrNothing, FenceIntakePerIdentity:
+	default:
+		return nil, fmt.Errorf("unknown fence intake %q (want %s or %s)", cfg.FenceIntake, FenceIntakeAllOrNothing, FenceIntakePerIdentity)
 	}
 	if cfg.PlannerDepth <= 0 {
 		cfg.PlannerDepth = 2
@@ -786,6 +810,10 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 	if errors.Is(err, journal.ErrBarrierAborted) {
 		return 409, map[string]any{"error": "BARRIER_ABORTED"}
 	}
+	if errors.Is(err, journal.ErrBarrierPartial) {
+		// release 084: the token completed with per-identity intake; it keeps that meaning
+		return 409, map[string]any{"error": "BARRIER_PARTIAL"}
+	}
 	if errors.Is(err, journal.ErrIdentityConflict) {
 		return 409, map[string]any{"error": "BARRIER_TOKEN_CONFLICT"}
 	}
@@ -857,6 +885,12 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 	}
 	if len(conflicts) > 0 {
 		return a.barrierConflict(br, d.Generation, conflicts)
+	}
+	if len(uncertain) > 0 && a.cfg.FenceIntake == FenceIntakePerIdentity {
+		// Release 084 (rule R5'): the answer is complete (FC), so every listed terminal answer and
+		// every unlisted identity at or below the cutoff is certified whatever the owner says about
+		// the identities it lists UNCERTAIN; those stay pending (fence_intake.go).
+		return a.commitPerIdentityLocked(br, d, rc, recs, uncertain)
 	}
 	if len(uncertain) > 0 {
 		// Release 062 (review RV06): a full-frontier fence cannot complete while

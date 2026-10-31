@@ -1,0 +1,24 @@
+# TLC on the per-identity fence intake (rule R5', release 084): EviconFenceFI.tla, the release-062 model EviconFence.tla with
+# OwnerFence/FenceReply replaced by the complete answer and the per-identity intake (every other action unchanged).
+# start 2026-10-31T05:37:59Z / end 2026-10-31T05:39:32Z; tla2tools v1.7.4 (sha256 936a2620...0e88), OpenJDK 21.0.12.1, 2 workers
+# Command: TMPDIR=<tmp> TLA2TOOLS_JAR=<jar> bash formal/run_tlc_fi.sh <out>   (logs: formal/tlc_logs_fi/, paths sanitized)
+# Bounded model checking of MCEviconFenceFI (2 intents, <=2 attempts, <=1 owner crash). Not a proof about the Go/C code.
+config           result                                    generated   distinct  depth cex_states
+perid            no error                                   27658243    2962361     30 -
+perid_fenceonly  no error                                      88667      18427     25 -
+nofc             Invariant NoFalseStopped is violated             95         60      7 6
+
+# perid: as EviconFence_safe (stop + fence + dedup, one owner crash, no reconciliation) with rule R5' instead of R5.
+# perid_fenceonly: as EviconFence_fenceonly (fence only, no dedup: the stop experiment's K0F) with rule R5'.
+# nofc (NEGATIVE CONTROL): the owner's answer omits the identities it cannot certify (no FC); the 6-state
+# counterexample: admit <<i1,1>>, crash after its effect (an orphan), fence, the answer omits it, R5' seals it STOPPED.
+# Per-identity intake is safe exactly when the answer is complete (FC); R5 (EviconFence, TLC_RESULTS.txt) needs no FC
+# for the orphan because it aborts.
+
+# SHA-256 of the model files
+4d81103d33718432c398040c5df4459f4b4ecef1d05657a4fa1c92efca0f04ad  formal/EviconFenceFI.tla
+a3196812d20ea336f0891ddc445fee40a2aab113ef201e24fb8c9907e7a13f0a  formal/MCEviconFenceFI.tla
+4fb73f2657d43e254fb552240826abf855b06c95a2b61c7c98031ce648bc125d  formal/EviconFenceFI_perid.cfg
+d4688dafc9e950e52d08ac07d222d825fa2a3d0410bf0470e790ea7d8bd5cdb5  formal/EviconFenceFI_perid_fenceonly.cfg
+954bce18240de31f644d8dfe291a7b13a4ab3ae56ae7ebf97ae05b8144d3277d  formal/EviconFenceFI_nofc.cfg
+b3e517e4595379fd0ba1e132ba8e0abd0a01d5a61fc2ba1d3cc875149177f2f6  formal/run_tlc_fi.sh

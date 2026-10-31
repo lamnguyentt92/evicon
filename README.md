@@ -1,6 +1,6 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **083** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+Release **084** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
 check them); `CHANGELOG.md` lists what each release changed.
 
 **Question.** A client sends a command to a remote effect owner (a device, a broker plus
@@ -45,7 +45,11 @@ decomposition against a no-op endpoint (`cmd/evicon-noop`), the firmware on an e
 window-full trigger (`M1W`), a practice baseline that releases only on an answered state read, the release time of
 `RELEASE_ON_TIMEOUT`, the plain firmware under the at-most-once binding, the greedy certificate of additive domains
 (`-certificate greedy`) and the cost ratio theta, the window on the firmware and on ThingsBoard, and the effects
-across fault rates, outage durations and seeds. Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
+across fault rates, outage durations and seeds. Release 084 adds the plan `PREREG_extra_084.md`: a per-identity fence
+intake (rule R5', `-fence-intake per-identity`, default off) on the orphan schedules of the stop experiment, a full
+periodic reconciliation baseline (`-resolve-trigger PERIODIC_FULL`) on the firmware and on MinIO, the delivery binding
+rule made explicit (`conformance/reference/delivery_binding.py`), and analyses of the existing traces for the external
+review (`evaluation/review_l2_084.py`). Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 
 ## Layout

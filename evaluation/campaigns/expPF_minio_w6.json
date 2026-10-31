@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "name": "expPF-minio-w6",
+  "regime": "expPF-minio-w6",
+  "mode": "remote",
+  "seed": 20261025,
+  "episodes": 8,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "MINIO_COND"
+  ],
+  "policies": [
+    "PERIODIC_FULL"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "real_owner": {
+    "system": "minio",
+    "s3_url": "http://192.168.107.152:9000",
+    "access_key_env": "MINIO_ROOT_USER",
+    "secret_key_env": "MINIO_ROOT_PASSWORD",
+    "contracts": {
+      "MINIO_COND": {
+        "mode": "COND",
+        "contract_file": "experiments/owners/minio/meas-minio-cond-070.json"
+      }
+    },
+    "policies": {
+      "NAIVE": {
+        "base": "M1",
+        "authority": {
+          "retry_guard": false
+        }
+      }
+    },
+    "gateway_budget_s": 1.8
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_extra_084.md",
+    "sha256": "b11351645c1e0f05f4a270412539a072f17148ea8607223dcb6182a171505345"
+  },
+  "notes": "Release 084, PREREG_extra_084.md (c): PERIODIC_FULL on MinIO's conditional PUT behind the S3 gateway (the 070 measured contract MINIO_COND: D_h, Q_A, Q_S) on the MinIO experiment's W = 6 schedules (expC-minio: seed 20261025, episodes 0-7). Its comparison is the reference run's MINIO_COND/EVICON cells, paired by schedule (cross-run). Runner: evaluation/campaign_real_ext084.py."
+}

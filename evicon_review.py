@@ -20,7 +20,7 @@ Stages (in order):
     preflight   tools on VM-C, SSH to A/B/D/E, ports, clocks, VM-A -> VM-C reachability
     build       Go toolchain (pinned) and bin/evicon-* (cgo + SQLite)
     verify      go vet + go test, EviCon-Probe tests, firmware host tests, analysis tests
-    formal      TLC on 5 safe models and 3 negative controls
+    formal      TLC on 5 safe models and 3 negative controls (084: and rule R5', 2 safe models, 1 negative control)
     sim         evicon-des exploration (SIMULATION_ONLY) + analysis
     distribute  binaries and cost file to /root/evicon on VM-A, VM-B, VM-E
     controls    EviCon-Probe positive controls (evicon-endpoint on VM-B) and negative
@@ -404,7 +404,7 @@ def sha256(p):
 
 SOURCE_DIRS = ("cmd", "internal", "conformance", "evaluation", "experiments", "firmware", "formal", "scripts", "deploy")
 SOURCE_FILES = ("go.mod", "go.sum", "Makefile", "VERSION", "evicon_review.py")
-GENERATED = {"__pycache__", ".tools", "test_evc_core", "test_evc_proto"}
+GENERATED = {"__pycache__", ".tools", "test_evc_core", "test_evc_proto", "test_evc_late_copy", "test_evc_late_copy_neg"}
 
 
 def source_fingerprint() -> str:
@@ -566,7 +566,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -584,7 +584,13 @@ def st_formal(tb, a):
     summary = (out / "summary.txt").read_text() if (out / "summary.txt").exists() else ""
     if rc != 0:
         raise StageFail("TLC: unexpected verdict (see formal/summary.txt)")
-    return f"{summary.count('EXPECTED')}/8 EXPECTED (5 safe models PASS, 3 negative controls VIOLATION)"
+    # release 084: the per-identity fence intake (rule R5') of EviconFenceFI.tla: 2 safe models and 1 negative control (no FC)
+    rc, _ = sh(["bash", "formal/run_tlc_fi.sh", str(out / "fi")], timeout=7200, check=False)
+    fi = (out / "fi" / "summary.txt").read_text() if (out / "fi" / "summary.txt").exists() else ""
+    if rc != 0:
+        raise StageFail("TLC (rule R5'): unexpected verdict (see formal/fi/summary.txt)")
+    return (f"{summary.count('EXPECTED')}/8 EXPECTED (5 safe models PASS, 3 negative controls VIOLATION); rule R5': "
+            f"{fi.count('EXPECTED')}/3 EXPECTED (2 safe models PASS, the negative control without FC VIOLATION)")
 
 
 def st_sim(tb, a):
@@ -1147,7 +1153,8 @@ def _real_owner_campaign(tb, a, src: Path, cfg: dict):
         for k in (cfg["real_owner"].get("access_key_env", "MINIO_ROOT_USER"), cfg["real_owner"].get("secret_key_env", "MINIO_ROOT_PASSWORD")):
             if not os.environ.get(k):
                 raise StageFail(f"{k} is not set after MinIO started (the runner reads the credentials from the environment)")
-        runner = "evaluation/campaign_real_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_real.py"  # 083: EVICON_GREEDY
+        runner = ("evaluation/campaign_real_ext084.py" if _uses_084_policies(cfg)  # 084: PERIODIC_FULL
+                  else "evaluation/campaign_real_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_real.py")  # 083: EVICON_GREEDY
         st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner=runner)
     finally:
         m.cleanup()
@@ -1220,6 +1227,7 @@ def _measured_zephyr_contracts(cfg: dict, fw_sha: str) -> dict:
 sys.path.insert(0, str(REPO / "evaluation"))
 from safety_total import BASELINES as RELEASE_BASELINES  # noqa: E402  (077, 083: the practice baselines, unsafe by design; one definition)
 import ext083  # noqa: E402  (release 083: the authority policies of PREREG_extra_083.md)
+import ext084  # noqa: E402  (release 084: the authority policies of PREREG_extra_084.md)
 
 
 def _uses_083_policies(cfg: dict) -> bool:
@@ -1229,6 +1237,14 @@ def _uses_083_policies(cfg: dict) -> bool:
     return any(ext083.is_083_policy(p) for p in cfg.get("policies", [])) or any(ext083.is_083_policy(str(p.get("base", ""))) for p in pseudo)
 
 
+def _uses_084_policies(cfg: dict) -> bool:
+    """Release 084: a config with a policy of evaluation/ext084.py (EVICON_FI, PERIODIC_FULL) or with exclude_cells on the
+    emulated owner (the 084 runner adds that key)."""
+    pseudo = ((cfg.get("real_owner") or {}).get("policies") or {}).values()
+    return (any(ext084.is_084_policy(p) for p in cfg.get("policies", [])) or any(ext084.is_084_policy(str(p.get("base", ""))) for p in pseudo)
+            or ("exclude_cells" in cfg and not cfg.get("real_owner")))
+
+
 def _emulated_runner(cfg: dict):
     """Release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines and the validity cut of the retry
     guard (authority.resend_until) (PREREG_review_077.md) run on evaluation/campaign_ext077.py, which imports
@@ -1236,6 +1252,8 @@ def _emulated_runner(cfg: dict):
     Release 083: a config with a policy of release 083 runs on evaluation/campaign_ext083.py (campaign_ext077 and
     the 083 policies installed). Returns (runner, baselines)."""
     baselines = sorted(set(cfg["policies"]) & set(RELEASE_BASELINES))
+    if _uses_084_policies(cfg):  # release 084: campaign_ext084 installs the 077, 083 and 084 policies
+        return "evaluation/campaign_ext084.py", baselines
     if _uses_083_policies(cfg):
         return "evaluation/campaign_ext083.py", baselines
     ext = bool(baselines) or bool((cfg.get("authority") or {}).get("resend_until"))
@@ -1248,6 +1266,8 @@ def _zephyr_runner(cfg: dict) -> str:
     Release 077: experiment Q (the delivery binding of the commands, the offline cut) runs on
     evaluation/campaign_zephyr_ext077.py, which imports the C3 runner."""
     specs = cfg["real_owner"]["contracts"].values()
+    if _uses_084_policies(cfg):  # release 084: PERIODIC_FULL, on the 077 runner, with the delivery binding rule checked
+        return "evaluation/campaign_zephyr_ext084.py"
     if cfg["real_owner"].get("offline_cut") or any("binding" in s for s in specs):
         return "evaluation/campaign_zephyr_ext077.py"
     ext = any(s.get("restrict_to") or s.get("channel") for s in specs)
@@ -1371,6 +1391,29 @@ def _place_zephyr_contracts(cfg: dict, contracts: dict, cdir: Path) -> dict:
     return made
 
 
+def _check_delivery_binding(cfg: dict, build_config: dict = None):
+    """Release 084 (review M1): the delivery binding rule, made explicit (conformance/reference/delivery_binding.py). For every
+    contract of a firmware campaign whose binding is "auto", the frozen 077 gateway's choice (QoS 1 iff the contract has D_h)
+    must be the rule's (QoS 1 only to an owner whose adapter declares structural suppression or offers T with e + epsilon <= h).
+    The cutoff firmware's suppression is structural only with CONFIG_EVC_GUARD_EVICTED=y and CONFIG_EVC_DEDUP_HORIZON_MS=-1, both
+    checked in the source configuration and in build_config, the configuration of the build that runs (the measurement's
+    zephyr-cutoff.config). Every configuration so far agrees (the cutoff firmware: QoS 1; the plain firmware: QoS 0), so no
+    effective behaviour changes; a contract where they differ (e.g. a finite measured D_h alone) is refused before the first cell."""
+    sys.path.insert(0, str(REPO / "conformance"))
+    from reference import delivery_binding as DB  # noqa: E402
+    bad = []
+    for name, spec in cfg["real_owner"]["contracts"].items():
+        if spec.get("binding", "auto") != "auto":
+            continue
+        f = Path(spec.get("contract_file", ""))
+        f = f if f.is_absolute() else REPO / f
+        if f.is_file():
+            bad += DB.check_contract(name, spec.get("mode", ""), json.loads(f.read_text()), repo=REPO, build_config=build_config)
+    if bad:
+        raise StageFail("the delivery binding rule refuses this firmware campaign: " + "; ".join(bad))
+    RUN.log("delivery binding rule (release 084): every contract with binding auto gets the QoS the rule allows")
+
+
 def _zephyr_owner_campaign(tb, a, src: Path, cfg: dict):
     """Release 074, experiment C2: EviCon authorities (VM-A) against the Zephyr EviCon firmware (VM-E, one
     native_sim process per device, in the evidence mode of the cell's contract) behind Mosquitto (VM-B),
@@ -1409,6 +1452,7 @@ def _zephyr_owner_campaign(tb, a, src: Path, cfg: dict):
         cdir = m.out / "contracts"
         cdir.mkdir(parents=True, exist_ok=True)
         restricted = _place_zephyr_contracts(cfg, contracts, cdir)
+        _check_delivery_binding(cfg, (m.facts.get("firmware") or {}).get("config"))  # release 084: before any firmware campaign
         m.facts["contracts"] = {n: {"file": str(p.relative_to(RUN.path)), "sha256": sha256(p), "capabilities": c.get("capabilities")}
                                 for n, (p, c) in contracts.items()}
         if restricted:
@@ -3172,10 +3216,12 @@ def cmd_import_results(a) -> int:
 
 def _sources(a) -> list:
     """Run directories a report reads: those of --archive (078), of --sources-of (074), the --from ones (in the
-    order given), then this run."""
+    order given), then this run. Release 084: a review run that the archive holds (imported from its bundles) and that
+    is also read live (a --from or --sources-of run, or this run) is read once, from the live directory, which holds
+    everything its bundles held; reading both copies counted its campaigns twice (safety total, audits, Level 2)."""
+    archived = _archive_sources(a.archive, getattr(a, "archive_missing_ok", False)) if getattr(a, "archive", "") else []
     out = []
-    for s in ((_archive_sources(a.archive, getattr(a, "archive_missing_ok", False)) if getattr(a, "archive", "") else [])
-              + (_report_sources(a.sources_of) if getattr(a, "sources_of", "") else []) + list(a.from_run or [])):
+    for s in archived + (_report_sources(a.sources_of) if getattr(a, "sources_of", "") else []) + list(a.from_run or []):
         p = Path(s).resolve()
         if not p.is_dir():
             raise StageFail(f"--from {s}: not a directory (give a run directory, e.g. /root/EVICON_TOIT_067/results/review-...)")
@@ -3183,7 +3229,13 @@ def _sources(a) -> list:
             out.append(p)
     if RUN.path.resolve() not in out:
         out.append(RUN.path.resolve())
-    return out
+    arch = {Path(s).resolve() for s in archived}
+    live = {p.name for p in out if p not in arch}
+    twice = [p for p in out if p in arch and p.name in live]
+    if twice:
+        RUN.log(f"report: {len(twice)} archived run(s) also read live, read once from the live directory: "
+                f"{', '.join(p.name for p in twice)}")
+    return [p for p in out if p not in twice]
 
 
 def _pairs_ext_runs(plan: Path):
@@ -3376,6 +3428,16 @@ def cmd_report(tb, a):
             index.append("- [The runs of the 083 plan against its simulator prediction (E-SIM)](esim083/ESIM083.md)")
         else:
             RUN.problem("WARN", f"esim083 failed: {text[-400:]}")
+    # release 084: estimand E-SIM of PREREG_extra_084.md, from the plan's decided results
+    x084 = out / "pairs" / "PREREG_extra_084" / "results.json"
+    if x084.is_file():
+        rc, text = sh([sys.executable, "evaluation/esim084.py", "--results", str(x084), "--out", str(out / "esim084")],
+                      timeout=600, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-SIM (084)")
+            index.append("- [The runs of the 084 plan against its simulator prediction (E-SIM)](esim084/ESIM084.md)")
+        else:
+            RUN.problem("WARN", f"esim084 failed: {text[-400:]}")
     expc = sorted({r for s in srcs for r in _find_complete_runs(s, "expC-minio")}, key=lambda r: r.name)
     if expc:
         rc, text = sh([sys.executable, "evaluation/expC_summary.py", "--out", str(out / "expC"), str(expc[0])], timeout=900, quiet=True, check=False)
@@ -3523,6 +3585,38 @@ def cmd_report(tb, a):
             shutil.copy2(sc[-1].parent / "overhead.json", out / "scale" / "scale.json")
         done.append("scale")
         index.append("- [The authority with 4, 8, 16 and 32 domains (RQ4 load)](scale/SCALE.md)")
+    # release 084: the estimands E-FI and E-PF of PREREG_extra_084.md (fence intake and periodic reconciliation, from the traces of
+    # the plan's runs and its reference runs: the earliest complete run of each campaign of its pairs-spec)
+    p084 = REPO / "evaluation" / "prereg" / "PREREG_extra_084.md"
+    m084 = re.search(r"```pairs-spec\n(.*?)```", p084.read_text(), re.S) if p084.exists() else None
+    if m084:
+        fargs = []
+        for key, want in json.loads(m084.group(1)).get("runs", {}).items():
+            found = sorted({r for s in srcs for r in _find_complete_runs(s, want.get("campaign", ""))}, key=lambda r: r.name)
+            if found:
+                fargs += ["--run", f"{key}={found[0]}"]
+        if fargs:
+            rc, text = sh([sys.executable, "evaluation/fi084.py", *fargs, "--out", str(out / "fi084")], timeout=1800, quiet=True, check=False)
+            if rc == 0:
+                done.append("E-FI/E-PF (084)")
+                index.append("- [Fence intake and periodic reconciliation on the plan's runs (E-FI, E-PF)](fi084/FI084.md)")
+            else:
+                RUN.problem("WARN", f"fi084 failed: {text[-400:]}")
+    # release 084: the Level-2 analyses of the external review (M8 end of observation, M6 ThingsBoard late effects, N6 ReadRelease,
+    # N11 admission, N7 sample counts, M3 R5 counterfactual, M4 rubric, ThingsBoard delivery, M10 per-request service time) over every
+    # run read; never fails on a
+    # lean archive (missing traces are reported as not available)
+    if camps or [s for s in srcs if (s / "measure").is_dir()]:
+        l2args = [sys.executable, "evaluation/review_l2_084.py", "--out", str(out / "l2_084"), "--report", str(out)]
+        l2args += [x for c in camps for x in ("--campaign", str(c))]
+        l2args += [x for s in srcs if (s / "measure").is_dir() for x in ("--measure", str(s / "measure"))]
+        rc, text = sh(l2args, timeout=7200, quiet=True, check=False)
+        if rc == 0:
+            done.append("Level-2 analyses (084)")
+            index.append("- [Level-2 analyses of the external review (end of observation, ThingsBoard, ReadRelease, admission, sample "
+                         "counts, R5 counterfactual, rubric, ThingsBoard delivery, per-request service time)](l2_084/L2_084.md)")
+        else:
+            RUN.problem("WARN", f"review_l2_084 failed: {text[-400:]}")
     measured =[s / "measure" for s in srcs if (s / "measure").is_dir()]
     if measured:
         rc, _ = sh([sys.executable, "conformance/run_probe.py", "map", "--catalog", "experiments/contracts", "--out", str(out / "contract_map")]

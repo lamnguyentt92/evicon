@@ -103,12 +103,14 @@ def flat(d: dict, pre="") -> dict:
 
 class H1Version(unittest.TestCase):
     def test_version(self):
-        self.assertEqual((REPO / "VERSION").read_text().strip(), "083")
-        self.assertIn('const Release = "083"', (REPO / "internal" / "buildinfo" / "buildinfo.go").read_text())
-        self.assertIn('version: "083"', (REPO / "CITATION.cff").read_text())
+        # release 084: made release-agnostic (a later release keeps this test): the release is 083 or later, the same everywhere
+        v = (REPO / "VERSION").read_text().strip()
+        self.assertGreaterEqual(v, "083")
+        self.assertIn(f'const Release = "{v}"', (REPO / "internal" / "buildinfo" / "buildinfo.go").read_text())
+        self.assertIn(f'version: "{v}"', (REPO / "CITATION.cff").read_text())
         for f in sorted((REPO / "deploy" / "setup").glob("vm-*.sh")):
             t = f.read_text()
-            self.assertIn("(EviCon 083)", t, f.name)
+            self.assertIn(f"(EviCon {v})", t, f.name)
             self.assertNotIn("(EviCon 082)", t, f.name)
         self.assertIn("## 083", (REPO / "CHANGELOG.md").read_text())
 

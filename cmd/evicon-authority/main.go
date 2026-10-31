@@ -62,7 +62,7 @@ func main() {
 	ambiguityAfter := flag.Duration("ambiguity-after", 2*time.Second, "EVICON: a command without terminal evidence this long after creation is ambiguous")
 	certDepth := flag.Int("certificate-depth", 3, "EVICON continuation-certificate size bound")
 	resolveSweep := flag.Duration("resolve-sweep", time.Second, "EVICON: background sweep interval over aged ambiguous reservations (0 disables)")
-	resolveTrigger := flag.String("resolve-trigger", eruntime.TriggerBlockAndSweep, "EVICON: BLOCK_AND_SWEEP (resolve on a blocked candidate and in the sweep) or SWEEP_ONLY (periodic baseline)")
+	resolveTrigger := flag.String("resolve-trigger", eruntime.TriggerBlockAndSweep, "EVICON: BLOCK_AND_SWEEP (resolve on a blocked candidate and in the sweep), SWEEP_ONLY (periodic baseline) or PERIODIC_FULL (release 084: the full periodic reconciliation baseline; every sweep queries, then stops or fences the aged unresolved commands under the threshold rule; no certificate search, no window or block trigger)")
 	retryGuard := flag.Bool("retry-guard", false, "release 061: suppress same-identity outbox retries past the T4 forward-retry deadline of the evidence contract")
 	maxNetDelay := flag.Duration("max-network-delay", -1, "T4 assumed one-way delay bound; negative = unbounded")
 	probeBudget := flag.Int("probe-budget", 2, "maximum receipt queries per logical candidate across retries")
@@ -81,6 +81,7 @@ func main() {
 	resendUntil := flag.Duration("resend-until", 0, "release 077: with -retry-guard, resend a command under its own identity only until this long after its creation (0 = no validity cut, the rule of releases 072-076); to never resend after the intent's validity, the intent's validity minus the longest time a client may take to submit it")
 	releaseAfter := flag.Duration("release-after", 10*time.Second, "release 077, policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ only (unsafe baselines): a command unresolved this long after creation is committed STOPPED without owner evidence of non-occurrence (RELEASE_ON_READ first reads the owner's receipt)")
 	releaseSettle := flag.Duration("release-settle", 0, "release 083, policy RELEASE_ON_READ_ANSWERED only: the one-way delay bound the baseline assumes; it re-sends a command only until release-after minus this after its creation and releases on an answered NOT_FOUND only when the read was sent at least this long after the command's last dispatch attempt (0 = release-after)")
+	fenceIntake := flag.String("fence-intake", eruntime.FenceIntakeAllOrNothing, "release 084: intake of a complete fence answer that lists identities the owner cannot certify (UNCERTAIN): all-or-nothing (rule R5, releases 062-083: abort, seal and anchor nothing) or per-identity (rule R5': take in the listed terminal answers, seal the unlisted identities at or below the cutoff as STOPPED, keep the UNCERTAIN ones pending and owner-uncertain)")
 	certificate := flag.String("certificate", eruntime.CertificateEnumerate, "release 083, EVICON: certificate search of a guard block: enumerate (bounded enumeration up to -certificate-depth, releases 061-082) or greedy (the greedy certificate of an additive domain, Section 3.6; other domains use the enumeration)")
 	flag.Parse()
 	if *traceSeed < 0 {
@@ -211,7 +212,7 @@ func main() {
 	auth, e := eruntime.NewAuthority(eruntime.AuthorityConfig{Store: store, Domain: journal.Domain{ID: *domainID, Generation: *generation, InstalledEpoch: *epoch, Revision: 0, Dimension: len(st), ComponentMin: mins, ComponentMax: maxs, SumMax: sm, Anchor: st, CutoffSequence: 0, ContractHash: *contractHash}, EndpointURL: *endpoint, Profile: p, Dispatcher: disp, Faults: fc, Trace: tr, MaxConfigurations: *maxCfg, MaxOutstanding: *maxOutstanding, Policy: method, LedgerReconcile: probe.Method(strings.ToUpper(*ledgerName)), QueryCosts: costs, OutcomeModel: outcomeModel, ProbeBudget: *probeBudget, PlannerDepth: *plannerDepth, PlannerComputeBudget: *plannerBudget, QueryConcurrency: *queryConcurrency, PlannerCache: *plannerCache,
 		EvidenceContract: ec, ResolvePolicy: rp, ResolveCosts: resolve.Costs{HoldPerUnitPerSec: *holdCost, QueryCost: *eviconQueryCost, StopCost: *stopCost, FenceCost: *fenceCost},
 		AmbiguityAfter: *ambiguityAfter, CertificateDepth: *certDepth, ResolveTrigger: strings.ToUpper(*resolveTrigger), ReleaseAfter: *releaseAfter,
-		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate))})
+		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate)), FenceIntake: strings.ToLower(strings.TrimSpace(*fenceIntake))})
 	if e != nil {
 		log.Fatal(e)
 	}

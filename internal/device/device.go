@@ -624,6 +624,9 @@ func (d *Device) Contract() contract.EvidenceContract {
 	}
 	if d.cfg.Query {
 		c.Capabilities = append(c.Capabilities, contract.CapQueryApplied)
+		// Release 084: the query answers from the device journal (JSONL, fsync), which
+		// keeps every claim and receipt for the device's lifetime: r = infinity.
+		c.RecordRetentionMS = contract.UnboundedRetentionMS
 	}
 	if d.cfg.Stop {
 		c.Capabilities = append(c.Capabilities, contract.CapStop)

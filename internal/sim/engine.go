@@ -235,6 +235,9 @@ type attempt struct {
 	truthEffect    bool
 	retries        int
 	uncertain      int
+	// fenceUncertain (release 084, fence_uncertain "per_identity"): a complete fence answer listed this
+	// attempt UNCERTAIN; the resolver leaves it alone from then on (rule R5' of evicon-authority)
+	fenceUncertain bool
 }
 
 type control struct {
@@ -338,6 +341,15 @@ func resolverPolicy(policy string, a AuthoritySpec) resolve.Policy {
 		return a.Resolve
 	}
 }
+
+// periodMS (release 084): the resolution period of the periodic policies.
+func (rn *run) periodMS() int64 {
+	if rn.policy == PolicyPeriodicFull {
+		return rn.cfg.Authority.PeriodicFullMS
+	}
+	return rn.cfg.Authority.PeriodicMS
+}
+
 func (rn *run) horizonAware() bool {
 	return rn.isEvicon() || rn.policy == PolicyB2Ledger || rn.policy == PolicyB5SelectorM4 || rn.isReplay() || rn.isQueryOnly()
 }
@@ -357,6 +369,9 @@ func runEpisode(cfg Config, base contract.EvidenceContract, policy string, ep in
 	rn.own = newOwner(c, cfg.Owner, cfg.Workload, in.schedule)
 	rn.resPol = resolverPolicy(policy, cfg.Authority)
 	rn.nextPeriodic = cfg.Authority.PeriodicMS * 1000
+	if policy == PolicyPeriodicFull {
+		rn.nextPeriodic = cfg.Authority.PeriodicFullMS * 1000
+	}
 	w := cfg.Workload
 	rn.dom = journal.Domain{ID: "sim", Generation: 1, InstalledEpoch: 1, Dimension: w.Dimension,
 		ComponentMin: w.ComponentMin, ComponentMax: w.ComponentMax, SumMax: w.SumMax,
@@ -1147,6 +1162,14 @@ func (rn *run) onFenceReply(e *event) error {
 		if v, ok := e.receipts[a.ownerKey]; ok {
 			out = v
 		}
+		if out == "UNCERTAIN" && rn.cfg.Authority.FenceUncertain == "per_identity" {
+			// release 084 (rule R5'): pending, its reservation kept, and out of the targets
+			if !a.fenceUncertain {
+				a.fenceUncertain = true
+				a.stopIssued = true
+			}
+			continue
+		}
 		adm := rn.c.Admit(contract.Outcome(out), contract.ChannelFence, (rn.now-a.firstSend)/1000)
 		if !adm.Admissible {
 			continue
@@ -1331,10 +1354,10 @@ func (rn *run) onTick() error {
 		rn.queryOnlyStep()
 	}
 	if rn.isEvicon() {
-		if rn.policy == PolicyResPeriodic {
+		if rn.policy == PolicyResPeriodic || rn.policy == PolicyPeriodicFull {
 			rn.validitySafety()
 			if rn.now >= rn.nextPeriodic {
-				rn.nextPeriodic = rn.now + auth.PeriodicMS*1000
+				rn.nextPeriodic = rn.now + rn.periodMS()*1000
 				if err := rn.resolveStep(); err != nil {
 					return err
 				}
@@ -1534,7 +1557,7 @@ func (rn *run) resolveStep() error {
 		return nil
 	}
 	targets := map[string]bool{}
-	if rn.policy == PolicyResPeriodic {
+	if rn.policy == PolicyResPeriodic || rn.policy == PolicyPeriodicFull {
 		for _, a := range amb { // periodic: every aged ambiguous command, no certificate
 			targets[a.key] = true
 		}
@@ -1559,7 +1582,7 @@ func (rn *run) resolveStep() error {
 				self = true
 			}
 		}
-		inCert := targets[a.key] || self
+		inCert := (targets[a.key] || self) && !a.fenceUncertain // release 084: R5' leaves fence-uncertain attempts alone
 		anyTarget = anyTarget || inCert
 		in.Ambiguous = append(in.Ambiguous, resolve.Ambiguous{ID: a.key, Sequence: a.seq, Magnitude: l1(a.value),
 			AmbiguousSinceMS: a.ambiguousSince / 1000, FirstSendMS: a.firstSend / 1000, LastAttemptMS: a.lastSend / 1000,

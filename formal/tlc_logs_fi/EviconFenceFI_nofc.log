@@ -1,0 +1,150 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 21 and seed 8793059766642254292 with 2 workers on 2 cores with 1330MB heap and 64MB offheap memory [pid: 2452] (Linux 6.18.44-fc-v185 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <copy of the release>/formal/MCEviconFenceFI.tla
+Parsing file <copy of the release>/formal/EviconFenceFI.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/TLC.tla
+Parsing file /tmp/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module EviconFenceFI
+Semantic processing of module MCEviconFenceFI
+Starting... (2026-10-31 12:39:31)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-31 12:39:32.
+Error: Invariant NoFalseStopped is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ fenceMsg = {}
+/\ oSeen = {}
+/\ oApplied = {}
+/\ orphan = {}
+/\ cutoff = 0
+/\ tomb = {}
+/\ fencing = 0
+/\ net = {}
+/\ st = ( <<i1, 1>> :> "NONE" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 0
+/\ crashes = 0
+/\ seqOf = (<<i1, 1>> :> 0 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = FALSE
+/\ nextSeq = 1
+
+State 2: <Admit line 108, col 3 to line 114, col 120 of module EviconFenceFI>
+/\ fenceMsg = {}
+/\ oSeen = {}
+/\ oApplied = {}
+/\ orphan = {}
+/\ cutoff = 0
+/\ tomb = {}
+/\ fencing = 0
+/\ net = {<<i1, 1>>}
+/\ st = ( <<i1, 1>> :> "PENDING" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 0
+/\ crashes = 0
+/\ seqOf = (<<i1, 1>> :> 1 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = FALSE
+/\ nextSeq = 2
+
+State 3: <CrashDeliver line 153, col 3 to line 161, col 98 of module EviconFenceFI>
+/\ fenceMsg = {}
+/\ oSeen = {<<i1, 1>>}
+/\ oApplied = {<<i1, 1>>}
+/\ orphan = {<<i1, 1>>}
+/\ cutoff = 0
+/\ tomb = {}
+/\ fencing = 0
+/\ net = {}
+/\ st = ( <<i1, 1>> :> "PENDING" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 2
+/\ crashes = 1
+/\ seqOf = (<<i1, 1>> :> 1 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = FALSE
+/\ nextSeq = 2
+
+State 4: <StartFence line 195, col 3 to line 199, col 136 of module EviconFenceFI>
+/\ fenceMsg = {}
+/\ oSeen = {<<i1, 1>>}
+/\ oApplied = {<<i1, 1>>}
+/\ orphan = {<<i1, 1>>}
+/\ cutoff = 0
+/\ tomb = {}
+/\ fencing = 1
+/\ net = {}
+/\ st = ( <<i1, 1>> :> "PENDING" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 2
+/\ crashes = 1
+/\ seqOf = (<<i1, 1>> :> 1 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = FALSE
+/\ nextSeq = 2
+
+State 5: <OwnerFence line 206, col 3 to line 211, col 108 of module EviconFenceFI>
+/\ fenceMsg = {}
+/\ oSeen = {<<i1, 1>>}
+/\ oApplied = {<<i1, 1>>}
+/\ orphan = {<<i1, 1>>}
+/\ cutoff = 1
+/\ tomb = {}
+/\ fencing = 1
+/\ net = {}
+/\ st = ( <<i1, 1>> :> "PENDING" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 2
+/\ crashes = 1
+/\ seqOf = (<<i1, 1>> :> 1 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = TRUE
+/\ nextSeq = 2
+
+State 6: <FenceReply line 223, col 3 to line 235, col 103 of module EviconFenceFI>
+/\ fenceMsg = {}
+/\ oSeen = {<<i1, 1>>}
+/\ oApplied = {<<i1, 1>>}
+/\ orphan = {<<i1, 1>>}
+/\ cutoff = 1
+/\ tomb = {}
+/\ fencing = 0
+/\ net = {}
+/\ st = ( <<i1, 1>> :> "STOPPED" @@
+  <<i1, 2>> :> "NONE" @@
+  <<i2, 1>> :> "NONE" @@
+  <<i2, 2>> :> "NONE" )
+/\ replies = {}
+/\ oState = 2
+/\ crashes = 1
+/\ seqOf = (<<i1, 1>> :> 1 @@ <<i1, 2>> :> 0 @@ <<i2, 1>> :> 0 @@ <<i2, 2>> :> 0)
+/\ fenceUnc = {}
+/\ fenceOK = FALSE
+/\ nextSeq = 2
+
+95 states generated, 60 distinct states found, 17 states left on queue.
+The depth of the complete state graph search is 7.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 4 and the 95th percentile is 4).
+Finished in 00s at (2026-10-31 12:39:32)

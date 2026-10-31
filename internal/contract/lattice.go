@@ -110,7 +110,18 @@ type EvidenceContract struct {
 	// "crash-stop;no-reboot;loss+delay"). Contracts under different fault
 	// models are incomparable in Includes.
 	FaultModel string `json:"fault_model,omitempty"`
+	// RecordRetentionMS (release 084) is the retention r of the owner records that
+	// its identity-scoped query answers from: UnboundedRetentionMS (-1) when the
+	// owner never discards the record of an identity it may have applied (within
+	// the generation), > 0 a finite retention, 0 not declared (finite or unknown).
+	// Expiry-revealed evidence needs r = infinity (ExpiryRevealsStopped). It is a
+	// declared premise of the owner's implementation: a black-box measurement can
+	// never establish it (validateMeasured).
+	RecordRetentionMS int64 `json:"record_retention_ms,omitempty"`
 }
+
+// UnboundedRetentionMS marks owner records that are never discarded (release 084).
+const UnboundedRetentionMS int64 = -1
 
 func (c EvidenceContract) Has(cap EvidenceCapability) bool {
 	for _, x := range c.Capabilities {
@@ -159,6 +170,9 @@ func (c EvidenceContract) Validate() error {
 	if c.ClockSkewMS < 0 {
 		return fmt.Errorf("contract %s: clock_skew_ms must be >= 0", c.ID)
 	}
+	if c.RecordRetentionMS < UnboundedRetentionMS {
+		return fmt.Errorf("contract %s: record_retention_ms must be > 0, -1 (unbounded) or 0 (not declared)", c.ID)
+	}
 	if c.Has(CapAtomic) && !c.Has(CapDedup) {
 		return fmt.Errorf("contract %s: X (atomic receipt) implies same-identity replay; declare D_h", c.ID)
 	}
@@ -194,6 +208,9 @@ func (c EvidenceContract) validateMeasured() error {
 	if c.Has(CapDedup) && c.DedupHorizonMS == UnboundedHorizonMS {
 		return fmt.Errorf("contract %s: a measurement cannot establish an unbounded dedup horizon; use the observed lower bound", c.ID)
 	}
+	if c.RecordRetentionMS == UnboundedRetentionMS {
+		return fmt.Errorf("contract %s: a measurement cannot establish unbounded record retention", c.ID)
+	}
 	if c.Has(CapAtomic) && !strings.Contains(strings.ToUpper(c.Provenance[string(CapAtomic)]), "CRASH_CUT") {
 		return fmt.Errorf("contract %s: MEASURED X requires crash-cut evidence", c.ID)
 	}
@@ -228,9 +245,17 @@ func (c EvidenceContract) BackwardEvidence() bool {
 	return c.Has(CapStop) || c.Has(CapFence) || c.ExpiryRevealsStopped()
 }
 
-// ExpiryRevealsStopped: owner expiry plus truthful query makes NOT_FOUND terminal.
+// ExpiryRevealsStopped: owner expiry plus truthful query makes NOT_FOUND terminal:
+// ER = T and (X or (Q_A and r = infinity)). Release 084: the query branch needs the
+// owner's records to be kept without bound (RecordRetentionMS), not only an
+// unbounded suppression horizon: an owner may suppress forever and still discard
+// records (the cutoff firmware's 32-entry ring), and then a NOT_FOUND after the
+// expiry does not show that the identity never took effect. Releases <= 083
+// used T and (X or (Q_A and D_h with h = infinity)); every contract that
+// satisfied it and drives a run declares r = infinity (the emulated device's
+// journal, the simulator owner), so no existing configuration changes.
 func (c EvidenceContract) ExpiryRevealsStopped() bool {
-	return c.Has(CapExpiry) && (c.Has(CapAtomic) || (c.Has(CapQueryApplied) && c.Has(CapDedup) && c.DedupHorizonMS == UnboundedHorizonMS))
+	return c.Has(CapExpiry) && (c.Has(CapAtomic) || (c.Has(CapQueryApplied) && c.RecordRetentionMS == UnboundedRetentionMS))
 }
 
 // NoFutureEffect reports whether an identity sent ageMS ago can no longer
@@ -265,6 +290,9 @@ func (c EvidenceContract) Includes(o EvidenceContract) bool {
 	}
 	if o.FaultModel != "" && c.FaultModel != o.FaultModel {
 		return false
+	}
+	if o.RecordRetentionMS != 0 && (c.RecordRetentionMS == 0 || !horizonAtLeast(c.RecordRetentionMS, o.RecordRetentionMS)) {
+		return false // release 084: c keeps its records at least as long as o declares
 	}
 	return true
 }

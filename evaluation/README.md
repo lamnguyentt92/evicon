@@ -7,6 +7,7 @@
 | `campaign_zephyr_ext077.py` | The C3 runner plus the delivery binding of MQTT commands and the offline cut (release 077, run Q) |
 | `campaign_tb.py` | EviCon on ThingsBoard CE's persistent RPC (release 077, run TB), on the frozen C2 runner's cell loop |
 | `ext083.py`, `campaign_ext083.py`, `campaign_real_ext083.py`, `campaign_tb_ext083.py` | The 083 policies (M1W, RELEASE_ON_READ_ANSWERED, RELEASE_ON_TIMEOUT_<n>S, EVICON_GREEDY, EVICON_FC<x>) installed on `campaign_ext077.py`, `campaign_real.py` and `campaign_tb.py`, which are imported unchanged (release 083, below) |
+| `ext084.py`, `campaign_ext084.py`, `campaign_real_ext084.py`, `campaign_zephyr_ext084.py` | The 084 policies (EVICON_FI, PERIODIC_FULL) and the `exclude_cells` key installed on the 083 and 077 runners, which are imported unchanged; the firmware runner checks the delivery binding rule before the first cell (release 084, below) |
 | `campaigns/local_smoke.json` | Pipeline check on one machine (`make campaign-local`). **Development numbers are not measurements** |
 | `campaigns/pilot_pending_binding.json` | Testbed pilot, *pending-binding* regime |
 | `campaigns/pilot_capacity_binding.json` | Testbed pilot, *capacity-binding* regime |
@@ -37,6 +38,8 @@ rule. They differ only in *when* and *what* is resolved:
 | `RELEASE_ON_TIMEOUT_<n>S` (083) | `-policy RELEASE_ON_TIMEOUT -release-after <n>s` | RELEASE_ON_TIMEOUT with the release time n s (30, 60, 120), **unsafe by design** |
 | `EVICON_GREEDY` (083) | EVICON's flags and `-certificate greedy` | EVICON with the greedy certificate of an additive domain instead of the bounded enumeration |
 | `EVICON_FC<x>` (083) | EVICON's flags with `-fence-cost <x>` | EVICON at another cost ratio theta (run Th: x = 100) |
+| `EVICON_FI` (084) | EVICON's flags and `-fence-intake per-identity` | EVICON with rule R5': a fence whose answer lists identities UNCERTAIN takes the terminal answers, seals the unlisted identities at or below the cutoff STOPPED and keeps the UNCERTAIN ones pending (no anchor) |
+| `PERIODIC_FULL` (084) | EVICON's flags with `-resolve-trigger PERIODIC_FULL` | Full periodic reconciliation: every sweep (1 s) every aged ambiguous command is queried, then stopped or fenced under EVICON's threshold rule, within the probe budget; no certificate, no window or budget trigger; guarded |
 
 The `RELEASE_*` baselines break rule R2 on purpose and run only in their own cells (`campaign_ext077.py`,
 `campaign_ext083.py`); `safety_total.BASELINES` is their one definition.
@@ -335,3 +338,37 @@ effect of T7) are estimands.
   `overhead.py`), the K2 replication's label in `tab_fence_cost.tex`, the firmware counted once in the contract map,
   `tab_extra083_*.tex`, `tab_admit_late.tex`.
 - Tests: `test_release083.py` (H1-H12).
+
+## Release 084: the review experiments of the external review (`prereg/PREREG_extra_084.md`)
+
+Two controls on the five-VM testbed and the delivery binding rule, from the external review of 31 October 2026, and
+Level-2 analyses of the existing traces (no new cells). 6 campaign configs, 64 cells, two sessions (about 7.3 h and 3.6 h,
+the report included). 13 rules: 5 paired-difference hypotheses (FI-1; PF-1 to PF-4), 6 absence rules, 2 safety rules;
+by the 0.80 rule FI-2 (the stop against R5' at W = 6) and FI-3 (R5 against R5' at W unbounded) are estimands.
+
+| Item | Runs (configs) | What is new |
+|---|---|---|
+| (a) fence intake | FIs6 (`expFI_s6`: K0F R5, K0F R5', K0S stop; S's episodes 0-7), FIsi (`expFI_sinf`: K0F R5, R5'; Si's episodes 0-3) | `-fence-intake per-identity` (journal status PARTIAL; tests F52-F54, the property test, TLA+ `formal/EviconFenceFI.tla`); simulator `fence_uncertain: per_identity` |
+| (c) full periodic reconciliation | PFz6, PFzi (`expPF_zephyr_w6`, `_winf`), PFm6, PFmi (`expPF_minio_w6`, `_winf`) | `-resolve-trigger PERIODIC_FULL` (test F54; simulator policy PERIODIC_FULL); cross-run against the EVICON cells of C2, Rz, C, Rm, paired by schedule |
+| (b) delivery binding | no cells | `conformance/reference/delivery_binding.py` (QoS 1 only with structural suppression, i.e. CONFIG_EVC_GUARD_EVICTED=y and CONFIG_EVC_DEDUP_HORIZON_MS=-1, or with T and e + epsilon <= h), checked by the driver with the build's configuration and by `campaign_zephyr_ext084.py`; firmware host test `test_evc_late_copy.c` |
+
+- **Analysis**: `pairs_ext083.py` (frozen) on the plan's ```pairs-spec``` and ```pairs-ext``` blocks; `policy_compare.py`;
+  `fi084.py` (E-FI, E-PF: fences aborted with OWNER_UNCERTAIN, per-identity commits, terminal answers per fence, orphans
+  listed, owner calls); `esim084.py` (E-SIM). The driver's `report` runs them on the earliest complete run of each
+  campaign among its sources.
+- **Prediction and power**: `sim_extra084.py` (`sim_predictions/extra084_*.csv`, `SIM_EXTRA084.md`; the twin's crash
+  rate fitted to the testbed's K0F -> K0S gap, `extra084_calibration.csv`), `power_extra084_testbed.py`.
+- **Level-2** (`review_l2_084.py`, run by `report` over every run it reads; "not available" where a lean archive lacks the
+  raw files): M8 end of observation, M6 ThingsBoard late effects, N6 releases after an answered read, N11 admission
+  accounting, N7 sample counts behind the latency percentiles, M3 the R5 counterfactual, M4 the probe rubric with split
+  Q_A semantics (the frozen rubric untouched), ThingsBoard's delivery of RPCs to the reference device, and M10 the
+  distribution (p50/p95/p99) of the per-request sum lock + evaluation + commit next to the sum of the component medians.
+  `paper_tables.py` writes `tab_extra084.tex`, `tab_l2_*.tex` and the macros `\evFI*`, `\evL*`, `\evLsvc*`.
+- **Safety total** (`safety_total.py`): the guarded cells with faults whose Phi1 rests on the fault model rather than on the
+  binding (the plain firmware at QoS 1; ThingsBoard's guarded cells) are counted apart, per experiment, next to the cells
+  that test Theorem 1 (macros `\evSafetyCellsDagger`, `\evSafetyCellsTheoremOne`).
+- **Expiry-revealed evidence** (Go compiler, `internal/contract`): ER = T and (X or (Q_A and r = infinity)) with the declared
+  record retention `record_retention_ms`; `conformance/evicon_probe/rubric.py` is frozen and keeps the 083 mirror.
+- Report sources: a review run that the archive holds and that is also read live (`--from`, or the run writing the
+  report) is read once, from the live directory.
+- Tests: `test_release084.py` (J1-J14).

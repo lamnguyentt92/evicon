@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "release": "084",
+  "rule": "The MQTT owner gateway sends commands at QoS 1 only to an owner whose adapter declares structural suppression (every late copy of an identity it may have executed is never executed again, whatever its age) or that offers owner expiry T with e + epsilon <= h; QoS 0 otherwise. A measured finite D_h alone does not suffice (conformance/reference/delivery_binding.py).",
+  "adapters": {
+    "CUTOFF": {
+      "structural_suppression": true,
+      "requires": [
+        "CONFIG_EVC_GUARD_EVICTED=y",
+        "CONFIG_EVC_DEDUP_HORIZON_MS=-1"
+      ],
+      "mechanism": "eviction rule: a command whose sequence is at or below the eviction watermark (receipt evicted from the 32-entry ring, effect with an unknown result, or a reboot, which sets the watermark to the durable high-water mark) and that has no receipt is answered UNCERTAIN (RECEIPT_MAY_BE_EVICTED) and never executed again (src/evc_core.c, evc_core_command)",
+      "evidence": [
+        "firmware/zephyr-cutoff/tests/host/test_evc_late_copy.c (after ring eviction, after a reboot; negative-control build executes again; with a positive or zero horizon a copy older than the horizon executes again in both builds)",
+        "firmware/zephyr-cutoff/tests/host/test_evc_core.c (eviction_never_yields_not_started_or_duplicate, reboot_loses_receipts_but_not_certainty)",
+        "probes P5 (resend after a 600 s gap) and P5N (after 64 intervening identities) of `measure zephyr`"
+      ],
+      "premises": "Both build settings are the Kconfig defaults. With CONFIG_EVC_DEDUP_HORIZON_MS > 0 (or 0) a receipt still in the ring but older than the horizon is not live, the eviction guard (which applies only when no receipt is found) is bypassed and the copy executes again (src/evc_core.c, evc_core_command; test_evc_late_copy.c, late_copy_beyond_positive_horizon): no structural suppression, QoS 0."
+    },
+    "STOP": {
+      "structural_suppression": true,
+      "requires": [
+        "CONFIG_EVC_GUARD_EVICTED=y",
+        "CONFIG_EVC_DEDUP_HORIZON_MS=-1"
+      ],
+      "mechanism": "as CUTOFF (the stop mode adds the durable tombstone table; the eviction rule and its two build premises are the same)",
+      "evidence": [
+        "as CUTOFF"
+      ]
+    },
+    "PLAIN": {
+      "structural_suppression": false,
+      "mechanism": "no deduplication: the plain mode executes every delivery (the baseline)",
+      "evidence": []
+    }
+  }
+}

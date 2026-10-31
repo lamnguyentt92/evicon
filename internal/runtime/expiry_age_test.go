@@ -56,7 +56,8 @@ func TestF41ExpiryAgeIsTakenAtQuerySend(t *testing.T) {
 			defer srv.Close()
 			ec := contract.EvidenceContract{SchemaVersion: 1, ID: "k3t-like", System: "test", Source: contract.SourceRuntimeVerified,
 				Capabilities:   []contract.EvidenceCapability{contract.CapDedup, contract.CapQueryApplied, contract.CapExpiry},
-				DedupHorizonMS: contract.UnboundedHorizonMS, ExpiryMS: expiry.Milliseconds(), ClockSkewMS: 0}
+				DedupHorizonMS: contract.UnboundedHorizonMS, ExpiryMS: expiry.Milliseconds(), ClockSkewMS: 0,
+				RecordRetentionMS: contract.UnboundedRetentionMS}
 			if !ec.ExpiryRevealsStopped() {
 				t.Fatal("test contract must satisfy ER")
 			}

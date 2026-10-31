@@ -1,5 +1,71 @@
 # Changelog
 
+## 084 — 2026-10-31
+
+The review experiments of the external review of 31 October 2026 (plan `evaluation/prereg/PREREG_extra_084.md`, frozen
+before its first cell; 6 campaign configs, 64 cells in two sessions), the delivery binding rule made explicit, and
+Level-2 analyses of the existing traces. Every file an earlier plan freezes is byte-identical (`PREREG_review_077.md`:
+`db67640d...`; `PREREG_extra_083.md`: `6e3f24a9...`); every new behaviour is behind a new default-off flag or in new files,
+and every policy and default of earlier releases behaves as before (the simulator's output of every earlier scenario is
+byte-identical to release 083's).
+
+- **(a) Per-identity fence intake, rule R5'** (`evicon-authority -fence-intake per-identity`, default `all-or-nothing` =
+  rule R5; `internal/runtime/fence_intake.go`, `internal/journal/fence_intake.go`): a fence whose answer lists identities
+  UNCERTAIN takes every terminal answer as evidence, seals every unlisted non-terminal identity at or below the cutoff
+  STOPPED, keeps each UNCERTAIN identity pending (never fenced again: the cutoff is durable and the answer complete),
+  writes no anchor and leaves the cutoff (barrier status PARTIAL). Conflicts and invalid receipts still abort. Runtime
+  tests F52, F53, F53b; a property test over random executions (lost, held, late and reply-lost messages, crash orphans):
+  R5' and R5 never yield a false STOPPED or a duplicate, and the negative control that treats an incomplete answer as
+  complete is caught; TLA+ model `formal/EviconFenceFI.tla` with TLC results in `formal/TLC_RESULTS_FI.txt` (the
+  invariants hold under R5', and the configuration without the completeness check violates NoFalseStopped). Simulator:
+  `authority.fence_uncertain: per_identity`. Policy EVICON_FI. Runs FIs6 (the stop experiment's orphan schedules, W = 6:
+  R5, R5' and the stop within one run) and FIsi (W unbounded).
+- **(c) Full periodic reconciliation** (`-resolve-trigger PERIODIC_FULL`; `internal/runtime/periodic_full.go`): every
+  sweep (1 s), every aged ambiguous command is queried if the contract has Q_A, then stopped if Q_S, else fenced if F,
+  under EVICON's threshold rule and within the probe budget; no certificate search, no window or budget trigger; the
+  guard is unchanged. Runtime test F54; simulator policy PERIODIC_FULL. Runs PFz6, PFzi (the cutoff firmware) and PFm6,
+  PFmi (MinIO's conditional PUT), cross-run against the EVICON cells of C2, Rz, C and Rm on the same schedules.
+- **(b) Delivery binding rule** (`conformance/reference/delivery_binding.py`, declarations
+  `experiments/owners/bindings/delivery-binding-084.json`): QoS 1 only to an owner whose suppression is structural, which
+  for the cutoff firmware needs both CONFIG_EVC_GUARD_EVICTED=y and CONFIG_EVC_DEDUP_HORIZON_MS=-1 (with a positive or
+  zero horizon a ring entry older than the horizon is not live and bypasses the eviction guard), or to an owner with T
+  and e + epsilon <= h; a finite measured D_h alone gets QoS 0. The driver checks every firmware campaign with binding
+  "auto" against the frozen 077 gateway's choice, with the configuration of the build that runs, and refuses where they
+  differ; `campaign_zephyr_ext084.py` checks the source configuration. Every configuration so far agrees: no effective
+  change. Firmware host test `test_evc_late_copy.c` (late copies after ring eviction and after a reboot are answered
+  UNCERTAIN and not executed; the negative-control build executes them; a positive or zero horizon re-executes a copy
+  older than the horizon in both builds).
+- **Level-2 analyses** (`evaluation/review_l2_084.py`, run by `report` over every run it reads; "not available" where the
+  raw files are missing): end of observation (M8), ThingsBoard late effects (M6), releases after an answered read (N6),
+  admission accounting (N11), sample counts behind the latency percentiles (N7), the R5 counterfactual (M3), the probe
+  rubric with split Q_A semantics (M4; the frozen rubric untouched), ThingsBoard's RPC delivery to the reference device
+  (persistent two-way RPC with retries 0, device at QoS 1 without deduplication), and the per-request service time (M10:
+  p50/p95/p99 of lock + evaluation + commit next to the sum of the component medians).
+- **Runners and driver**: `ext084.py` (EVICON_FI, PERIODIC_FULL; the `exclude_cells` key for the emulated runner),
+  `campaign_ext084.py`, `campaign_real_ext084.py`, `campaign_zephyr_ext084.py`; the driver picks them by policy; verify runs
+  `test_release084`; `report` runs `fi084.py` (E-FI, E-PF), `esim084.py` (E-SIM) and the Level-2 analyses, and
+  `paper_tables.py` writes `tab_extra084.tex`, `tab_l2_*.tex` and the macros `\evFI*`, `\evL*`, `\evLsvc*`.
+- **Report sources**: a review run that the archive holds (imported from its bundles) and that is also read live (a
+  `--from` run, or the run writing the report) is read once, from the live directory; before, its campaigns counted twice
+  in the safety total, the audits and the Level-2 analyses (found by the simulated-testbed regression; `test_release084`
+  J14).
+- **Prediction and power**: `evaluation/sim_extra084.py` (the twin's crash rate fitted to the testbed's K0F -> K0S gap
+  before any cell) and `evaluation/power_extra084_testbed.py`; by the 0.80 rule FI-2 and FI-3 are estimands.
+- **Expiry-revealed evidence needs unbounded record retention** (paper verification): the compiler's rule is now
+  ER = T and (X or (Q_A and r = infinity)), where r is the owner's declared record retention (new contract field
+  `record_retention_ms`: -1 unbounded, > 0 finite, 0 not declared; a MEASURED contract can never declare -1). Releases <= 083
+  used T and (X or (Q_A and D_h with h = infinity)), which is unsound for an owner that suppresses forever but discards
+  records (the cutoff firmware's ring). The emulated `evicon-device` declares r = infinity whenever it answers queries
+  (from its journal), and so does the simulator's `sim-k3-expiry`; K3T keeps ER and every earlier configuration behaves as
+  before (the simulator's output of every earlier scenario is byte-identical). Go only: `conformance/evicon_probe/rubric.py`
+  (frozen) keeps the release-083 mirror; no measured contract has T, Q_A and an unbounded horizon. Tests in
+  `internal/contract/retention084_test.go`, `internal/device` (TestDeviceRetention084), `test_release084` J13.
+- **Safety total, Phi1 on the fault model** (`safety_total.py`): among the guarded cells with faults, the plain firmware's
+  cells at QoS 1 and ThingsBoard's guarded cells (QoS 1 to a device without deduplication) are counted apart, per
+  experiment, with the remaining cells that test Theorem 1 (`SAFETY.md`, `safety.json`: `phi1_fault_model`,
+  `theorem1_cells_with_faults`; macros `\evSafetyCellsDagger`, `\evSafetyCellsTheoremOne` and one per experiment and reason).
+- `test_release083` H1 made release-agnostic.
+
 ## 083 — 2026-10-31
 
 The second set of review experiments (T1-T7, plan `evaluation/prereg/PREREG_extra_083.md`, frozen before its first
