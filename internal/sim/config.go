@@ -137,7 +137,11 @@ type AuthoritySpec struct {
 	// identities become terminal and the orphan stays ambiguous. "abort": the whole barrier is
 	// aborted and nothing is resolved, which is what evicon-authority does (release 062
 	// AbortBarrier; release 066 makes the twin match the runtime).
-	FenceUncertain   string          `json:"fence_uncertain,omitempty"`
+	FenceUncertain string `json:"fence_uncertain,omitempty"`
+	// Certificate (release 083): the certificate search of a resolver policy: "enumerate" (default,
+	// probe.EnumerateContinuationCertificates up to certificate_depth) or "greedy" (the greedy certificate
+	// of an additive domain, probe.GreedyContinuationCertificate; other domains use the enumeration).
+	Certificate      string          `json:"certificate,omitempty"`
 	FixedThresholdMS int64           `json:"fixed_threshold_ms,omitempty"`
 	PeriodicMS       int64           `json:"periodic_ms,omitempty"`
 	Extra            json.RawMessage `json:"extra,omitempty"`
@@ -175,16 +179,23 @@ const (
 	PolicyEvicon       = "EVICON"
 	// Same contract, same APIs, same retry guard and reissue rule as EVICON;
 	// only when/what to resolve differs (review RV07, experiment B).
-	PolicyResImmediate        = "RES_IMMEDIATE"   // stop/fence as soon as a certificate member is ambiguous
-	PolicyResQueryFirst       = "RES_QUERY_FIRST" // query first, then stop/fence immediately
-	PolicyResFixed            = "RES_FIXED"       // query first, stop/fence after a fixed wait
-	PolicyResPeriodic         = "RES_PERIODIC"    // every periodic_ms: stop/fence all aged ambiguous commands
-	PolicyReplayM0            = "M0"
-	PolicyReplayM1            = "M1"
-	PolicyReplayM2            = "M2"
-	PolicyReplayM3            = "M3"
-	PolicyReplayM4            = "M4"
-	defaultTickMS       int64 = 50
+	PolicyResImmediate  = "RES_IMMEDIATE"   // stop/fence as soon as a certificate member is ambiguous
+	PolicyResQueryFirst = "RES_QUERY_FIRST" // query first, then stop/fence immediately
+	PolicyResFixed      = "RES_FIXED"       // query first, stop/fence after a fixed wait
+	PolicyResPeriodic   = "RES_PERIODIC"    // every periodic_ms: stop/fence all aged ambiguous commands
+	PolicyReplayM0      = "M0"
+	PolicyReplayM1      = "M1"
+	PolicyReplayM2      = "M2"
+	PolicyReplayM3      = "M3"
+	PolicyReplayM4      = "M4"
+	// Release 083 (PREREG_extra_083.md T1): QueryOnly as the runtime's M1 runs on the testbed (queries the
+	// ambiguous commands when a waiting request is blocked by the guard), and its window-full variant
+	// M1W (also queries the oldest ambiguous commands when a waiting request is deferred because the
+	// window is full). Both use the resolver's query budget per tick and re-query interval, never stop or
+	// fence, and keep the T4 retry rule (horizon-aware) as every testbed policy.
+	PolicyQueryOnly        = "QUERY_ONLY"
+	PolicyQueryOnlyW       = "QUERY_ONLY_W"
+	defaultTickMS    int64 = 50
 )
 
 var knownPolicies = map[string]bool{
@@ -192,6 +203,7 @@ var knownPolicies = map[string]bool{
 	PolicyB4Unsafe: true, PolicyB5SelectorM4: true, PolicyEvicon: true,
 	PolicyResImmediate: true, PolicyResQueryFirst: true, PolicyResFixed: true, PolicyResPeriodic: true,
 	PolicyReplayM0: true, PolicyReplayM1: true, PolicyReplayM2: true, PolicyReplayM3: true, PolicyReplayM4: true,
+	PolicyQueryOnly: true, PolicyQueryOnlyW: true,
 }
 
 // ResolverPolicies are the policies that use backward evidence through package
@@ -351,6 +363,9 @@ func (c Config) Validate() error {
 	}
 	if fu := c.Authority.FenceUncertain; fu != "" && fu != "partial" && fu != "abort" {
 		return errors.New("authority fence_uncertain must be partial or abort")
+	}
+	if ce := c.Authority.Certificate; ce != "" && ce != "enumerate" && ce != "greedy" {
+		return errors.New("authority certificate must be enumerate or greedy")
 	}
 	if n.LateReplies != "" && n.LateReplies != "deliver" && n.LateReplies != "drop" {
 		return errors.New("network late_replies must be deliver or drop")

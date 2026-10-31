@@ -109,7 +109,7 @@ func (a *Authority) evaluateEvicon(req protocol.CommandRequest, stats policyStat
 			}
 		} else {
 			start := time.Now()
-			certs, cerr := probe.EnumerateContinuationCertificates(dcur, cmds, req, a.cfg.CertificateDepth, a.cfg.MaxConfigurations, 20000, 20*a.cfg.PlannerComputeBudget)
+			certs, cerr := a.continuationCertificates(dcur, cmds, req)
 			stats.SelectorNS += time.Since(start).Nanoseconds()
 			if cerr != nil {
 				return analyzer.Result{Verdict: analyzer.Deferred, Reason: "EVICON_CERTIFICATE_SEARCH_FAILED"}, stats, nil
@@ -140,6 +140,20 @@ func (a *Authority) evaluateEvicon(req protocol.CommandRequest, stats policyStat
 			return analyzer.Result{Verdict: analyzer.Deferred, Reason: deferReason(act)}, stats, nil
 		}
 	}
+}
+
+// continuationCertificates (release 083) runs the configured certificate search: the bounded
+// enumeration (default; releases 061-082) or, with Certificate = greedy, the greedy certificate of an
+// additive domain (Section 3.6; probe.GreedyContinuationCertificate), which has no size bound and never
+// gives up. A domain outside the greedy certificate's premise uses the enumeration.
+func (a *Authority) continuationCertificates(d journal.Domain, cmds []journal.CommandRecord, req protocol.CommandRequest) ([]probe.ContinuationCertificate, error) {
+	if a.cfg.Certificate == CertificateGreedy {
+		certs, err := probe.GreedyContinuationCertificate(d, cmds, req, a.cfg.MaxConfigurations)
+		if !errors.Is(err, probe.ErrNotAdditive) {
+			return certs, err
+		}
+	}
+	return probe.EnumerateContinuationCertificates(d, cmds, req, a.cfg.CertificateDepth, a.cfg.MaxConfigurations, 20000, 20*a.cfg.PlannerComputeBudget)
 }
 
 // resolveLocked asks package resolve for an action over targets and executes

@@ -1,0 +1,98 @@
+{
+  "schema_version": 2,
+  "name": "expTB-w3",
+  "regime": "expTB-w3",
+  "mode": "remote",
+  "seed": 20261025,
+  "episodes": 6,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "TB_RPC"
+  ],
+  "policies": [
+    "EVICON",
+    "M1W"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 3
+  },
+  "real_owner": {
+    "system": "thingsboard",
+    "tb_url": "FILLED_BY_EVICON_REVIEW",
+    "tb_mqtt": "FILLED_BY_EVICON_REVIEW",
+    "contracts": {
+      "TB_RPC": {
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN"
+      }
+    },
+    "policies": {},
+    "gateway_budget_s": 1.8,
+    "rpc_timeout_ms": 5000,
+    "expiration_s": 60,
+    "device_admin_port": 18220
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_extra_083.md",
+    "sha256": "6e3f24a918de659c1feb8aaa886d9e9681195353528b5df10e615e8897ff3a06"
+  },
+  "notes": "Release 083, PREREG_extra_083.md (run TBw3, T6): ThingsBoard's window sweep: EVICON and M1W at W = 3, as expTB-m1w otherwise (seed 20261025; W = 6: run TBw). Runner: evaluation/campaign_tb_ext083.py."
+}

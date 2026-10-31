@@ -47,7 +47,7 @@ func main() {
 	poll := flag.Duration("dispatch-poll", 250*time.Millisecond, "durable outbox poll interval")
 	maxCfg := flag.Int("max-configurations", 256, "online belief configuration cap")
 	maxOutstanding := flag.Int("max-outstanding", 4, "tracked commands including candidate")
-	policyName := flag.String("policy", "M0", "evidence policy: M0, M0-NO-PROBE, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON (release 061), or RELEASE_ON_TIMEOUT, RELEASE_ON_READ (release 077: unsafe baselines)")
+	policyName := flag.String("policy", "M0", "evidence policy: M0, M0-NO-PROBE, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON (release 061), or RELEASE_ON_TIMEOUT, RELEASE_ON_READ (release 077: unsafe baselines), M1W (release 083: M1 with the window-full query trigger), RELEASE_ON_READ_ANSWERED (release 083: unsafe baseline, releases on an answered NOT_FOUND only)")
 	// Release 061: EVICON evidence-contract resolution.
 	evidenceContract := flag.String("evidence-contract", "", "EVICON runtime evidence contract alias: E1, E2, E2_STOP, E3, or DEVICE (taken from the device handshake) (default: -profile)")
 	evidenceContractFile := flag.String("evidence-contract-file", "", "EVICON evidence contract JSON (RUNTIME_VERIFIED or MEASURED, e.g. from EviCon-Probe); capabilities must be advertised by the endpoint")
@@ -80,6 +80,8 @@ func main() {
 	ledgerName := flag.String("ledger-reconcile", "M1", "M0 reconciliation ranking: M1 (sequential ID), M2, M3, M4")
 	resendUntil := flag.Duration("resend-until", 0, "release 077: with -retry-guard, resend a command under its own identity only until this long after its creation (0 = no validity cut, the rule of releases 072-076); to never resend after the intent's validity, the intent's validity minus the longest time a client may take to submit it")
 	releaseAfter := flag.Duration("release-after", 10*time.Second, "release 077, policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ only (unsafe baselines): a command unresolved this long after creation is committed STOPPED without owner evidence of non-occurrence (RELEASE_ON_READ first reads the owner's receipt)")
+	releaseSettle := flag.Duration("release-settle", 0, "release 083, policy RELEASE_ON_READ_ANSWERED only: the one-way delay bound the baseline assumes; it re-sends a command only until release-after minus this after its creation and releases on an answered NOT_FOUND only when the read was sent at least this long after the command's last dispatch attempt (0 = release-after)")
+	certificate := flag.String("certificate", eruntime.CertificateEnumerate, "release 083, EVICON: certificate search of a guard block: enumerate (bounded enumeration up to -certificate-depth, releases 061-082) or greedy (the greedy certificate of an additive domain, Section 3.6; other domains use the enumeration)")
 	flag.Parse()
 	if *traceSeed < 0 {
 		log.Fatal("trace-seed must be nonnegative")
@@ -187,6 +189,14 @@ func main() {
 			log.Printf("T4 retry guard: same-identity resends stop %s after a command's creation (intent validity)", *resendUntil)
 		}
 	}
+	if method == probe.ReleaseOnReadAnswered {
+		settle := *releaseSettle
+		if settle <= 0 {
+			settle = *releaseAfter
+		}
+		disp.RetryAllowed = eruntime.RetryCutFunc(store, disp.RetryAllowed, *releaseAfter-settle)
+		log.Printf("%s: same-identity resends stop %s after a command's creation (release-after %s - settle %s)", method, *releaseAfter-settle, *releaseAfter, settle)
+	}
 	switch {
 	case *expiresAfter >= 0:
 		disp.ExpiresAfter = *expiresAfter
@@ -200,7 +210,8 @@ func main() {
 	defer cancel()
 	auth, e := eruntime.NewAuthority(eruntime.AuthorityConfig{Store: store, Domain: journal.Domain{ID: *domainID, Generation: *generation, InstalledEpoch: *epoch, Revision: 0, Dimension: len(st), ComponentMin: mins, ComponentMax: maxs, SumMax: sm, Anchor: st, CutoffSequence: 0, ContractHash: *contractHash}, EndpointURL: *endpoint, Profile: p, Dispatcher: disp, Faults: fc, Trace: tr, MaxConfigurations: *maxCfg, MaxOutstanding: *maxOutstanding, Policy: method, LedgerReconcile: probe.Method(strings.ToUpper(*ledgerName)), QueryCosts: costs, OutcomeModel: outcomeModel, ProbeBudget: *probeBudget, PlannerDepth: *plannerDepth, PlannerComputeBudget: *plannerBudget, QueryConcurrency: *queryConcurrency, PlannerCache: *plannerCache,
 		EvidenceContract: ec, ResolvePolicy: rp, ResolveCosts: resolve.Costs{HoldPerUnitPerSec: *holdCost, QueryCost: *eviconQueryCost, StopCost: *stopCost, FenceCost: *fenceCost},
-		AmbiguityAfter: *ambiguityAfter, CertificateDepth: *certDepth, ResolveTrigger: strings.ToUpper(*resolveTrigger), ReleaseAfter: *releaseAfter})
+		AmbiguityAfter: *ambiguityAfter, CertificateDepth: *certDepth, ResolveTrigger: strings.ToUpper(*resolveTrigger), ReleaseAfter: *releaseAfter,
+		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate))})
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -220,6 +231,9 @@ func main() {
 		}
 		go auth.RunReleaseSweep(ctx, iv)
 		log.Printf("WARNING: %s baseline (unsafe by design): commands unresolved %s after creation are committed STOPPED without owner evidence of non-occurrence (sweep every %s)", method, *releaseAfter, iv)
+		if method == probe.ReleaseOnReadAnswered {
+			log.Printf("%s: only an answered NOT_FOUND releases a command; an unanswered or UNCERTAIN read is read again", method)
+		}
 	}
 	srv := &http.Server{Addr: *listen, Handler: auth.Handler(), ReadHeaderTimeout: 2 * time.Second}
 	if *admin != "" {

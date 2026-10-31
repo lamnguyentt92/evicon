@@ -100,7 +100,8 @@ class B2Driver(unittest.TestCase):
                            ("expO_noorphan", ("evaluation/campaign.py", [])), ("expW_queue_w6", ("evaluation/campaign.py", []))):
             cfg = json.loads((REPO / "evaluation" / "campaigns" / f"{name}.json").read_text())
             self.assertEqual(er._emulated_runner(cfg), want, name)
-        self.assertEqual(er.RELEASE_BASELINES, ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ"))
+        # release 083: one definition (safety_total.BASELINES), the 077 baselines first, then those of PREREG_extra_083
+        self.assertEqual(er.RELEASE_BASELINES[:2], ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ"))
         self.assertIn("policy_compare.py", (REPO / "evicon_review.py").read_text())
 
     def test_new_configs_load(self):

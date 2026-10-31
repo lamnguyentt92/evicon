@@ -69,6 +69,11 @@ type Config struct {
 	// (broker-like late delivery); "drop" refuses them while offline.
 	OfflineMode string
 	MaxHold     time.Duration
+	// ShadowReads (release 083, PREREG_extra_083.md T2): receipt reads (GET /v1/receipts/<id>) are
+	// answered from the device's records also while it is offline, as a device shadow or registry in
+	// front of a held command channel answers from the last reported state. The command channel is
+	// unchanged (queue: held; drop: refused). Off by default.
+	ShadowReads bool
 	// Release 072, negative controls only (never in a measured or confirmatory
 	// configuration). They break one owner premise while advertising the same
 	// contract, so that the testbed checker must report a violation:
@@ -490,7 +495,7 @@ func (d *Device) Receipt(id string) (protocol.Receipt, error) {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if !d.online {
+	if !d.online && !d.cfg.ShadowReads {
 		return protocol.Receipt{}, ErrOffline
 	}
 	r, ok := d.recs[id]

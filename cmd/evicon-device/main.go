@@ -80,6 +80,8 @@ func main() {
 		"device API (a WAN between the authority and the device; /healthz is not delayed; 0 = none)")
 	wanJitter := flag.Duration("wan-jitter", 0, "release 077: uniform jitter of -wan-delay, each way (delay +/- jitter, never below 0)")
 	wanSeed := flag.Int64("wan-seed", 1, "release 077: seed of the jitter")
+	shadowReads := flag.Bool("shadow-reads", false, "release 083: answer receipt reads from the device's records also while it is offline "+
+		"(a device shadow in front of a held command channel); the command channel is unchanged")
 	flag.Parse()
 
 	if *wanDelay < 0 || *wanJitter < 0 {
@@ -115,7 +117,7 @@ func main() {
 		devID := id
 		cfg := device.Config{DeviceID: id, DomainID: id, StateDir: *stateDir, DedupHorizon: pr.horizon, Query: pr.query, Stop: pr.stop,
 			Fence: pr.fence, Atomic: pr.atomic, EnforceExpiry: pr.expiry > 0, ExpiryHint: pr.expiry, ClockSkew: *skew, Bound: *bound,
-			EffectDelay: *effectDelay, OfflineMode: *offline, MaxHold: *maxHold, Plant: &device.SocketPlant{Network: network, Addr: addr},
+			EffectDelay: *effectDelay, OfflineMode: *offline, MaxHold: *maxHold, ShadowReads: *shadowReads, Plant: &device.SocketPlant{Network: network, Addr: addr},
 			NegSealOrphans: pr.negSeal, NegReexecute: pr.negReexec,
 			CrashHook: func(point, cmd string) {
 				armMu.Lock()

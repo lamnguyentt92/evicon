@@ -33,6 +33,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
+import statistics
 import re
 import shutil
 import sys
@@ -60,7 +62,11 @@ SHORT = [
     ("meas-mosquitto-2-x-zephyr-evicon-firmware-native-sim-plain-mode", "Zephyr EviCon firmware", "MQTT via Mosquitto, plain mode"),
     ("meas-mosquitto-2-x-zephyr-evicon-firmware-native-sim-cutoff-mode", "Zephyr EviCon firmware", "MQTT via Mosquitto, cutoff mode"),
     ("meas-mosquitto-2-x-zephyr-evicon-firmware-native-sim-stop-mode", "Zephyr EviCon firmware", "MQTT via Mosquitto, stop mode"),
+    # release 083 (OPEN_ITEMS (a) 6): the same firmware sources on an emulated Cortex-M3 are the same system (one system,
+    # two platforms); before 083 the row kept its long name and the firmware was counted twice in \evSystems
+    ("meas-mosquitto-2-x-zephyr-evicon-firmware-arm-cortex-m3", "Zephyr EviCon firmware", "MQTT via Mosquitto, cutoff mode, Arm Cortex-M3 (QEMU mps2-an385)"),
 ]
+OWN_SYSTEMS = ("Zephyr EviCon firmware", "Zephyr cutoff firmware")  # our firmware; every other measured system is third-party
 # release 075: a measurement superseded by a later one of the same firmware (the 070 cutoff firmware is
 # the 074 binary's cutoff mode, measured again): kept in contract_map.csv, left out of the paper table
 SUPERSEDED = {"meas-mosquitto-2-x-zephyr-cutoff-firmware": "meas-mosquitto-2-x-zephyr-evicon-firmware-native-sim-cutoff-mode"}
@@ -154,6 +160,7 @@ def contract_map(report: Path, out: Path, N: dict) -> str:
     L += ["\\bottomrule", "\\end{tabular}", ""]
     (out / "tab_contract_map.tex").write_text("\n".join(L))
     N["evSystems"] = str(len(systems))
+    N["evThirdPartySystems"] = str(len([x for x in systems if x not in OWN_SYSTEMS]))  # release 083
     N["evConfigs"] = str(len(rows))
     N["evMeasuredReleases"] = ", ".join(sorted(releases)) or "--"
     return (f"tab_contract_map.tex: {len(rows)} measured configurations of {len(systems)} systems"
@@ -345,10 +352,17 @@ def fence_cost(report: Path, out: Path, N: dict) -> str:
         for x in (c.get("post_hoc", {}).get("replications") or {}).get("runs", []):
             roles[x["run"].split("/")[-1]] = "K0 config, replication"
 
+    prereg = {v.split(" config")[0]: k for k, v in roles.items() if v.endswith("preregistered") and k}
+
     def role(r):
         camp, _, stamp = r["campaign"].partition("@")
         if stamp in roles:
             return roles[stamp]
+        cfg = {"expA-confirm-k0": "K0", "expA-confirm-k2": "K2"}.get(camp)
+        if cfg and stamp and prereg.get(cfg) and stamp != prereg[cfg]:
+            # release 083 (OPEN_ITEMS (a) 6): another run of a confirmatory config than its preregistered one is a
+            # replication (the 072 K2 replication was labelled "preregistered" too)
+            return f"{cfg} config, replication"
         # one run of the campaign only (no @stamp in its label): the preregistered one
         return {"expA-confirm-k0": "K0 config, preregistered", "expA-confirm-k2": "K2 config, preregistered",
                 "expB2-cadence": "B2, both at 10\\,s"}.get(camp, tex(r["campaign"]))
@@ -369,6 +383,83 @@ def fence_cost(report: Path, out: Path, N: dict) -> str:
         N["evPauseMedMs"], N["evPauseNinetyFiveS"] = num(r.get("fence_pause_ms_p50"), 0), num((r.get("fence_pause_ms_p95") or 0) / 1000)
         N["evPausedPct"] = num(100 * (r.get("paused_fraction") or 0))
     return f"tab_fence_cost.tex: {len(rows)} rows"
+
+
+EXTRA083 = "PREREG_extra_083"
+
+
+def extra083(report: Path, out: Path, N: dict) -> str:
+    """Release 083: the results of PREREG_extra_083.md (report/pairs/PREREG_extra_083/results.json, written by
+    pairs_ext083.py): level tables of T1 (QueryOnly with the window trigger), T3 (the release time), T5 (search
+    failures) and T7 (the regime), the window sweep of T6, and macros of the levels; the hypotheses' macros come from
+    pairs() (\\evextraeightythree<ID>Mean, ...Verdict)."""
+    src = report / "pairs" / EXTRA083 / "results.json"
+    if not src.exists():
+        return "tab_extra083_*.tex: skipped (no PREREG_extra_083 results)"
+    r = json.loads(src.read_text())
+    lv = r.get("ext_levels") or {}
+    made = []
+
+    def level_table(name, title, rows, cols):
+        L = [HEADER.format(src=f"report/pairs/{EXTRA083}/results.json ({title})"), "\\begin{tabular}{ll" + "r" * len(cols) + "}", "\\toprule",
+             "Run & Contract/policy & " + " & ".join(c[1] for c in cols) + " \\\\", "\\midrule"]
+        for run, g, v in rows:
+            L.append(f"{tex(run)} & {tex(g)} & " + " & ".join("--" if v.get(c[0]) is None else num(v[c[0]], c[2]) for c in cols) + " \\\\")
+        L += ["\\bottomrule", "\\end{tabular}", ""]
+        (out / name).write_text("\n".join(L))
+        made.append(name)
+    groups = {
+        "tab_extra083_t1.tex": ("T1", ("Wk", "TBw", "TB", "TBw3", "TBw16", "TBwinf")),
+        "tab_extra083_t2t3.tex": ("T2, T3", ("RAq", "RAd", "RAo", "RTsq", "RTsd")),
+        "tab_extra083_t4t6.tex": ("T4, T6", ("Z6", "Zi", "Z3w", "Z16w", "Z32w")),
+        "tab_extra083_t5.tex": ("T5", ("Gs", "Gm", "Th")),
+        "tab_extra083_t7.tex": ("T7", tuple(k for k in lv if k.startswith("T7"))),
+    }
+    cols = (("clean_pp", "Clean \\%", 1), ("confirmed_pp", "Confirmed \\%", 1), ("violations", "Violations / ep.", 1),
+            ("search_failures", "Search failures / ep.", 1), ("queries", "Queries / ep.", 1))
+    for name, (title, keys) in groups.items():
+        rows = [(k, g, v) for k in keys if k in lv for g, v in lv[k].items()]
+        if rows:
+            level_table(name, title, rows, cols)
+    for key, g in lv.items():
+        for grp, v in g.items():
+            ct, pol = grp.split("/", 1)
+            mid = macro_id(f"{key}{ct}{pol}")
+            if v.get("clean_pp") is not None:
+                N[f"evX{mid}Clean"] = num(v["clean_pp"])
+            if v.get("violations") is not None and pol.startswith("RELEASE_ON_"):
+                N[f"evX{mid}Viol"] = num(v["violations"])
+            if v.get("search_failures") is not None and pol.startswith("EVICON"):
+                N[f"evX{mid}SearchFail"] = num(v["search_failures"])
+    return ", ".join(made) or "tab_extra083_*.tex: no levels"
+
+
+def admit_late(report: Path, out: Path, N: dict) -> str:
+    """Release 083 (analysis A2): the share of admitted requests whose admission came after their deadline, per campaign
+    and policy (report/overhead/overhead.json)."""
+    src = report / "overhead" / "overhead.json"
+    if not src.exists():
+        return "tab_admit_late.tex: skipped"
+    rows = [r for r in json.loads(src.read_text()) if r.get("admitted_requests")]
+    if not rows:
+        return "tab_admit_late.tex: skipped (no admissions counted)"
+    by = {}
+    for r in rows:
+        k = (r["campaign"].split("@")[0], POLICY.get(r["policy"], tex(r["policy"])))
+        a = by.setdefault(k, [0, 0])
+        a[0] += r["admitted_requests"]
+        a[1] += r["admitted_after_deadline"]
+    L = [HEADER.format(src="report/overhead/overhead.json (admitted_after_deadline)"), "\\begin{tabular}{llrrr}", "\\toprule",
+         "Campaign & Policy & Admitted requests & Admitted after the deadline & Share (\\%) \\\\", "\\midrule"]
+    for (camp, pol), (n, late) in sorted(by.items()):
+        L.append(f"{tex(camp)} & {pol} & {n} & {late} & {num(100.0 * late / n, 2)} \\\\")
+    L += ["\\bottomrule", "\\end{tabular}", ""]
+    (out / "tab_admit_late.tex").write_text("\n".join(L))
+    tot, late = sum(v[0] for v in by.values()), sum(v[1] for v in by.values())
+    N["evAdmitLateCount"], N["evAdmitTotal"] = str(late), str(tot)
+    N["evAdmitLateSharePct"] = num(100.0 * late / tot, 3) if tot else "--"
+    N["evAdmitLateMaxSharePct"] = num(max(100.0 * v[1] / v[0] for v in by.values()), 2)
+    return f"tab_admit_late.tex: {len(by)} rows, {late} of {tot} admissions after the deadline"
 
 
 def footprint(report: Path, out: Path, N: dict) -> str:
@@ -450,6 +541,41 @@ def macro_id(s: str) -> str:
     return "".join(DIGITS[int(c)] if c.isdigit() else c for c in str(s) if c.isalnum())
 
 
+def _cell_value(row: dict, metric: str) -> float:
+    """A cell metric from a pairs cells.csv row; clean_pp exactly from the integer counts (release 083)."""
+    try:
+        if metric == "clean_pp" and row.get("clean_fulfilled") not in (None, "") and float(row.get("offered") or 0) > 0:
+            return 100.0 * float(row["clean_fulfilled"]) / float(row["offered"])
+        return float(row[metric])
+    except (KeyError, TypeError, ValueError):
+        return math.nan
+
+
+def exact_contrast(plan_dir: Path, h: dict):
+    """Release 083 (OPEN_ITEMS (a) 6, no double rounding): the unrounded mean and 95 % t interval of a pairs_report
+    contrast (one run, one policy, contract from -> to), recomputed from the plan's cells.csv; pairs_report.py (frozen)
+    rounds them to 3 decimals, and rounding that again to the printed digit is a double rounding. pairs_ext083.py
+    stores the unrounded values itself (mean_exact, t95_exact). None when not computable."""
+    if h.get("mean_exact") is not None:
+        return h["mean_exact"], h.get("t95_exact") or h.get("t95")
+    s = h.get("spec") or {}
+    if not all(k in s for k in ("policy", "from", "to", "metric")) or not (plan_dir / "cells.csv").is_file():
+        return None
+    by = {}
+    with open(plan_dir / "cells.csv", newline="") as fh:
+        for r in csv.DictReader(fh):
+            if r["run"] == h["run"] and r["policy"] == s["policy"]:
+                by[(r["contract"], r["episode"])] = r
+    eps = sorted({e for (_, e) in by})
+    d = [_cell_value(by[(s["to"], e)], s["metric"]) - _cell_value(by[(s["from"], e)], s["metric"])
+         for e in eps if (s["from"], e) in by and (s["to"], e) in by]
+    d = [v for v in d if not math.isnan(v)]
+    if len(d) != h.get("n") or len(d) < 2:
+        return None
+    from cadence_report import t_interval  # frozen; the interval pairs_report uses
+    return statistics.mean(d), list(t_interval(d, 0.95))
+
+
 def pairs(report: Path, out: Path, N: dict) -> str:
     """Release 072: the experiments analysed by pairs_report.py (W, S, L, NEG), one table each."""
     srcs = sorted((report / "pairs").glob("*/results.json"))
@@ -464,16 +590,24 @@ def pairs(report: Path, out: Path, N: dict) -> str:
         for h in r["hypotheses"]:
             s, mid = h["spec"], macro_id(h["id"])
             if h["test"] in ("at_least", "at_most", "equivalent"):
-                comp = f"{tex(s['policy'])}, {tex(s['from'])} $\\to$ {tex(s['to'])}, {tex(s['metric'])}"
-                est = (f"{signed(h['mean'])} [{signed(h['t95'][0])}, {signed(h['t95'][1])}]" if h.get("n") else "--")
+                comp = (tex(h["label"]) if h.get("label") else
+                        f"{tex(s['policy'])}, {tex(s['from'])} $\\to$ {tex(s['to'])}, {tex(s['metric'])}")
+                ex = exact_contrast(src.parent, h) if h.get("n") else None
+                mean, t95 = (ex if ex else (h.get("mean"), h.get("t95")))
+                est = (f"{signed(mean)} [{signed(t95[0])}, {signed(t95[1])}]" if h.get("n") else "--")
                 if h.get("n"):
-                    N[f"ev{stem}{mid}Mean"], N[f"ev{stem}{mid}Lo"], N[f"ev{stem}{mid}Hi"] = num(h["mean"]), num(h["t95"][0]), num(h["t95"][1])
+                    N[f"ev{stem}{mid}Mean"], N[f"ev{stem}{mid}Lo"], N[f"ev{stem}{mid}Hi"] = num(mean), num(t95[0]), num(t95[1])
             elif h["test"] == "rate_greater":
                 comp = f"{tex(s['a']['contract'])} {tex(s['a']['num'])} vs {tex(s['b']['contract'])} {tex(s['b']['num'])}"
                 est = f"{num(h.get('rate_a'), 3)} vs {num(h.get('rate_b'), 3)}" if h.get("n") else "--"
-            else:
+            elif h["test"] in ("detects", "absent"):
                 comp = f"{tex(s['contract'])}: {'some' if h['test'] == 'detects' else 'no'} {tex(', '.join(s['any_of']))}"
                 est = f"{h.get('cells_detecting', 0)}/{h.get('cells', 0)} cells"
+            elif h["test"] == "safety":  # release 083: a safety group of a ```pairs-ext``` block
+                comp = f"safety, runs {tex(', '.join(s['runs']))}"
+                est = f"{h.get('cells_detecting', 0)}/{h.get('cells', 0)} cells with violations"
+            else:
+                comp, est = tex(h.get("label", h["test"])), "--"
             L.append(f"{tex(h['id'])} & {comp} & {est} & {tex(h['verdict'])} \\\\")
             N[f"ev{stem}{mid}Verdict"] = tex(h["verdict"])
         if "safety" in r:
@@ -537,6 +671,9 @@ def t3(report: Path, out: Path, N: dict) -> str:
     base = sum(v.get("baseline_total", {}).get("APPLIED_ONLY", 0) + v.get("baseline_total", {}).get("NONE", 0) for v in r.values())
     N["evTThreeBaselineReopen"] = str(base)
     N["evTThreeBaselineRuns"] = str(sum(1 for v in r.values() if v.get("baseline_groups")))
+    # release 083 (A3): window re-openings without committed evidence in guarded cells, each listed with its trace context
+    wn = [w for v in r.values() for w in v.get("window_none_guarded", [])]
+    N["evTThreeWindowNoEvidence"] = str(len(wn))
     return (f"T3 numbers: {retest_block} re-tested blocks, {counter} counterexamples over {len(r)} runs"
             + (f"; practice baselines apart: {base} re-openings without evidence" if base else ""))
 
@@ -684,6 +821,12 @@ def safety(report: Path, out: Path, N: dict) -> str:
     N["evBlindDedupSafe"] = f"{s['unguarded_dedup'].get('cells', 0) - s['unguarded_dedup'].get('cells_with_violation', 0)}/{s['unguarded_dedup'].get('cells', 0)}"
     u = s.get("unsafe_by_design") or {}
     N["evUnsafeByDesign"] = f"{u.get('cells_with_violation', 0)}/{u.get('cells', 0)}"  # release 079
+    if s.get("distinct_fault_schedules"):  # release 083 (A1): the distinct fault schedules behind the guarded cells with faults
+        N["evSafetySchedules"] = f"{s['distinct_fault_schedules']:,}".replace(",", "{,}")
+        N["evSafetyCellsWithFaults"] = f"{s.get('cells_with_faults', 0):,}".replace(",", "{,}")
+        if s.get("upper95_per_schedule") is not None:
+            N["evSafetyBoundSchedule"] = num(s["upper95_per_schedule"], 3)
+            N["evSafetyBoundSchedulePct"] = num(100 * s["upper95_per_schedule"], 1)
     return f"safety macros: {s['verdict'].lower()} ({g.get('cells', 0)} cells, {g.get('admitted', 0)} commands)"
 
 
@@ -866,7 +1009,8 @@ def main(argv=None):
     done = []
     if (report / "contract_map.csv").exists():
         done.append(contract_map(report, out, N))
-    for step in (expA, cadence, pairs, latency, t3, predict, expC, expC2, expC3, safety, rq4, fence_cost, footprint, fig_expA, fig_rq4, fig_phase):
+    for step in (expA, cadence, pairs, latency, t3, predict, expC, expC2, expC3, safety, rq4, fence_cost, admit_late, extra083, footprint,
+                 fig_expA, fig_rq4, fig_phase):
         done.append(step(report, out, N) if step not in (fig_expA, fig_rq4, fig_phase) else step(report, out))
     tl = report / "timeline" / "timeline.pdf"
     if tl.exists():

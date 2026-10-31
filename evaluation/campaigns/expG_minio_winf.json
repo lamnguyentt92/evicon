@@ -1,0 +1,108 @@
+{
+  "schema_version": 2,
+  "name": "expG-minio-winf",
+  "regime": "expG-minio-winf",
+  "mode": "remote",
+  "seed": 20261025,
+  "episodes": 8,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "MINIO_PLAIN",
+    "MINIO_COND"
+  ],
+  "policies": [
+    "EVICON_GREEDY"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 1000
+  },
+  "real_owner": {
+    "system": "minio",
+    "s3_url": "http://192.168.107.152:9000",
+    "access_key_env": "MINIO_ROOT_USER",
+    "secret_key_env": "MINIO_ROOT_PASSWORD",
+    "contracts": {
+      "MINIO_PLAIN": {
+        "mode": "PLAIN",
+        "contract_file": "experiments/owners/minio/meas-minio-plain-070.json"
+      },
+      "MINIO_COND": {
+        "mode": "COND",
+        "contract_file": "experiments/owners/minio/meas-minio-cond-070.json"
+      }
+    },
+    "policies": {
+      "NAIVE": {
+        "base": "M1",
+        "authority": {
+          "retry_guard": false
+        }
+      }
+    },
+    "gateway_budget_s": 1.8
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_extra_083.md",
+    "sha256": "6e3f24a918de659c1feb8aaa886d9e9681195353528b5df10e615e8897ff3a06"
+  },
+  "notes": "Release 083, PREREG_extra_083.md (run Gm, T5): EVICON_GREEDY on MinIO at W unbounded (MINIO_PLAIN, MINIO_COND, the 070 measured contracts), seed 20261025: the schedules of expR-minio-winf, whose EVICON cells (release 078, the same enumeration as 083's default) are the comparison arm. Runner: evaluation/campaign_real_ext083.py."
+}

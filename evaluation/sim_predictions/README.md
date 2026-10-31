@@ -1,4 +1,4 @@
-# Simulator predictions behind the 072, 073, 074 and 075 plans (SIMULATION_ONLY)
+# Simulator predictions behind the 072-083 plans (SIMULATION_ONLY)
 
 These files are the simulator's predictions for the testbed experiments, kept with the release so that
 `evaluation/predict_check.py` (release 073) can compare them with the testbed runs. The simulator is
@@ -10,6 +10,7 @@ deterministic (seeded); every file is reproduced exactly by the command given.
 | `expC_073_summary.csv`, `expC_073_power.csv`, `SIM_EXPC_073.md` | `python3 evaluation/sim_expC.py --des bin/evicon-des --out <dir>` (release 073; 200 episodes) | sections 1 and 5 of `PREREG_expC_073.md`, frozen before any C cell ran |
 | `expC2_074_summary.csv`, `expC2_074_power.csv`, `SIM_EXPC2_074.md` | `python3 evaluation/sim_expC2.py --des bin/evicon-des --out <dir>` (release 074; 200 episodes; the predicted contracts `experiments/owners/zephyr/pred-*.json`) | sections 1 and 5 of `PREREG_expC2_074.md`, frozen before any C2 cell ran |
 | `expC3_075_summary.csv`, `expC3_075_power.csv`, `SIM_EXPC3_075.md` | `python3 evaluation/sim_expC3.py --des bin/evicon-des --out <dir>` (release 075 simulator, unchanged since 072; 200 episodes per scenario; scenarios owner_up (the prediction) and owner_crash (the contrast); the predicted contracts `experiments/owners/zephyr/pred-*.json`) | sections 1 and 5 of `PREREG_expC3_075.md`, frozen before any C3 cell ran |
+| `extra083_summary.csv`, `extra083_effects.csv`, `extra083_power.csv`, `SIM_EXTRA083.md` | `python3 evaluation/sim_extra083.py --des bin/evicon-des --out <dir>` (release 083 simulator: the QueryOnly policies QUERY_ONLY, QUERY_ONLY_W and `authority.certificate greedy` added, every earlier policy and default unchanged; 200 episodes per scenario; ThingsBoard's contract `experiments/sim/contracts083/sim-tb-083.json`; `extra083_power.csv` lists the plan's paired-difference hypotheses after its 0.80 rule, the estimands' means are in `extra083_effects.csv`) | sections 1 and 5 of `PREREG_extra_083.md`, frozen before any of its cells ran |
 
 The prediction is the number frozen in a plan; these CSVs carry the same numbers with more digits and
 for every contract, policy and point of the sweep. Do not edit them: regenerate with the commands above.

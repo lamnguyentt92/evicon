@@ -339,7 +339,12 @@ func resolverPolicy(policy string, a AuthoritySpec) resolve.Policy {
 	}
 }
 func (rn *run) horizonAware() bool {
-	return rn.isEvicon() || rn.policy == PolicyB2Ledger || rn.policy == PolicyB5SelectorM4 || rn.isReplay()
+	return rn.isEvicon() || rn.policy == PolicyB2Ledger || rn.policy == PolicyB5SelectorM4 || rn.isReplay() || rn.isQueryOnly()
+}
+
+// isQueryOnly (release 083): QUERY_ONLY and QUERY_ONLY_W.
+func (rn *run) isQueryOnly() bool {
+	return rn.policy == PolicyQueryOnly || rn.policy == PolicyQueryOnlyW
 }
 
 // ---------------------------------------------------------------------------
@@ -1322,6 +1327,9 @@ func (rn *run) onTick() error {
 			return err
 		}
 	}
+	if rn.isQueryOnly() {
+		rn.queryOnlyStep()
+	}
 	if rn.isEvicon() {
 		if rn.policy == PolicyResPeriodic {
 			rn.validitySafety()
@@ -1357,6 +1365,40 @@ func (rn *run) canQuery() bool {
 
 func (rn *run) reconcileQueries() {
 	if !rn.canQuery() {
+		return
+	}
+	budget := rn.cfg.Authority.QueryBudget
+	for _, a := range rn.ambiguousAttempts() {
+		if budget <= 0 {
+			return
+		}
+		if a.queriedAt >= 0 && rn.now-a.queriedAt < rn.cfg.Authority.ReconcileIntervalMS*1000 {
+			continue
+		}
+		a.queriedAt = rn.now
+		budget--
+		rn.m.Queries++
+		rn.sendControl(mQuery, a, 0)
+	}
+}
+
+// queryOnlyStep (release 083): QUERY_ONLY queries the ambiguous commands (oldest first, not queried in the
+// last reconcile interval, within the query budget of a tick) when a waiting request is blocked by the
+// guard; QUERY_ONLY_W also does so when a waiting request is deferred because the window is full.
+func (rn *run) queryOnlyStep() {
+	if !rn.canQuery() {
+		return
+	}
+	trigger := rn.blockedReq >= 0
+	if !trigger && rn.policy == PolicyQueryOnlyW {
+		for _, req := range rn.waiting {
+			if rs := rn.rs[req]; rs.waiting && !rs.done && rs.lastBlockWhy == "OUTSTANDING_BUDGET_EXHAUSTED" {
+				trigger = true
+				break
+			}
+		}
+	}
+	if !trigger {
 		return
 	}
 	budget := rn.cfg.Authority.QueryBudget
@@ -1417,7 +1459,16 @@ func (rn *run) certificateTargets() (map[string]bool, error) {
 		depth = 4
 	}
 	bd, bc := rn.beliefInputs()
-	certs, err := probe.EnumerateContinuationCertificates(bd, bc, rn.candidate(rn.blockedReq), depth, rn.cfg.Authority.MaxConfigurations, 20000, 5*time.Second)
+	var certs []probe.ContinuationCertificate
+	var err error
+	if rn.cfg.Authority.Certificate == "greedy" { // release 083
+		certs, err = probe.GreedyContinuationCertificate(bd, bc, rn.candidate(rn.blockedReq), rn.cfg.Authority.MaxConfigurations)
+		if errors.Is(err, probe.ErrNotAdditive) {
+			certs, err = probe.EnumerateContinuationCertificates(bd, bc, rn.candidate(rn.blockedReq), depth, rn.cfg.Authority.MaxConfigurations, 20000, 5*time.Second)
+		}
+	} else {
+		certs, err = probe.EnumerateContinuationCertificates(bd, bc, rn.candidate(rn.blockedReq), depth, rn.cfg.Authority.MaxConfigurations, 20000, 5*time.Second)
+	}
 	if err != nil {
 		rn.m.CertificateErrors++
 		return out, nil

@@ -23,8 +23,11 @@ class G1Records(unittest.TestCase):
         self.assertIn("| K-2 |", rec)
         self.assertIn("## Interpretation (written after the run; not part of the plan)", rec)
         art = (REPO / "ARTIFACT.md").read_text()
-        self.assertNotIn("pending", art)
-        self.assertIn("Release **082**", art)
+        # release 083: later releases add plans of their own whose runs may be pending; plan 077's row is recorded
+        row = next(line for line in art.splitlines() if line.startswith("| `PREREG_review_077.md`"))
+        self.assertNotIn("pending", row)
+        self.assertIn("RESULTS_review_077.md", row)
+        self.assertRegex(art, r"Release \*\*0(8[2-9]|9\d)\*\*")
 
 
 if __name__ == "__main__":

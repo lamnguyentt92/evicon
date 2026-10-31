@@ -45,10 +45,50 @@ func (a *Authority) ReleaseSweepOnce() (int, error) {
 	switch a.cfg.Policy {
 	case probe.ReleaseOnTimeout:
 		return a.releaseOnTimeoutOnce()
-	case probe.ReleaseOnRead:
+	case probe.ReleaseOnRead, probe.ReleaseOnReadAnswered:
 		return a.releaseOnReadOnce()
 	}
 	return 0, nil
+}
+
+// settled (release 083, RELEASE_ON_READ_ANSWERED) reports whether a command's last dispatch attempt
+// started at least ReleaseSettle before t: its outbox item is not in an attempt and was last changed
+// (claimed, or failed after the claim) no later than t - ReleaseSettle. A command without an outbox
+// item counts as settled (it was never sent, or its item closed).
+func (a *Authority) settled(c journal.CommandRecord, t time.Time) (bool, error) {
+	st, _, upd, err := a.cfg.Store.OutboxAttempt(c.DomainID, c.CommandID)
+	if errors.Is(err, journal.ErrNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return st != "ATTEMPTING" && !upd.After(t.Add(-a.cfg.ReleaseSettle)), nil
+}
+
+// RetryCutFunc (release 083, RELEASE_ON_READ_ANSWERED) wraps the dispatcher's retry guard: a command
+// is re-sent under its own identity only while base allows it (nil: always) and until cut after its
+// creation, so that with a one-way delay below the settle time every send of a command has reached
+// the owner before the baseline reads it (ReleaseAfter after creation, cut = ReleaseAfter -
+// ReleaseSettle).
+func RetryCutFunc(store *journal.Store, base func(domainID, commandID string, attempts int64) bool, cut time.Duration) func(domainID, commandID string, attempts int64) bool {
+	return func(domainID, commandID string, attempts int64) bool {
+		if attempts == 0 {
+			return true
+		}
+		if base != nil && !base(domainID, commandID, attempts) {
+			return false
+		}
+		times, err := store.CommandCreatedTimes(domainID)
+		if err != nil {
+			return false
+		}
+		t0, ok := times[commandID]
+		if !ok {
+			return false // terminal: never sent again
+		}
+		return time.Since(t0) < cut
+	}
 }
 
 // agedUnresolved returns the unresolved commands older than ReleaseAfter, oldest first.
@@ -135,9 +175,28 @@ func (a *Authority) releaseOnReadOnce() (int, error) {
 	if err != nil || len(aged) == 0 {
 		return 0, err
 	}
+	answered := a.cfg.Policy == probe.ReleaseOnReadAnswered
+	if answered {
+		// release 083: read only commands whose last send is at least the settle time old, and leave a
+		// command the owner answered UNCERTAIN for (a claim without a receipt) alone for
+		// OwnerUncertainRetry, so that such claims do not take every read of a sweep
+		now := time.Now()
+		keep := aged[:0]
+		for _, c := range aged {
+			ok, er := a.settled(c, now)
+			if er != nil {
+				return 0, er
+			}
+			if ok && !a.isOwnerUncertain(c.CommandID) {
+				keep = append(keep, c)
+			}
+		}
+		aged = keep
+	}
 	if len(aged) > MaxReadsPerSweep {
 		aged = aged[:MaxReadsPerSweep]
 	}
+	readAt := time.Now()
 	// The reads run without the authority's lock (an unreachable owner costs up to the HTTP
 	// client's timeout); RecordEvidence refuses a command that became terminal meanwhile.
 	reads := make([]ownerRead, len(aged))
@@ -175,7 +234,37 @@ func (a *Authority) releaseOnReadOnce() (int, error) {
 				_ = a.cfg.Trace.Write(trace.Event{DomainID: r.cmd.DomainID, CommandID: r.cmd.CommandID, Event: "EVIDENCE_COMMITTED", Revision: rev,
 					Outcome: r.outcome, Reason: "POLICY_READ:" + r.outcome})
 			}
+		case "UNCERTAIN":
+			if answered {
+				a.markOwnerUncertain(r.cmd.CommandID)
+			}
 		case "NOT_FOUND", "UNREACHABLE":
+			if answered {
+				if r.outcome != "NOT_FOUND" {
+					continue // release 083: an unanswered read says nothing; read again later
+				}
+				// the read must follow the command's last send by the settle time (a send claimed
+				// while the read was in flight makes this false)
+				ok, er := a.settled(r.cmd, readAt)
+				if er != nil {
+					return n, er
+				}
+				if !ok {
+					if a.cfg.Trace != nil {
+						_ = a.cfg.Trace.Write(trace.Event{DomainID: r.cmd.DomainID, CommandID: r.cmd.CommandID, Event: "RELEASE_ON_READ_RESULT",
+							Policy: string(a.cfg.Policy), Outcome: "NOT_SETTLED", Reason: "a dispatch attempt within the settle time of the read"})
+					}
+					continue
+				}
+				done, er := a.releaseWithoutEvidence(r.cmd, dcur.Dimension, "RELEASE_ON_READ_ANSWERED_NOT_FOUND", "RELEASE_ON_READ")
+				if er != nil {
+					return n, er
+				}
+				if done {
+					n++
+				}
+				continue
+			}
 			ok, er := a.releaseWithoutEvidence(r.cmd, dcur.Dimension, "RELEASE_ON_READ_NOT_REPORTED_"+r.outcome, "RELEASE_ON_READ")
 			if er != nil {
 				return n, er

@@ -36,11 +36,18 @@ the prediction: their evidence is false by construction, so they test the checke
 counted them, 19 re-tests in the N1 run).
 
 Practice baselines (release 081): cells of the policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ
-(PREREG_review_077.md, the same set as safety_total.BASELINES) are listed in their own groups and left out
+(PREREG_review_077.md; release 083: also RELEASE_ON_READ_ANSWERED and RELEASE_ON_TIMEOUT_30S, _60S, _120S of
+PREREG_extra_083.md; the one definition is safety_total.BASELINES) are listed in their own groups and left out
 of every total and of the prediction too: they release a request without evidence of non-occurrence by
 design, so they are outside the theorem's premise (the guard's belief), and their re-openings without
 evidence are what the plan's rules RT-1 to RT-3 and RR-1, RR-2 detect. Their totals are reported apart
 (baseline_total, baseline_retested_total).
+
+Window re-openings without evidence (release 083, analysis A3): a window re-opening with no evidence committed
+between the window DEFER and the admission (NONE) is listed with its trace context: the events of that domain's
+trace between the DEFER and the ADMITTED (OUTBOX_RETRY_SUPPRESSED_T4 lines counted, not listed), and an
+explanation derived from them (explain_window_none): which change other than committed evidence made room in the
+window. The practice baselines' and the negative controls' NONE re-openings are counted, not listed.
 
 Reads only. Writes T3.md and t3.json into --out.
 
@@ -55,7 +62,9 @@ from collections import defaultdict
 from pathlib import Path
 
 WINDOW = ("OUTSTANDING_BUDGET_EXHAUSTED", "CONFIGURATION_BUDGET_EXHAUSTED")
-BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")  # release 081: = safety_total.BASELINES (unsafe by design)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from safety_total import BASELINES  # noqa: E402  (release 083: one definition of the practice baselines, unsafe by design)
+CONTEXT_MAX = 60  # A3: events listed per window re-opening without evidence
 
 
 def is_baseline(group: str) -> bool:
@@ -85,11 +94,12 @@ def classify(before, after) -> str:
     return "STOPPED" if ds > 0 else ("APPLIED_ONLY" if da > 0 else "NONE")
 
 
-def trace(path: Path, acc: dict, examples: list, label: str):
+def trace(path: Path, acc: dict, examples: list, label: str, window_none: list = None):
     cnt = [0, 0]  # committed STOPPED, APPLIED evidence so far in this domain
     blocked, deferred, admitted = {}, {}, set()
+    found = []  # A3: (cid, defer line, admit line, defer reason) of window re-openings without evidence
     with open(path) as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh):
             if not any(m in line for m in RELEVANT):  # traces hold millions of OUTBOX_RETRY_SUPPRESSED_T4 lines
                 continue
             try:
@@ -114,7 +124,7 @@ def trace(path: Path, acc: dict, examples: list, label: str):
             if dec == "BLOCK":
                 blocked[cid] = tuple(cnt)
             elif dec == "DEFER" and reason.replace(";", ":").split(":")[0] in WINDOW and cid not in blocked:
-                deferred[cid] = tuple(cnt)
+                deferred[cid] = (tuple(cnt), lineno, reason)
             elif dec == "ADMITTED":
                 admitted.add(cid)
                 if cid in blocked:
@@ -123,8 +133,74 @@ def trace(path: Path, acc: dict, examples: list, label: str):
                     if c != "STOPPED" and len(examples) < 50:
                         examples.append(f"{label} {path.name} {cid}: {c}")
                 elif cid in deferred:
-                    acc["window"][classify(deferred.pop(cid), cnt)] += 1
+                    before, dline, dreason = deferred.pop(cid)
+                    c = classify(before, cnt)
+                    acc["window"][c] += 1
+                    if c == "NONE":
+                        found.append((cid, dline, lineno, dreason))
     acc["never_reopened"] += len(blocked)
+    if window_none is not None and found:
+        for cid, d0, d1, dreason in found:
+            window_none.append(dict(window_context(path, d0, d1), label=label, trace=path.name, command_id=cid, defer_reason=dreason))
+
+
+def window_context(path: Path, start: int, end: int) -> dict:
+    """A3: the events of one domain trace from line start (the window DEFER) to line end (the ADMITTED)."""
+    events, suppressed, names = [], 0, defaultdict(int)
+    with open(path) as fh:
+        for i, line in enumerate(fh):
+            if i < start:
+                continue
+            if i > end:
+                break
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            name = e.get("event", "")
+            names[name] += 1
+            if name == "OUTBOX_RETRY_SUPPRESSED_T4":
+                suppressed += 1
+                continue
+            if len(events) < CONTEXT_MAX:
+                events.append({k: e.get(k) for k in ("wall_time", "event", "command_id", "decision", "outcome", "reason", "revision")
+                               if e.get(k) not in (None, "")})
+    ctx = {"events": events, "event_counts": dict(names), "retry_suppressed_lines": suppressed, "lines": end - start + 1}
+    ctx["explanation"] = explain_window_none(ctx)
+    return ctx
+
+
+def explain_window_none(ctx: dict) -> str:
+    """Which change other than committed terminal evidence made room in the window between the DEFER and the
+    admission (derived from the trace context; no evidence of non-occurrence is involved in any branch)."""
+    noise = {"OUTBOX_RETRY_SUPPRESSED_T4", "OUTBOX_DISPATCH_ATTEMPT", "PLANNER_CONFIGURATION"}
+    seen = ", ".join(f"{k} x{v}" for k, v in sorted(ctx["event_counts"].items()) if k not in noise) or "none"
+    return _explain(ctx) + f" (events in between: {seen})"
+
+
+def _explain(ctx: dict) -> str:
+    """Facts only: the kind of window, and the belief-changing events of the interval (no evidence was committed)."""
+    ev = ctx["events"]
+    first = ev[0] if ev else {}
+    reason = str(first.get("reason", ""))
+    names = ctx["event_counts"]
+    others = sum(1 for e in ev[1:-1] if e.get("event") == "DECISION_RECORDED" and e.get("decision") == "ADMITTED")
+    other_ev = sum(v for k, v in names.items() if k.startswith(("BARRIER", "EVIDENCE", "ANCHOR")) or "ANCHOR" in k or k == "OUTBOX_SKIPPED_TERMINAL")
+    if reason.startswith("CONFIGURATION_BUDGET_EXHAUSTED"):
+        kind = ("the DEFER was CONFIGURATION_BUDGET_EXHAUSTED: in releases <= 071 the window was the guard's analysis bound (a cap of "
+                "256 belief configurations), not a count of unresolved commands, so it can re-open when the belief's configuration "
+                "count falls under the cap without any command being resolved")
+    elif reason.startswith("OUTSTANDING_BUDGET_EXHAUSTED"):
+        kind = "the DEFER was OUTSTANDING_BUDGET_EXHAUSTED (a count of unresolved commands)"
+    else:
+        kind = f"the interval does not start with a window DEFER ({reason[:40] or 'no reason'})"
+    if other_ev:
+        how = f"{other_ev} barrier, anchor or non-terminal evidence event(s) changed the belief in between"
+    elif others:
+        how = f"the only belief changes in between were {others} admission(s) of other commands"
+    else:
+        how = "the trace records no change of the belief in between (the guard's verdict changed on the same belief)"
+    return f"{kind}; no terminal evidence was committed; {how}"
 
 
 def scan(runs: list) -> dict:
@@ -135,15 +211,16 @@ def scan(runs: list) -> dict:
         key = f"{cfg.get('name', run.parent.name)}/{run.name}"
         groups = defaultdict(lambda: {"capacity": defaultdict(int), "window": defaultdict(int), "retested_after_applied": defaultdict(int),
                                       "never_reopened": 0, "cells": 0})
-        examples = []
+        examples, window_none = [], []
         for cell in sorted((run / "cells").glob("ep*/*/*")):
             if not cell.is_dir():
                 continue
             ep, ct, pol = cell.parts[-3], cell.parts[-2], cell.parts[-1]
             g = groups[f"{ct}/{pol}"]
             g["cells"] += 1
+            listed = not (ct.startswith("NEG_") or pol in BASELINES)  # A3: guarded cells only
             for tr in sorted(cell.glob("raw/**/authority*.jsonl")):
-                trace(tr, g, examples, f"{ep}/{ct}/{pol}")
+                trace(tr, g, examples, f"{ep}/{ct}/{pol}", window_none if listed else None)
         out[key] = {"groups": {k: {"cells": v["cells"], "capacity": dict(v["capacity"]), "window": dict(v["window"]),
                                    "retested_after_applied": dict(v["retested_after_applied"]), "never_reopened": v["never_reopened"]} for k, v in sorted(groups.items())},
                     "counterexamples": examples}
@@ -171,6 +248,7 @@ def scan(runs: list) -> dict:
         out[key]["counterexamples"] = [x for x in examples if x not in neg and x not in base]
         out[key]["negative_control_examples"] = neg
         out[key]["baseline_examples"] = base
+        out[key]["window_none_guarded"] = window_none
     return out
 
 
@@ -179,7 +257,7 @@ def markdown(res: dict) -> str:
          "Capacity re-openings: ADMITTED after a BLOCK of the same command, split by the evidence committed in the domain in between. "
          "Theorem 3 predicts APPLIED_ONLY = NONE = 0. Window re-openings (after a window DEFER) are the contrast. "
          "Negative controls (NEG_*) and the practice baselines that release without evidence (" + ", ".join(BASELINES) + "; "
-         "unsafe by design, detected by the rules RT and RR of PREREG_review_077) are listed apart and left out of the totals.", ""]
+         "unsafe by design, detected by the rules RT and RR of PREREG_review_077 and RA, RTs of PREREG_extra_083) are listed apart and left out of the totals.", ""]
     for run, r in res.items():
         tot = r["capacity_total"]
         rt = r["retested_total"]
@@ -208,8 +286,21 @@ def markdown(res: dict) -> str:
                      f"{rr.get('BLOCK', 0)} | {rr.get('ADMITTED', 0)} | {w.get('STOPPED', 0)} | {w.get('APPLIED_ONLY', 0)} | {w.get('NONE', 0)} |")
         if r["counterexamples"]:
             L += ["", "Counterexamples (first 50):", ""] + [f"- {x}" for x in r["counterexamples"]]
+        for w in r.get("window_none_guarded", []):
+            L += ["", f"**Window re-opening without committed evidence** (A3): {w['label']} {w['trace']} {w['command_id']} "
+                  f"(DEFER {w['defer_reason'][:80]}; {w['lines']} trace lines, {w['retry_suppressed_lines']} OUTBOX_RETRY_SUPPRESSED_T4). "
+                  f"Why: {w['explanation']}.", "", "| wall time | event | command | decision / outcome | reason | revision |", "|---|---|---|---|---|---|"]
+            for e in w["events"]:
+                L.append(f"| {e.get('wall_time', '')} | {e.get('event', '')} | {e.get('command_id', '')} | "
+                         f"{e.get('decision', e.get('outcome', ''))} | {str(e.get('reason', ''))[:70]} | {e.get('revision', '')} |")
         L.append("")
     return "\n".join(L)
+
+
+def window_none_summary(res: dict) -> list:
+    """A3: every window re-opening without committed evidence in a guarded cell, with its explanation."""
+    return [dict(run=run, label=w["label"], trace=w["trace"], command_id=w["command_id"], defer_reason=w["defer_reason"],
+                 explanation=w["explanation"], lines=w["lines"]) for run, r in res.items() for w in r.get("window_none_guarded", [])]
 
 
 def main(argv=None):

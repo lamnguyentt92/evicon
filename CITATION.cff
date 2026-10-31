@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software or its data, please cite it as below."
 title: "EviCon: evidence contracts for safe continuation after ambiguous remote effects (research prototype)"
 type: software
-version: "082"
+version: "083"
 date-released: "2026-10-30"
 license: MIT
 authors:

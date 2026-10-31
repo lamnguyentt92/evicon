@@ -618,6 +618,27 @@ func (s *Store) ClaimDispatchAttempt(domainID, commandID string) (bool, error) {
 	return n > 0, nil
 }
 
+// OutboxAttempt (release 083) returns the state, the attempt count and the time of the last change of a
+// command's outbox item (set when an attempt is claimed and when it fails). ErrNotFound when the command
+// has no outbox item.
+func (s *Store) OutboxAttempt(domainID, commandID string) (string, int64, time.Time, error) {
+	rows, err := s.db.Query(`SELECT state,attempt_count,updated_at FROM outbox WHERE domain_id=? AND command_id=?`, domainID, commandID)
+	if err != nil {
+		return "", 0, time.Time{}, err
+	}
+	if len(rows) == 0 {
+		return "", 0, time.Time{}, ErrNotFound
+	}
+	st, _ := sqlitecgo.TextAt(rows[0], 0)
+	n, _ := sqlitecgo.Int64At(rows[0], 1)
+	ts, _ := sqlitecgo.TextAt(rows[0], 2)
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return "", 0, time.Time{}, fmt.Errorf("outbox %s updated_at %q: %w", commandID, ts, err)
+	}
+	return st, n, t, nil
+}
+
 func (s *Store) RecordDispatchFailure(domainID, commandID, lastErr string) error {
 	// release 072: never reopen an item that terminal evidence closed meanwhile
 	_, err := s.db.Exec(`UPDATE outbox SET state='RETRY',last_error=?,updated_at=? WHERE domain_id=? AND command_id=? AND state!='DONE'`, lastErr, now(), domainID, commandID)

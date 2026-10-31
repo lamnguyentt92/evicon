@@ -1,5 +1,70 @@
 # Changelog
 
+## 083 — 2026-10-31
+
+The second set of review experiments (T1-T7, plan `evaluation/prereg/PREREG_extra_083.md`, frozen before its first
+cell; 30 campaign configs, 402 cells in seven sessions ordered by priority), three analyses of the raw traces (A1-A3)
+and three fixes of the paper-table generator. Every file an earlier plan freezes is byte-identical
+(`PREREG_review_077.md`: SHA `db67640d...`); every policy and default of earlier releases behaves as before (the
+simulator's output of every earlier scenario is byte-identical to release 082's).
+
+- **T1, QueryOnly with the window-full trigger** (`evicon-authority -policy M1W`; `internal/runtime/query_only_window.go`):
+  M1 plus EVICON's trigger on a candidate deferred by a full window (it queries the oldest ambiguous commands, within
+  the probe budget; never stops or fences). Runtime test F49; simulator policies QUERY_ONLY and QUERY_ONLY_W. Runs Wk
+  (K2, queue, W = 6, the window experiment's schedules) and TBw (ThingsBoard, TB's schedules), EVICON, M1, M1W.
+- **T2, release on an answered read** (`-policy RELEASE_ON_READ_ANSWERED -release-settle 7s`; unsafe by design): a
+  command is released only when the owner, reachable, answers NOT_FOUND to a read made 10 s after its creation and at
+  least the settle time after its last dispatch attempt ended; its resends stop at release-after minus settle. The
+  emulated owner's `-shadow-reads` (off by default) answers receipt reads while it is offline, as a device shadow
+  does. Runtime test F50. Runs RAq (queue, shadow reads), RAd (direct), RAo (direct, no crash orphans), RR's schedules.
+- **T3, the release time of TimeoutRelease**: the policy names `RELEASE_ON_TIMEOUT_30S`, `_60S`, `_120S` run
+  RELEASE_ON_TIMEOUT with that release time (runner mapping only). Runs RTsq, RTsd on RT's schedules.
+- **T4, the plain firmware under the at-most-once binding**: the plain firmware's EVICON cells of C2, C3 and Rz again
+  with the 077 gateway's `binding: auto` (QoS 0 without D_h), runs Z6 (W = 6) and Zi (W unbounded), on the 077 runner;
+  the main effects recomputed against them with the original margins.
+- **T5, the greedy certificate** (`-certificate greedy`, default `enumerate`; `internal/probe/greedy_certificate.go`):
+  for scalar ADD domains with an upper or sum bound, the largest unresolved commands until the deficit is covered
+  (bisection with the guard), then every redundant member dropped; never gives up; other domains fall back to the
+  enumeration. Property tests against an unbounded search (minimum size, minimal by inclusion, safe admissions, 108
+  unresolved doses in 2 ms) and runtime test F51; simulator option `certificate`. Runs Gs (K0S, K0F at W unbounded), Gm (MinIO at
+  W unbounded, greedy against Rm's enumeration) and Th (a fence cost of 100, theta 20 times the default). The
+  simulator sweeps gamma 1-4 and greedy.
+- **T6, the window on the firmware and ThingsBoard**: runs Z3w, Z16w, Z32w (plain at QoS 0 and cutoff) and TBw3, TBw16,
+  TBwinf (EVICON, M1W).
+- **T7, the fault regime and new seeds**: the fault rate 0.5 and 4 per minute, offline 5-15 s and 40-120 s, seeds
+  20261101 and 20261102; K0, K0S, K0F on the queue channel at W = 6 and K0, K0F on the direct channel at W unbounded;
+  4 episodes each (frozen `campaign.py`).
+- **The plan's 0.80 rule** (before freezing): a paired-difference rule is a confirmatory hypothesis only if its power
+  under the testbed's own spread at the predicted mean is at least 0.80 (`power_extra083_testbed.py` prints the rule's
+  table); otherwise it is an estimand, reported with its interval and the prediction. T1-1, T6-3, T7-rate05-qF/-qS/-dF
+  and T7-off5-dF became estimands; T4-6 (U-4's equivalence, which assumed a lossless queue) tests the cutoff's gain at
+  W unbounded under QoS 0 (`at_least 5`, power 1.00). 54 rules: 29 paired-difference hypotheses, 20 detection,
+  absence and search-failure rules, 5 safety rules.
+- **Runners** (new modules; the frozen runners are imported unchanged): `evaluation/ext083.py` (the 083 policies'
+  authority arguments, installed on `campaign_ext077.py`), `campaign_ext083.py`, `campaign_real_ext083.py`,
+  `campaign_tb_ext083.py`; the driver picks them by the config's policies.
+- **Analysis**: `evaluation/pairs_ext083.py` runs the frozen `pairs_report.py` on the plan's ```pairs-spec``` block and
+  decides its ```pairs-ext``` block: contrasts between policies, contrasts across runs paired by schedule, differences of
+  contrasts (the window's direction), safety rules over groups of runs (a run not run is listed; no partial results),
+  and the trace counts `search_failures` and `releases_without_evidence`; `evaluation/esim083.py` (E-SIM). The report
+  runs both, `policy_compare.py` on the plan's ```policy-compare``` block, and claims_check lists every verdict.
+  Simulator prediction `evaluation/sim_extra083.py` (`sim_predictions/extra083_*.csv`, `SIM_EXTRA083.md`); power under
+  the testbed's spread `evaluation/power_extra083_testbed.py`.
+- **A1** (`safety_total.py`): the distinct fault schedules behind the guarded cells with faults and the exact bound per
+  schedule, 1 - 0.05^(1/N_s) (`SAFETY.md`, `safety.json`, `\evSafetySchedules`, `\evSafetyBoundSchedulePct`). **A2**
+  (`overhead.py`): the admissions after the request's deadline per campaign and policy (`tab_admit_late.tex`,
+  `\evAdmitLateSharePct`). **A3** (`t3_attribution.py`): every window re-opening without committed evidence in a guarded
+  cell, with the trace events between its DEFER and its admission and a factual explanation.
+- **The practice baselines have one definition** (`safety_total.BASELINES`, read by `t3_attribution.py`,
+  `claims_check.py` and the driver), now with RELEASE_ON_READ_ANSWERED and the release-time variants.
+- **paper_tables.py**: one rounding (the plans' means are recomputed unrounded from `cells.csv`, `expC2_summary.py` and
+  `overhead.py` keep unrounded values: the {F} queue level 79.147 prints 79.1, not 79.2); `tab_fence_cost.tex` labels the
+  second K2 run "K2 config, replication"; the firmware on native_sim and on the emulated Cortex-M3 is one system
+  (`\evSystems` 10, `\evThirdPartySystems` 9); tables and macros of the 083 plan (`tab_extra083_*.tex`).
+- Version 083 (`VERSION`, `buildinfo.Release`, `CITATION.cff`, the VM set-up banners); the operator's
+  run guide of 083 replaces that of 081. Tests: `evaluation/test_release083.py` (H1-H12);
+  `test_release077` B2 and `test_release082` G1 accept the later releases' baselines and plans.
+
 ## 082 — 2026-10-30
 
 The artifact's documents for the final report. No change to the runtime, the runners, the gateways, the firmware,

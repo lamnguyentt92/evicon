@@ -6,6 +6,7 @@
 | `campaign_ext077.py` | `campaign.py` plus the two unsafe practice baselines `RELEASE_ON_TIMEOUT` and `RELEASE_ON_READ` and the validity cut of resends (release 077, below) |
 | `campaign_zephyr_ext077.py` | The C3 runner plus the delivery binding of MQTT commands and the offline cut (release 077, run Q) |
 | `campaign_tb.py` | EviCon on ThingsBoard CE's persistent RPC (release 077, run TB), on the frozen C2 runner's cell loop |
+| `ext083.py`, `campaign_ext083.py`, `campaign_real_ext083.py`, `campaign_tb_ext083.py` | The 083 policies (M1W, RELEASE_ON_READ_ANSWERED, RELEASE_ON_TIMEOUT_<n>S, EVICON_GREEDY, EVICON_FC<x>) installed on `campaign_ext077.py`, `campaign_real.py` and `campaign_tb.py`, which are imported unchanged (release 083, below) |
 | `campaigns/local_smoke.json` | Pipeline check on one machine (`make campaign-local`). **Development numbers are not measurements** |
 | `campaigns/pilot_pending_binding.json` | Testbed pilot, *pending-binding* regime |
 | `campaigns/pilot_capacity_binding.json` | Testbed pilot, *capacity-binding* regime |
@@ -31,8 +32,14 @@ rule. They differ only in *when* and *what* is resolved:
 | `M1`, `M0` | `-policy M1`, `-policy M0` | Query selectors, without stop or fence |
 | `RELEASE_ON_TIMEOUT` | `-policy RELEASE_ON_TIMEOUT -release-after 10s` | Practice baseline, **unsafe by design**: commits STOPPED without owner evidence |
 | `RELEASE_ON_READ` | `-policy RELEASE_ON_READ -release-after 10s` | Practice baseline, **unsafe by design**: state-read reconciliation |
+| `M1W` (083) | `-policy M1W -ambiguity-after <a>` | QueryOnly with EVICON's window-full trigger (queries aged ambiguous commands when the window defers a candidate) |
+| `RELEASE_ON_READ_ANSWERED` (083) | `-policy RELEASE_ON_READ_ANSWERED -release-after 10s -release-settle 7s` | Practice baseline, **unsafe by design**: releases only on an answered NOT_FOUND, read at least the settle time after the last dispatch attempt; resends stop at release-after minus settle |
+| `RELEASE_ON_TIMEOUT_<n>S` (083) | `-policy RELEASE_ON_TIMEOUT -release-after <n>s` | RELEASE_ON_TIMEOUT with the release time n s (30, 60, 120), **unsafe by design** |
+| `EVICON_GREEDY` (083) | EVICON's flags and `-certificate greedy` | EVICON with the greedy certificate of an additive domain instead of the bounded enumeration |
+| `EVICON_FC<x>` (083) | EVICON's flags with `-fence-cost <x>` | EVICON at another cost ratio theta (run Th: x = 100) |
 
-The two `RELEASE_*` baselines break rule R2 on purpose and run only in their own cells (`campaign_ext077.py`).
+The `RELEASE_*` baselines break rule R2 on purpose and run only in their own cells (`campaign_ext077.py`,
+`campaign_ext083.py`); `safety_total.BASELINES` is their one definition.
 
 The value of a *contract upgrade* (for example adding F) is measured separately. The simulator uses the contract
 `"<c>+F"`; the runtime uses dedicated device presets K0F (= K0 + F), K1F (= K1 + F), K3F (= K2 + F). Every policy
@@ -293,3 +300,38 @@ carry the plan's SHA-256 once it is frozen; the earliest complete run of each is
   numbers).
 - Tests: `test_release081.py` (F1-F3).
 
+## Release 083: the second set of review experiments (`prereg/PREREG_extra_083.md`)
+
+Seven questions of the second internal review, answered on the five-VM testbed (T1-T7), three analyses of the raw
+traces (A1-A3) and three fixes of the paper tables. 30 campaign configs, 402 cells, seven sessions ordered by
+priority (T4 and T1; T2 and T3; T5; T6; T7); a campaign not complete at the data freeze is reported as NOT RUN.
+54 rules: 29 paired-difference hypotheses, 20 detection, absence and search-failure rules, 5 safety rules. By the plan's
+0.80 rule a paired-difference rule is a hypothesis only if its power under the testbed's own spread at the predicted
+mean is at least 0.80 (`power_extra083_testbed.py`); the others (T1-1, T6-3, the 0.5/min effects and the 5-15 s direct
+effect of T7) are estimands.
+
+| Item | Runs (configs) | What is new |
+|---|---|---|
+| T1 | Wk (`expM1W_k2`), TBw (`expTB_m1w`) | policy M1W (runtime test F49; simulator QUERY_ONLY_W) |
+| T2 | RAq, RAd, RAo (`expRRA_queue`, `_direct`, `_noorphan`) | policy RELEASE_ON_READ_ANSWERED (F50); `evicon-device -shadow-reads` |
+| T3 | RTsq, RTsd (`expRTs_queue`, `_direct`) | release-time variants of RELEASE_ON_TIMEOUT (runner mapping) |
+| T4 | Z6, Zi (`expT4_zephyr_w6`, `_winf`) | the plain firmware at QoS 0 (`binding: auto`, the 077 runner) |
+| T5 | Gs, Gm, Th (`expG_s_winf`, `expG_minio_winf`, `expTheta_w6`) | `-certificate greedy` (property tests, F51; simulator `certificate`), EVICON_FC100 |
+| T6 | Z3w, Z16w, Z32w; TBw3, TBw16, TBwinf | the window on the firmware and on ThingsBoard |
+| T7 | T7q-<level>, T7d-<level> (`expT7_q6_*`, `expT7_dinf_*`) | fault rate 0.5 and 4/min, offline 5-15 and 40-120 s, two seeds (frozen `campaign.py`) |
+
+- **Analysis**: `pairs_ext083.py --plan prereg/PREREG_extra_083.md --run KEY=DIR ... --out DIR` runs the frozen
+  `pairs_report.py` on the ```pairs-spec``` block and decides the ```pairs-ext``` block (policy contrasts, cross-run
+  contrasts paired by schedule, differences of contrasts, safety groups, trace counts `search_failures`,
+  `releases_without_evidence`); `policy_compare.py` runs the ```policy-compare``` block; `esim083.py` is E-SIM. The
+  driver's `report` runs all three on the earliest complete run of each campaign among its sources.
+- **Prediction and power**: `sim_extra083.py` (`sim_predictions/extra083_summary.csv`, `extra083_effects.csv`,
+  `extra083_power.csv`, `SIM_EXTRA083.md`; the T7 levels as the testbed's schedules realize them),
+  `power_extra083_testbed.py` (power under the testbed's own per-episode spread).
+- **A1** `safety_total.py`: distinct fault schedules behind the guarded cells with faults, bound per schedule
+  1 - 0.05^(1/N_s). **A2** `overhead.py`: admissions after the deadline (`admitted_after_deadline`, share).
+  **A3** `t3_attribution.py`: window re-openings without committed evidence, with trace context and explanation.
+- **paper_tables.py**: one rounding (`exact_contrast` from `cells.csv`; unrounded means in `expC2_summary.py`,
+  `overhead.py`), the K2 replication's label in `tab_fence_cost.tex`, the firmware counted once in the contract map,
+  `tab_extra083_*.tex`, `tab_admit_late.tex`.
+- Tests: `test_release083.py` (H1-H12).

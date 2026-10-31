@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "Q_A",
+    "T"
+  ],
+  "clock_skew_ms": 500,
+  "expiry_ms": 60000,
+  "id": "sim-tb-083",
+  "notes": "Release 083 (PREREG_extra_083.md T1, T6): the simulator counterpart of ThingsBoard CE's measured contract for the gateway's call shape (thingsboard-rpc-r0, measured in releases 077-078: Q_A, T with expiry 60 s, no D_h): a persistent server-side RPC, queried by reading its record, executed at most until its expirationTime",
+  "schema_version": 1,
+  "source": "HYPOTHESIS",
+  "system": "simulator owner"
+}

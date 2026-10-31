@@ -1,6 +1,6 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **077** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+Release **083** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
 check them); `CHANGELOG.md` lists what each release changed.
 
 **Question.** A client sends a command to a remote effect owner (a device, a broker plus
@@ -41,7 +41,11 @@ devices with the validity cut of resends and the attribution of every late effec
 it, the delivery binding of MQTT commands (QoS 1 against QoS 0), EviCon end to end on ThingsBoard CE's
 persistent server-side RPC, the authority with up to 32 domains, a control of the admission-latency
 decomposition against a no-op endpoint (`cmd/evicon-noop`), the firmware on an emulated Arm Cortex-M3 MCU
-(QEMU) and with authenticated messages. Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
+(QEMU) and with authenticated messages. Release 083 adds the plan `PREREG_extra_083.md`: QueryOnly with EviCon's
+window-full trigger (`M1W`), a practice baseline that releases only on an answered state read, the release time of
+`RELEASE_ON_TIMEOUT`, the plain firmware under the at-most-once binding, the greedy certificate of additive domains
+(`-certificate greedy`) and the cost ratio theta, the window on the firmware and on ThingsBoard, and the effects
+across fault rates, outage durations and seeds. Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 
 ## Layout
@@ -49,7 +53,7 @@ machine (`DEV_LOCAL`) are not measurements.
 | Path | Content |
 |---|---|
 | `cmd/evicon-{authority,endpoint,device,plant,des,contract,noop}` | Binaries (`evicon-noop`: the latency control's endpoint) |
-| `internal/` | Go core: domain, belief, guard (`analyzer`), journal/outbox, contract lattice, resolver, runtime (with the two unsafe baselines of release 077 in `release_on_timeout.go`), device, plant, simulator |
+| `internal/` | Go core: domain, belief, guard (`analyzer`), journal/outbox, contract lattice, resolver, runtime (with the unsafe practice baselines of releases 077 and 083 in `release_on_timeout.go`), device, plant, simulator |
 | `conformance/` | EviCon-Probe (Python): adapters, configs, reference apps and owner gateways (S3 for MinIO, MQTT for the firmware, REST for ThingsBoard), checks (`qos_dup_check.py`, `zephyr_auth_check.py`, `zephyr_reboot_check.py`), compose files for VM-B, tests |
 | `evaluation/` | Campaign runners and configs, analyses (`pairs_report.py`, `policy_compare.py`, `late_attribution.py`, `latency_control.py`, overhead, safety total, claims check, paper tables), simulator predictions and sweeps, power, preregistrations and their results (`prereg/`) |
 | `experiments/` | Contract catalog, simulator regimes, query cost model, MinIO contracts measured in 070 (`owners/minio/`), the simulator's inputs for the firmware (`owners/zephyr/`) |

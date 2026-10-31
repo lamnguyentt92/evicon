@@ -451,3 +451,68 @@ func TestStopUpgradeSuffix(t *testing.T) {
 		t.Fatalf("a stop upgrade must not lose work: %d vs %d", f(ks, PolicyEvicon), f(k0, PolicyEvicon))
 	}
 }
+
+// Release 083 (PREREG_extra_083.md T1, T5): the QueryOnly policies and the greedy certificate in the twin.
+// On K2 at a window of 6 the window-full trigger can only help (QUERY_ONLY_W >= QUERY_ONLY in clean
+// fulfilment); at an unbounded window the greedy certificate never fails a search; nothing is unsafe; the
+// defaults (enumeration, no QueryOnly policy) are unchanged.
+func TestQueryOnlyAndGreedy083(t *testing.T) {
+	base := loadCfg(t, "iot_dosing_testbed.json")
+	base.Sweep = nil
+	base.Episodes = 4
+	base.Workload.DurationMS = 180000
+	base.Authority.MaxOutstanding = 6
+	base.Authority.AssumedMaxDelayMS = -1
+	c := base
+	c.Owner.Contract = "sim-k2"
+	c.Policies = []string{PolicyQueryOnly, PolicyQueryOnlyW, PolicyEvicon}
+	rows, err := Run(c, catalog(t), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bp := byPolicy(rows)
+	clean := func(rs []Row) int { return sum(rs, func(r Row) int { return r.CleanFulfilled }) }
+	for p, rs := range bp {
+		if s := sum(rs, func(r Row) int { return r.SafetyViolations + r.FalseStopped + r.DuplicateEffects }); s != 0 {
+			t.Fatalf("%s unsafe: %d", p, s)
+		}
+	}
+	if clean(bp[PolicyQueryOnlyW]) < clean(bp[PolicyQueryOnly]) {
+		t.Fatalf("the window trigger cannot cost clean fulfilment: QUERY_ONLY %d, QUERY_ONLY_W %d", clean(bp[PolicyQueryOnly]), clean(bp[PolicyQueryOnlyW]))
+	}
+	if sum(bp[PolicyQueryOnlyW], func(r Row) int { return r.Queries }) <= sum(bp[PolicyQueryOnly], func(r Row) int { return r.Queries }) {
+		t.Fatal("QUERY_ONLY_W must query more than QUERY_ONLY (the window-full trigger)")
+	}
+	t.Logf("K2 W=6 clean: QUERY_ONLY %d, QUERY_ONLY_W %d, EVICON %d", clean(bp[PolicyQueryOnly]), clean(bp[PolicyQueryOnlyW]), clean(bp[PolicyEvicon]))
+
+	g := base
+	g.Owner.Contract = "sim-k0+F"
+	g.Owner.Channel = "direct"
+	g.Authority.MaxOutstanding = 1000000
+	g.Policies = []string{PolicyEvicon}
+	enum, err := Run(g, catalog(t), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Authority.Certificate = "greedy"
+	if err := g.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	greedy, err := Run(g, catalog(t), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := sum(greedy, func(r Row) int { return r.CertificateErrors }); n != 0 {
+		t.Fatalf("the greedy certificate never fails a search, got %d errors", n)
+	}
+	if s := sum(greedy, func(r Row) int { return r.SafetyViolations + r.FalseStopped + r.DuplicateEffects }); s != 0 {
+		t.Fatalf("greedy unsafe: %d", s)
+	}
+	t.Logf("K0+F direct W=inf: certificate errors enumerate %d / greedy 0; clean enumerate %d, greedy %d",
+		sum(enum, func(r Row) int { return r.CertificateErrors }), clean(enum), clean(greedy))
+	bad := base
+	bad.Authority.Certificate = "fast"
+	if err := bad.Validate(); err == nil {
+		t.Fatal("unknown certificate search accepted")
+	}
+}

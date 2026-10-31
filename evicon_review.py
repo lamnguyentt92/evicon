@@ -566,7 +566,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -1089,7 +1089,7 @@ def cmd_campaign(tb, a, path):
     if baseline:
         found = sorted({(g[2], g[3]) for g in rep["groups_with_safety_violations"]})
         return "PASS", (f"{'/'.join(baselines)} baseline (unsafe by design): {st['cells_done']} cells, {len(st['invalid'])} INVALID; "
-                        f"planned violations detected in {found or 'NO group (see the plan: RT-1..3, RR-1, RR-2 decide)'}; {an}")
+                        f"planned violations detected in {found or 'NO group (the plan decides: RT, RR of 077; RA, RTs of 083)'}; {an}")
     if negctl:
         return "PASS", (f"negative control: {st['cells_done']} cells, {len(st['invalid'])} INVALID; the checker DETECTED the planted "
                         f"violations in {rep['groups_with_safety_violations']} (expected); {an}")
@@ -1147,7 +1147,8 @@ def _real_owner_campaign(tb, a, src: Path, cfg: dict):
         for k in (cfg["real_owner"].get("access_key_env", "MINIO_ROOT_USER"), cfg["real_owner"].get("secret_key_env", "MINIO_ROOT_PASSWORD")):
             if not os.environ.get(k):
                 raise StageFail(f"{k} is not set after MinIO started (the runner reads the credentials from the environment)")
-        st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner="evaluation/campaign_real.py")
+        runner = "evaluation/campaign_real_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_real.py"  # 083: EVICON_GREEDY
+        st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner=runner)
     finally:
         m.cleanup()
         (m.out / "owner.json").write_text(json.dumps(m.facts, indent=2, default=str) + "\n")
@@ -1216,15 +1217,27 @@ def _measured_zephyr_contracts(cfg: dict, fw_sha: str) -> dict:
     return found
 
 
-RELEASE_BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")  # release 077, unsafe by design
+sys.path.insert(0, str(REPO / "evaluation"))
+from safety_total import BASELINES as RELEASE_BASELINES  # noqa: E402  (077, 083: the practice baselines, unsafe by design; one definition)
+import ext083  # noqa: E402  (release 083: the authority policies of PREREG_extra_083.md)
+
+
+def _uses_083_policies(cfg: dict) -> bool:
+    """Release 083: a config with a policy of evaluation/ext083.py (M1W, RELEASE_ON_READ_ANSWERED, RELEASE_ON_TIMEOUT_<n>S,
+    EVICON_GREEDY, EVICON_FC<x>), also as the base of a real owner's pseudo-policy."""
+    pseudo = ((cfg.get("real_owner") or {}).get("policies") or {}).values()
+    return any(ext083.is_083_policy(p) for p in cfg.get("policies", [])) or any(ext083.is_083_policy(str(p.get("base", ""))) for p in pseudo)
 
 
 def _emulated_runner(cfg: dict):
     """Release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines and the validity cut of the retry
     guard (authority.resend_until) (PREREG_review_077.md) run on evaluation/campaign_ext077.py, which imports
     the frozen campaign.py unchanged and adds them; every other emulated-owner campaign runs on campaign.py.
-    Returns (runner, baselines)."""
+    Release 083: a config with a policy of release 083 runs on evaluation/campaign_ext083.py (campaign_ext077 and
+    the 083 policies installed). Returns (runner, baselines)."""
     baselines = sorted(set(cfg["policies"]) & set(RELEASE_BASELINES))
+    if _uses_083_policies(cfg):
+        return "evaluation/campaign_ext083.py", baselines
     ext = bool(baselines) or bool((cfg.get("authority") or {}).get("resend_until"))
     return ("evaluation/campaign_ext077.py" if ext else "evaluation/campaign.py"), baselines
 
@@ -1290,7 +1303,8 @@ def _tb_owner_campaign(tb, a, src: Path, cfg: dict):
         cfg["real_owner"]["tb_url"] = f"http://{tb.ip('B')}:{m.P['tb_http']}"
         cfg["real_owner"]["tb_mqtt"] = f"{tb.ip('B')}:{m.P['tb_mqtt']}"
         m.facts["contract"] = {"file": str(runs[-1].relative_to(RUN.path)), "sha256": sha256(runs[-1]), "capabilities": c.get("capabilities")}
-        st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner="evaluation/campaign_tb.py")
+        runner = "evaluation/campaign_tb_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_tb.py"  # 083: M1W
+        st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner=runner)
     finally:
         m.cleanup()
         (m.out / "owner.json").write_text(json.dumps(m.facts, indent=2, default=str) + "\n")
@@ -3172,6 +3186,17 @@ def _sources(a) -> list:
     return out
 
 
+def _pairs_ext_runs(plan: Path):
+    """Release 083: the runs of a plan's ```pairs-ext``` block ({} when it names none), or None without the block."""
+    m = re.search(r"```pairs-ext\n(.*?)```", plan.read_text(), re.S)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1)).get("runs", {})
+    except ValueError:
+        return {}
+
+
 def cmd_report(tb, a):
     """python3 evicon_review.py report [--from DIR ...]: paper-ready tables from this run and the
     runs given with --from (e.g. the 066 and 067 runs): confirmatory experiment A against its plan,
@@ -3235,8 +3260,15 @@ def cmd_report(tb, a):
                 runargs += ["--run", f"{key}={found[0]}"]
         if not runargs:
             continue
-        rc, text = sh([sys.executable, "evaluation/pairs_report.py", "--plan", str(plan.relative_to(REPO)), *runargs,
-                       "--out", str(out / "pairs" / plan.stem)], timeout=1800, quiet=True, check=False)
+        for key, want in (_pairs_ext_runs(plan) or {}).items():  # release 083: the ```pairs-ext``` block's own runs
+            if any(x == f"{key}=" or x.startswith(f"{key}=") for x in runargs):
+                continue
+            found = sorted({r for s in srcs for r in _find_complete_runs(s, want.get("campaign", ""))}, key=lambda r: r.name)
+            if found:
+                runargs += ["--run", f"{key}={found[0]}"]
+        tool = "evaluation/pairs_ext083.py" if _pairs_ext_runs(plan) is not None else "evaluation/pairs_report.py"
+        rc, text = sh([sys.executable, tool, "--plan", str(plan.relative_to(REPO)), *runargs,
+                       "--out", str(out / "pairs" / plan.stem)], timeout=3600, quiet=True, check=False)
         if rc == 0:
             done.append(plan.stem)
             index.append(f"- [{spec.get('name', plan.stem)}, against its plan](pairs/{plan.stem}/RESULTS.md)")
@@ -3334,6 +3366,16 @@ def cmd_report(tb, a):
             index.append("- [The runs of the 077 plan against its simulator prediction (E-SIM)](esim077/ESIM077.md)")
         else:
             RUN.problem("WARN", f"esim077 failed: {text[-400:]}")
+    # release 083: estimand E-SIM of PREREG_extra_083.md, from the plan's decided results
+    x083 = out / "pairs" / "PREREG_extra_083" / "results.json"
+    if x083.is_file():
+        rc, text = sh([sys.executable, "evaluation/esim083.py", "--results", str(x083), "--out", str(out / "esim083")],
+                      timeout=600, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-SIM (083)")
+            index.append("- [The runs of the 083 plan against its simulator prediction (E-SIM)](esim083/ESIM083.md)")
+        else:
+            RUN.problem("WARN", f"esim083 failed: {text[-400:]}")
     expc = sorted({r for s in srcs for r in _find_complete_runs(s, "expC-minio")}, key=lambda r: r.name)
     if expc:
         rc, text = sh([sys.executable, "evaluation/expC_summary.py", "--out", str(out / "expC"), str(expc[0])], timeout=900, quiet=True, check=False)

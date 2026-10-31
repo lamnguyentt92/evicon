@@ -48,6 +48,10 @@ func (a *Authority) evaluateWithPolicy(d journal.Domain, req protocol.CommandReq
 		// which the M-policies treat as a plain DEFER.
 		return a.evaluateEvicon(req, stats)
 	}
+	if a.cfg.Policy == probe.M1W && res.Verdict == analyzer.Deferred && res.Reason == "OUTSTANDING_BUDGET_EXHAUSTED" {
+		// Release 083 (T1): the window-full trigger of EVICON, without anything else of EVICON.
+		return a.evaluateQueryOnlyWindow(req, stats)
+	}
 	if res.Verdict == analyzer.Safe || a.cfg.Policy == probe.M0NoProbe || probe.IsReleaseBaseline(a.cfg.Policy) || (res.Verdict != analyzer.Counterexample && res.Verdict != analyzer.ConservativeBlock) {
 		return res, stats, nil
 	}
@@ -110,7 +114,7 @@ func (a *Authority) evaluateWithPolicy(d journal.Domain, req protocol.CommandReq
 			break
 		}
 
-		if a.cfg.Policy == probe.M1 {
+		if probe.IsQueryOnly(a.cfg.Policy) { // M1, and M1W on a guard block (release 083)
 			start := time.Now()
 			ranked, err := probe.SelectSimple(probe.M1, dcur, cmds, req, a.cfg.QueryCosts, excluded, a.cfg.MaxConfigurations)
 			stats.SelectorNS += time.Since(start).Nanoseconds()

@@ -110,9 +110,11 @@ def summarize(run: Path) -> dict:
         g["cells_with_duplicates"] = sum(1 for x in xs if int(x["duplicate_effects"] or 0) > 0)
         for m in ("clean_pp", "confirmed_pp"):
             v = [c[m] for (a, b, _), c in r["cells"].items() if a == ct and b == pol and c[m] == c[m]]
-            g[m] = round(statistics.mean(v), 2) if v else None
+            # release 083: unrounded (paper_tables.py rounds once; a 2-decimal value rounded again to 1 decimal printed
+            # 79.147 as 79.2, OPEN_ITEMS (a) 6)
+            g[m] = statistics.mean(v) if v else None
             ci = t_interval(v, 0.95) if len(v) > 1 else None
-            g[m + "_t95"] = [round(ci[0], 2), round(ci[1], 2)] if ci else None
+            g[m + "_t95"] = [ci[0], ci[1]] if ci else None
         t4, gw = 0, Counter()
         for cell in (run / "cells").glob(f"ep*/{ct}/{pol}"):
             t4 += t4_commands(cell)

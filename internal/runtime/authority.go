@@ -68,6 +68,15 @@ type AuthorityConfig struct {
 	// STOPPED without owner evidence (RELEASE_ON_READ first reads the owner's receipt). Unused by
 	// every other policy.
 	ReleaseAfter time.Duration
+	// ReleaseSettle (release 083, policy RELEASE_ON_READ_ANSWERED only) is the delay bound the
+	// baseline assumes: its dispatcher re-sends a command only until ReleaseAfter - ReleaseSettle after
+	// its creation, and an answered NOT_FOUND releases a command only when the read was sent at least
+	// ReleaseSettle after the command's last dispatch attempt. 0 = ReleaseAfter.
+	ReleaseSettle time.Duration
+	// Certificate (release 083, EVICON only) selects the certificate search of a guard block:
+	// CertificateEnumerate (default: the bounded enumeration of releases 061-082) or CertificateGreedy
+	// (the greedy certificate of additive domains; other domains fall back to the enumeration).
+	Certificate string
 	// Test-only synchronization hook used to force a domain revision change
 	// after analysis and verify that the authority recomputes before commit.
 	AfterPolicyEvaluationForTest func()
@@ -95,6 +104,9 @@ type Authority struct {
 const (
 	TriggerBlockAndSweep = "BLOCK_AND_SWEEP"
 	TriggerSweepOnly     = "SWEEP_ONLY"
+	// release 083: the certificate search of EVICON's resolver
+	CertificateEnumerate = "enumerate"
+	CertificateGreedy    = "greedy"
 )
 
 const runtimeAnalyzer = "RELATIONAL_ONLINE_BELIEF"
@@ -182,6 +194,24 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 	}
 	if probe.IsReleaseBaseline(cfg.Policy) && cfg.ReleaseAfter <= 0 {
 		cfg.ReleaseAfter = 10 * time.Second
+	}
+	if cfg.Policy == probe.M1W && cfg.AmbiguityAfter <= 0 {
+		cfg.AmbiguityAfter = 2 * time.Second // release 083: EVICON's default
+	}
+	if cfg.Policy == probe.ReleaseOnReadAnswered {
+		if cfg.ReleaseSettle <= 0 {
+			cfg.ReleaseSettle = cfg.ReleaseAfter
+		}
+		if cfg.ReleaseSettle > cfg.ReleaseAfter {
+			return nil, fmt.Errorf("release settle %s exceeds release-after %s", cfg.ReleaseSettle, cfg.ReleaseAfter)
+		}
+	}
+	switch cfg.Certificate {
+	case "":
+		cfg.Certificate = CertificateEnumerate
+	case CertificateEnumerate, CertificateGreedy:
+	default:
+		return nil, fmt.Errorf("unknown certificate search %q (want %s or %s)", cfg.Certificate, CertificateEnumerate, CertificateGreedy)
 	}
 	if cfg.PlannerDepth <= 0 {
 		cfg.PlannerDepth = 2

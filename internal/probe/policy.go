@@ -50,16 +50,36 @@ const (
 	// the effect) is treated as failed and committed STOPPED without evidence of non-occurrence.
 	// Only for the baseline campaigns of PREREG_review_077.md; never a runtime policy.
 	ReleaseOnRead Method = "RELEASE_ON_READ"
+	// M1W (release 083, PREREG_extra_083.md T1): QueryOnly (M1) with the window-full trigger that
+	// EVICON has and M1 lacks. On a guard block it is M1; when a candidate is deferred because the
+	// window of unresolved commands is full, it also queries the oldest aged ambiguous commands
+	// (within the action budget of the evaluation, skipping those queried recently), records the
+	// admissible answers and evaluates the candidate again. It never stops, fences or sweeps.
+	M1W Method = "M1W"
+	// RELEASE_ON_READ_ANSWERED (release 083, PREREG_extra_083.md T2): state-read reconciliation that
+	// releases a command only on an ANSWERED read: ReleaseAfter after its creation, and at least the
+	// settle time after its last dispatch attempt, a command without terminal evidence is read at the
+	// owner; a valid APPLIED or STOPPED receipt is recorded, an answered NOT_FOUND is committed STOPPED
+	// (without evidence of non-occurrence in the contract: UNSAFE BY DESIGN where the channel can hold
+	// a command), and an unanswered or UNCERTAIN read is read again later. The dispatcher re-sends a
+	// command of this policy only until ReleaseAfter minus the settle time after its creation, so that
+	// every send has arrived before the read when the one-way delay is below the settle time.
+	ReleaseOnReadAnswered Method = "RELEASE_ON_READ_ANSWERED"
 )
 
-// IsReleaseBaseline reports the two unsafe baselines of release 077, which commit STOPPED
+// IsReleaseBaseline reports the unsafe baselines of releases 077 and 083, which commit STOPPED
 // without owner evidence of non-occurrence.
-func IsReleaseBaseline(m Method) bool { return m == ReleaseOnTimeout || m == ReleaseOnRead }
+func IsReleaseBaseline(m Method) bool {
+	return m == ReleaseOnTimeout || m == ReleaseOnRead || m == ReleaseOnReadAnswered
+}
+
+// IsQueryOnly reports the query-only policies: M1 and its window-full variant M1W (release 083).
+func IsQueryOnly(m Method) bool { return m == M1 || m == M1W }
 
 func ParseMethod(s string) (Method, error) {
 	m := Method(strings.ToUpper(strings.TrimSpace(s)))
 	switch m {
-	case M0, M0NoProbe, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON, ReleaseOnTimeout, ReleaseOnRead:
+	case M0, M0NoProbe, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON, ReleaseOnTimeout, ReleaseOnRead, M1W, ReleaseOnReadAnswered:
 		return m, nil
 	default:
 		return "", fmt.Errorf("unsupported policy %q", s)

@@ -14,6 +14,8 @@ Per campaign, contract and policy (aggregated over the cells):
                         reservation and decision written to the journal)
   dispatch_ms p50/p95   authority -> device -> receipt committed (OUTBOX_DISPATCH_ATTEMPT ->
                         OUTBOX_RECEIPT_COMMITTED): the owner round trip EviCon adds nothing to
+  admitted_after_deadline  (release 083, A2) admitted requests whose first admission came after arrival + deadline_s,
+                        and their share of the admitted requests (admitted_after_deadline_share)
   terminal_ms p50/p95   admitted -> terminal outcome seen by the client; the client polls every
                         workload.retry_s (0.5 s in the RQ4 campaigns), so this is about one poll
                         interval: use dispatch_ms for the owner round trip
@@ -92,9 +94,10 @@ def dbs(cell: Path):
     return sorted(cell.glob("raw/A/authority*.db")) or sorted(cell.glob("raw/authority*.db"))
 
 
-def cell_metrics(cell: Path) -> dict:
+def cell_metrics(cell: Path, deadline_s: float = None) -> dict:
     row = json.loads((cell / "row.json").read_text())
     m = {"offered": int(row.get("offered") or 0), "admit_ms": [], "terminal_ms": [], "decide_ms": [], "dispatch_ms": [],
+         "admitted_requests": 0, "admitted_after_deadline": 0, "identities_admitted_after_deadline": 0,
          "in_ms": [], "out_ms": [], "client_ms": [], "lock_ms": [], "eval_ms": [],
          "events": 0, "fence_pause_ms": [], "paused_ms": 0.0, "cell_ms": 0.0, "db_bytes": 0,
          "fences": int(row.get("fences") or 0), "queries": int(row.get("queries") or 0), "stops": int(row.get("stops") or 0),
@@ -110,6 +113,14 @@ def cell_metrics(cell: Path) -> dict:
             elif cid and ev == "DECISION_RECORDED" and e.get("decision") == "ADMITTED":
                 wall_dec.setdefault(cid, wall(e.get("wall_time", "")))
     for c in load_jsonl(cell / "clients.jsonl"):
+        adm = c.get("admitted") or {}
+        if adm and deadline_s is not None:
+            # release 083 (A2): a request whose (first) admission came after its deadline; the client submits until the
+            # deadline, and an answer that arrives after it is recorded at its arrival
+            m["admitted_requests"] += 1
+            late = [t for t in adm.values() if t - c["arrival"] > deadline_s]
+            m["identities_admitted_after_deadline"] += len(late)
+            m["admitted_after_deadline"] += min(adm.values()) - c["arrival"] > deadline_s
         if c.get("decision") == "ADMITTED" and int(c.get("attempts") or 0) == 1:
             t_adm = (c.get("admitted") or {}).get(c["cid"])
             if t_adm:
@@ -212,14 +223,15 @@ def summarize(campaigns: list, samples: list) -> list:
         for cell in sorted(run.glob("cells/ep*/*/*")):
             if not (cell / "row.json").exists():
                 continue
-            m = cell_metrics(cell)
+            m = cell_metrics(cell, float((cfg.get("workload") or {}).get("deadline_s", 60)))
             g = groups[(label, cell.parts[-2], cell.parts[-1])]
             g["cells"].append(1)
             g["duration_s"].append(float(cfg.get("duration_s", 0)) or 1.0)
             for k in ("admit_ms", "terminal_ms", "decide_ms", "dispatch_ms", "fence_pause_ms", "in_ms", "out_ms", "client_ms",
                       "lock_ms", "eval_ms"):
                 g[k] += m[k]
-            for k in ("offered", "events", "db_bytes", "fences", "queries", "stops", "dispatch_attempts", "paused_ms", "cell_ms"):
+            for k in ("offered", "events", "db_bytes", "fences", "queries", "stops", "dispatch_attempts", "paused_ms", "cell_ms",
+                      "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline"):
                 g[k].append(m[k])
             r = match_resources(cell, run, res)
             for name, v in r.items():
@@ -242,10 +254,15 @@ def summarize(campaigns: list, samples: list) -> list:
         row["events_per_cmd"] = round(sum(g["events"]) / offered, 2) if offered else None
         row["db_bytes_per_cmd"] = round(sum(g["db_bytes"]) / offered, 1) if offered else None
         for k in ("fences", "queries", "stops", "dispatch_attempts"):
-            row[f"{k}_per_cmd"] = round(sum(g[k]) / offered, 4) if offered else None
+            row[f"{k}_per_cmd"] = sum(g[k]) / offered if offered else None  # 083: unrounded (paper_tables rounds once)
         row["fence_pause_ms_p50"], row["fence_pause_ms_p95"] = pct(g["fence_pause_ms"], 50), pct(g["fence_pause_ms"], 95)
         row["fence_pause_ms_max"] = round(max(g["fence_pause_ms"]), 1) if g["fence_pause_ms"] else None
-        row["paused_fraction"] = round(sum(g["paused_ms"]) / sum(g["cell_ms"]), 4) if sum(g["cell_ms"]) else None
+        row["paused_fraction"] = sum(g["paused_ms"]) / sum(g["cell_ms"]) if sum(g["cell_ms"]) else None  # 083: unrounded
+        # release 083 (A2): admissions after the request's deadline
+        row["admitted_requests"] = sum(g["admitted_requests"])
+        row["admitted_after_deadline"] = sum(g["admitted_after_deadline"])
+        row["identities_admitted_after_deadline"] = sum(g["identities_admitted_after_deadline"])
+        row["admitted_after_deadline_share"] = (row["admitted_after_deadline"] / row["admitted_requests"]) if row["admitted_requests"] else None
         out.append(row)
     return out
 
@@ -256,7 +273,8 @@ COLS = ["campaign", "contract", "policy", "cells", "offered_per_s", "admit_n", "
         "decide_ms_p50", "decide_ms_p95", "dispatch_ms_p50", "dispatch_ms_p95", "terminal_ms_p50", "terminal_ms_p95",
         "authority_cpu_pct_mean", "authority_rss_mb_max", "device_cpu_pct_mean", "device_rss_mb_max", "events_per_cmd",
         "db_bytes_per_cmd", "dispatch_attempts_per_cmd", "queries_per_cmd", "stops_per_cmd", "fences_per_cmd",
-        "fence_pause_ms_p50", "fence_pause_ms_p95", "fence_pause_ms_max", "paused_fraction"]
+        "fence_pause_ms_p50", "fence_pause_ms_p95", "fence_pause_ms_max", "paused_fraction",
+        "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline", "admitted_after_deadline_share"]
 
 
 def markdown(rows: list) -> str:
@@ -285,6 +303,17 @@ def markdown(rows: list) -> str:
                  f"{f(r['client_ms_p50'], r['client_ms_p95'])} | {f(r['lock_ms_p50'], r['lock_ms_p95'])} | "
                  f"{f(r['eval_ms_p50'], r['eval_ms_p95'])} | {f(r['decide_ms_p50'], r['decide_ms_p95'])} | "
                  f"{f(r['out_ms_p50'], r['out_ms_p95'])} |")
+    adm = [r for r in rows if r.get("admitted_requests")]
+    if adm:
+        tot, late = sum(r["admitted_requests"] for r in adm), sum(r["admitted_after_deadline"] for r in adm)
+        L += ["", f"Admissions after the deadline (release 083, A2): {late} of {tot} admitted requests ({100 * late / tot:.3f} %) were "
+              "admitted after their deadline (first admission later than arrival + deadline_s; the client submits until the deadline "
+              "and records an answer when it arrives).", "",
+              "| campaign | contract | policy | admitted requests | admitted after the deadline | share % | identities admitted after the deadline |",
+              "|---|---|---|---|---|---|---|"]
+        for r in adm:
+            L.append(f"| {r['campaign']} | {r['contract']} | {r['policy']} | {r['admitted_requests']} | {r['admitted_after_deadline']} | "
+                     f"{100 * (r['admitted_after_deadline_share'] or 0):.3f} | {r['identities_admitted_after_deadline']} |")
     act = [r for r in rows if (r["fences_per_cmd"] or 0) + (r["queries_per_cmd"] or 0) + (r["stops_per_cmd"] or 0) > 0]
     if act:
         L += ["", "Evidence actions (cells with faults):", "",

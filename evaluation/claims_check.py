@@ -36,8 +36,12 @@ from pathlib import Path
 
 # fidelity pairs whose contracts are equal (the other pairs differ in capabilities or fault model)
 MATCHED = {("MINIO_PLAIN", "K0"), ("ZEPHYR_PLAIN", "K0"), ("ZEPHYR_PLAIN_DIRECT", "K0")}
-# release 081: the practice baselines of PREREG_review_077 (= safety_total.BASELINES, t3_attribution.BASELINES)
-T3_BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")
+# release 081: the practice baselines of PREREG_review_077; release 083: one definition, safety_total.BASELINES
+# (also t3_attribution.BASELINES and the driver), with the baselines of PREREG_extra_083
+try:
+    from safety_total import BASELINES as T3_BASELINES
+except ImportError:  # imported as evaluation.claims_check
+    from evaluation.safety_total import BASELINES as T3_BASELINES
 
 
 def _g(x) -> str:

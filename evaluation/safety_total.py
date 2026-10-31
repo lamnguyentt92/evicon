@@ -21,6 +21,11 @@ negative controls, where the plan expected violations:
 
 For the guarded cells it reports the totals and, with zero violations among N admitted commands (or
 cells), the exact one-sided 95 % upper bound on the violation probability, 1 - 0.05^(1/N) (about 3/N).
+Release 083 (analysis A1): cells of one episode share one fault schedule (common random numbers), and several
+campaigns replay the same seeded schedules, so the cells are not independent trials; the defensible unit is
+the distinct fault schedule. The report counts the distinct fault schedules (the "faults" part of each cell's
+schedule_ep<e>.json, compared byte for byte after canonical JSON) behind the guarded VALID cells with at least
+one fault window, N_s, and gives the per-schedule bound 1 - 0.05^(1/N_s) next to the per-cell one.
 For the negative controls it reports how many cells detected a violation (the harness's sensitivity; every
 cell must); for the cells unsafe by design, how many had a violation (the plans' detection rules decide).
 Late effects (validity, not safety) are reported separately. DEV_LOCAL campaigns are listed, not counted.
@@ -32,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import sys
 from collections import Counter, defaultdict
@@ -61,7 +67,11 @@ def plain(cfg: dict, contract: str) -> bool:
     return ((cfg.get("real_owner") or {}).get("contracts") or {}).get(contract, {}).get("mode") == "PLAIN"
 
 
-BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ")
+# The practice baselines, unsafe by design (release 077; release 083: RELEASE_ON_READ_ANSWERED and the release-time
+# variants of RELEASE_ON_TIMEOUT, PREREG_extra_083.md T2, T3). The one definition: evaluation/t3_attribution.py,
+# evaluation/claims_check.py (T3_BASELINES) and evicon_review.py (RELEASE_BASELINES) use this tuple.
+BASELINES = ("RELEASE_ON_TIMEOUT", "RELEASE_ON_READ", "RELEASE_ON_READ_ANSWERED",
+             "RELEASE_ON_TIMEOUT_30S", "RELEASE_ON_TIMEOUT_60S", "RELEASE_ON_TIMEOUT_120S")
 
 
 def planned_unsafe(cfg: dict) -> set:
@@ -97,13 +107,29 @@ def kind(cfg: dict, contract: str, policy: str, planned: set = None) -> str:
     return "guarded"
 
 
+def fault_schedule_digest(run: Path, episode) -> str:
+    """SHA-256 of the fault windows of one episode's schedule (release 083, A1): the 'faults' list of
+    schedule_ep<e>.json in canonical JSON. Empty when the file is missing or has no fault window."""
+    p = run / f"schedule_ep{episode}.json"
+    if not p.is_file():
+        return ""
+    try:
+        faults = json.loads(p.read_text()).get("faults") or []
+    except (ValueError, AttributeError):
+        return ""
+    if not faults:
+        return ""
+    return hashlib.sha256(json.dumps(faults, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
 def read_run(run: Path) -> dict:
     cfg = json.loads((run / "config.json").read_text()) if (run / "config.json").exists() else {}
     man = json.loads((run / "manifest.json").read_text()) if (run / "manifest.json").exists() else {}
     planned = planned_unsafe(cfg)
     out = {"run": f"{cfg.get('name', run.parent.name)}/{run.name}", "dir": str(run), "release": man.get("release", ""),
            "scope": man.get("scope", ""), "cells": 0, "invalid": 0, "guarded": Counter(), "control": defaultdict(Counter),
-           "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter)}
+           "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter), "guarded_fault_schedules": {}}
+    digests = {}
     with open(run / "runtime_episodes.csv", newline="") as fh:
         for r in csv.DictReader(fh):
             if not str(r.get("cell_status", "")).startswith("VALID"):
@@ -128,6 +154,15 @@ def read_run(run: Path) -> dict:
                 for k, v in viol.items():
                     g[k] += v
                 g["cells_with_violation"] += any(viol.values())
+                if _f(r.get("fault_windows")) > 0:
+                    ep = r.get("episode")
+                    if ep not in digests:
+                        digests[ep] = fault_schedule_digest(run, ep)
+                    if digests[ep]:
+                        g["cells_with_faults"] += 1
+                        out["guarded_fault_schedules"][digests[ep]] = out["guarded_fault_schedules"].get(digests[ep], 0) + 1
+                    else:
+                        g["cells_with_faults_no_schedule"] += 1
     return out
 
 
@@ -148,7 +183,16 @@ def summarize(runs: list) -> dict:
         for c in r["unguarded_dedup"].values():
             ud["cells"] += c["cells"]
             ud["cells_with_violation"] += c["detecting_cells"]
+    sched = Counter()
+    for r in tb:
+        sched.update(r.get("guarded_fault_schedules", {}))
+    n_s = len(sched)
     return {"testbed_runs": len(tb), "guarded": {k: int(v) for k, v in g.items()}, "guarded_violations": viol,
+            "distinct_fault_schedules": n_s, "cells_with_faults": int(g["cells_with_faults"]),
+            "cells_with_faults_no_schedule": int(g["cells_with_faults_no_schedule"]),
+            "max_cells_per_schedule": max(sched.values()) if sched else 0,
+            "upper95_per_schedule": upper95(n_s) if viol == 0 else None,
+            "upper95_per_cell_with_faults": upper95(int(g["cells_with_faults"])) if viol == 0 else None,
             "upper95_per_admitted_command": upper95(int(g["admitted"])) if viol == 0 else None,
             "upper95_per_dispatch_attempt": upper95(int(g["dispatch_attempts"])) if viol == 0 else None,
             "upper95_per_cell": upper95(int(g["cells"])) if viol == 0 else None,
@@ -167,6 +211,14 @@ def markdown(runs: list, s: dict) -> str:
     if s["guarded_violations"] == 0 and g.get("admitted"):
         L += [f"One-sided 95 % upper bound (exact, zero events): per admitted command {s['upper95_per_admitted_command']:.2e}, per dispatch "
               f"attempt {s['upper95_per_dispatch_attempt']:.2e}, per cell {s['upper95_per_cell']:.3f}.", ""]
+    if s.get("distinct_fault_schedules"):
+        ub = s.get("upper95_per_schedule")
+        L += [f"Distinct fault schedules (A1): the {s['cells_with_faults']} guarded VALID cells with at least one fault window ran on "
+              f"**{s['distinct_fault_schedules']} distinct fault schedules** (cells of one episode share its schedule, and several campaigns "
+              f"replay the same seeded schedules; at most {s['max_cells_per_schedule']} cells on one schedule)"
+              + (f"; {s['cells_with_faults_no_schedule']} cells without a schedule file are not counted" if s.get("cells_with_faults_no_schedule") else "")
+              + (f". Exact one-sided 95 % upper bound per schedule, 1 - 0.05^(1/N_s): **{ub:.3f}** (per cell with faults: "
+                 f"{s['upper95_per_cell_with_faults']:.4f})." if ub is not None else "."), ""]
     L += [f"Negative controls (violations planned): {s['controls'].get('detecting_cells', 0)} of {s['controls'].get('cells', 0)} cells detected a "
           f"violation. Blind retry on owners with dedup (no violation planned): {s['unguarded_dedup'].get('cells_with_violation', 0)} of "
           f"{s['unguarded_dedup'].get('cells', 0)} cells with a violation. Unsafe by design (the practice baselines, a blind retry on "
@@ -200,6 +252,7 @@ def main(argv=None):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     js = {"summary": s, "runs": [dict(r, guarded=dict(r["guarded"]), control={k: dict(v) for k, v in r["control"].items()},
+                                      guarded_fault_schedules=len(r.get("guarded_fault_schedules", {})),
                                       unsafe={k: dict(v) for k, v in r["unsafe"].items()},
                                       unguarded_dedup={k: dict(v) for k, v in r["unguarded_dedup"].items()}) for r in runs]}
     (out / "safety.json").write_text(json.dumps(js, indent=1) + "\n")
