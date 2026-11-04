@@ -15,12 +15,14 @@
     python3 evicon_review.py import-results BUNDLE.zip|DIR ... [--archive DIR] [--lean]   # 078: result bundles of
                                                        # earlier releases -> an archive the report reads
     python3 evicon_review.py twin2 [--from RUN ...]    # exploratory simulator twin v2 vs testbed (release 068)
+    python3 evicon_review.py tbcheck [--from RUN ...]  # 085: ThingsBoard RPC checks TB-1..TB-4 (PREREG_extra_085.md)
 
 Stages (in order):
     preflight   tools on VM-C, SSH to A/B/D/E, ports, clocks, VM-A -> VM-C reachability
     build       Go toolchain (pinned) and bin/evicon-* (cgo + SQLite)
     verify      go vet + go test, EviCon-Probe tests, firmware host tests, analysis tests
-    formal      TLC on 5 safe models and 3 negative controls (084: and rule R5', 2 safe models, 1 negative control)
+    formal      TLC on 5 safe models and 3 negative controls (084: and rule R5', 2 safe models, 1 negative control;
+                085: and the timing boundary cases of EviconTiming.tla, 2 safe models, 4 expected violations)
     sim         evicon-des exploration (SIMULATION_ONLY) + analysis
     distribute  binaries and cost file to /root/evicon on VM-A, VM-B, VM-E
     controls    EviCon-Probe positive controls (evicon-endpoint on VM-B) and negative
@@ -59,6 +61,10 @@ Commands (release 065-068; run after `all` has passed build, distribute and cont
                 tables, PDF figures and number macros for the paper -> report/paper/
     twin2       experiments/sim/iot_dosing_testbed_v2.json against the experiment A data of
                 this run and the --from runs (SIMULATION_ONLY, not preregistered)
+    tbcheck     (085) ThingsBoard RPC checks of PREREG_extra_085.md (TB-1 to TB-4): ThingsBoard CE in EviCon's compose
+                project on VM-B (installed and provisioned as for `measure thingsboard`), the check device
+                conformance/reference/mqtt_device_tbcheck.py on VM-E, the plant, one ThingsBoard owner gateway on VM-C;
+                conformance/tb_rpc_checks.py -> measure/tbcheck/TBCHECK.md and tbcheck.json; about 45-60 min
 
 Options:
     --testbed FILE  VM addresses (default: testbed.json; required on the testbed since release 078:
@@ -566,7 +572,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084", "evaluation.test_release085"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -589,8 +595,14 @@ def st_formal(tb, a):
     fi = (out / "fi" / "summary.txt").read_text() if (out / "fi" / "summary.txt").exists() else ""
     if rc != 0:
         raise StageFail("TLC (rule R5'): unexpected verdict (see formal/fi/summary.txt)")
+    # release 085 (review M1): the timing boundary cases of EviconTiming.tla (2 configurations without error, 4 expected violations)
+    rc, _ = sh(["bash", "formal/run_tlc_timing.sh", str(out / "timing")], timeout=3600, check=False)
+    tm = (out / "timing" / "summary.txt").read_text() if (out / "timing" / "summary.txt").exists() else ""
+    if rc != 0:
+        raise StageFail("TLC (timing boundary cases): unexpected verdict (see formal/timing/summary.txt)")
     return (f"{summary.count('EXPECTED')}/8 EXPECTED (5 safe models PASS, 3 negative controls VIOLATION); rule R5': "
-            f"{fi.count('EXPECTED')}/3 EXPECTED (2 safe models PASS, the negative control without FC VIOLATION)")
+            f"{fi.count('EXPECTED')}/3 EXPECTED (2 safe models PASS, the negative control without FC VIOLATION); timing: "
+            f"{tm.count('EXPECTED') - tm.count('UNEXPECTED')}/6 EXPECTED (2 without error, 4 boundary violations)")
 
 
 def st_sim(tb, a):
@@ -1153,7 +1165,8 @@ def _real_owner_campaign(tb, a, src: Path, cfg: dict):
         for k in (cfg["real_owner"].get("access_key_env", "MINIO_ROOT_USER"), cfg["real_owner"].get("secret_key_env", "MINIO_ROOT_PASSWORD")):
             if not os.environ.get(k):
                 raise StageFail(f"{k} is not set after MinIO started (the runner reads the credentials from the environment)")
-        runner = ("evaluation/campaign_real_ext084.py" if _uses_084_policies(cfg)  # 084: PERIODIC_FULL
+        runner = ("evaluation/campaign_real_ext085.py" if _uses_085_options(cfg)  # 085: the matched comparison (policy_order)
+                  else "evaluation/campaign_real_ext084.py" if _uses_084_policies(cfg)  # 084: PERIODIC_FULL
                   else "evaluation/campaign_real_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_real.py")  # 083: EVICON_GREEDY
         st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner=runner)
     finally:
@@ -1228,6 +1241,7 @@ sys.path.insert(0, str(REPO / "evaluation"))
 from safety_total import BASELINES as RELEASE_BASELINES  # noqa: E402  (077, 083: the practice baselines, unsafe by design; one definition)
 import ext083  # noqa: E402  (release 083: the authority policies of PREREG_extra_083.md)
 import ext084  # noqa: E402  (release 084: the authority policies of PREREG_extra_084.md)
+import ext085  # noqa: E402  (release 085: the runner option policy_order of PREREG_extra_085.md)
 
 
 def _uses_083_policies(cfg: dict) -> bool:
@@ -1245,6 +1259,12 @@ def _uses_084_policies(cfg: dict) -> bool:
             or ("exclude_cells" in cfg and not cfg.get("real_owner")))
 
 
+def _uses_085_options(cfg: dict) -> bool:
+    """Release 085: a config with the runner option of evaluation/ext085.py (policy_order: the order of the policies by
+    episode), on a real owner (the firmware or MinIO runners of release 085); no emulated-owner runner has the option."""
+    return ext085.KEY in cfg
+
+
 def _emulated_runner(cfg: dict):
     """Release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines and the validity cut of the retry
     guard (authority.resend_until) (PREREG_review_077.md) run on evaluation/campaign_ext077.py, which imports
@@ -1252,6 +1272,8 @@ def _emulated_runner(cfg: dict):
     Release 083: a config with a policy of release 083 runs on evaluation/campaign_ext083.py (campaign_ext077 and
     the 083 policies installed). Returns (runner, baselines)."""
     baselines = sorted(set(cfg["policies"]) & set(RELEASE_BASELINES))
+    if _uses_085_options(cfg):
+        raise StageFail(f"{cfg.get('name')}: {ext085.KEY} is an option of the release-085 firmware and MinIO runners only")
     if _uses_084_policies(cfg):  # release 084: campaign_ext084 installs the 077, 083 and 084 policies
         return "evaluation/campaign_ext084.py", baselines
     if _uses_083_policies(cfg):
@@ -1266,6 +1288,8 @@ def _zephyr_runner(cfg: dict) -> str:
     Release 077: experiment Q (the delivery binding of the commands, the offline cut) runs on
     evaluation/campaign_zephyr_ext077.py, which imports the C3 runner."""
     specs = cfg["real_owner"]["contracts"].values()
+    if _uses_085_options(cfg):  # release 085: the 084 runner with policy_order (EVICON and PERIODIC_FULL in one campaign)
+        return "evaluation/campaign_zephyr_ext085.py"
     if _uses_084_policies(cfg):  # release 084: PERIODIC_FULL, on the 077 runner, with the delivery binding rule checked
         return "evaluation/campaign_zephyr_ext084.py"
     if cfg["real_owner"].get("offline_cut") or any("binding" in s for s in specs):
@@ -3066,6 +3090,121 @@ def cmd_qos_dup(tb, a):
                               f"lost {r['lost_commands']}" for b, r in res.items()) + f" -> {m.out / 'QOS_DUP_CHECK.md'}")
 
 
+TBCHECK_PORTS = {"gateway": 28230, "gateway_admin": 28231}  # release 085: the check's ThingsBoard owner gateway, VM-C loopback only
+TBCHECK_N = {"n_seq": 20, "n_cut": 10, "n_ack": 10, "n_ttl": 5}    # PREREG_extra_085.md, TB-1 to TB-4
+
+
+def _tb_gateway_contract(a) -> tuple:
+    """Release 085 (tbcheck): the contract file the ThingsBoard owner gateway needs to start (the frozen gateway refuses
+    anything but the MEASURED {Q_A, T} contract of its call shape, thingsboard-rpc-r0; it only reports the contract on
+    /v1/capabilities, so it does not change what the gateway sends): the newest such measurement in this review run, else
+    in the runs given with --from, else in the archive's runs. Returns (path, where)."""
+    roots = [RUN.path] + [Path(x) for x in (a.from_run or [])]
+    if getattr(a, "archive", ""):
+        roots += sorted(Path(a.archive).glob("runs/review-*"))
+    for root in roots:
+        cands = sorted(root.glob("measure/thingsboard/runs/thingsboard-rpc-r0/2*/contract.json"))
+        for c in reversed(cands):
+            try:
+                d = json.loads(c.read_text())
+            except (OSError, ValueError):
+                continue
+            if d.get("source") == "MEASURED" and set(d.get("capabilities", [])) == {"Q_A", "T"}:
+                return c, str(c)
+    raise StageFail("tbcheck: the ThingsBoard owner gateway (the TTL checks) needs the MEASURED thingsboard-rpc-r0 contract of an "
+                    "earlier `measure thingsboard`: give that review run with --from (e.g. --from $(readlink -f "
+                    "/root/EVICON_TOIT_083/results/LATEST)), or run `python3 evicon_review.py measure thingsboard` first")
+
+
+def cmd_tbcheck(tb, a):
+    """Release 085 (PREREG_extra_085.md TB-1 to TB-4; reviewer of 4 November M3a, M3b): which event sets the status the
+    probe adapter maps to APPLIED for persistent one-way and two-way RPCs on the deployed ThingsBoard, with a fault cut between
+    the platform's hand-over and the device's effect, the negative control of a device that acknowledges before its effect,
+    and the expirationTime the ThingsBoard owner gateway sends. ThingsBoard CE runs in EviCon's compose project on VM-B,
+    installed and provisioned as for `measure thingsboard` (demo passwords replaced by random ones kept in this process's
+    environment: TB_USERNAME, TB_PASSWORD, TB_DEVICE_TOKEN); the plant and the check device
+    (conformance/reference/mqtt_device_tbcheck.py, both switches off by default) on VM-E; one ThingsBoard owner gateway on
+    VM-C (loopback); conformance/tb_rpc_checks.py on VM-C. Everything is stopped by its pid file and the compose project is
+    brought down afterwards (also on failure). Writes measure/tbcheck/TBCHECK.md and tbcheck.json."""
+    if tb.local:
+        raise StageFail("tbcheck runs on the testbed only (ThingsBoard in docker on VM-B); conformance/tests/test_tbcheck_device.py "
+                        "tests the check device and the rules locally (make verify)")
+    contract, where = _tb_gateway_contract(a)
+    m = _Measure(tb, a, "thingsboard")
+    m.out = RUN.path / "measure" / "tbcheck"
+    m.sd = f"{tb.cfg['state_dir']}/measure/tbcheck"
+    shutil.rmtree(m.out, ignore_errors=True)
+    m.out.mkdir(parents=True, exist_ok=True)
+    m.checks()
+    from campaign import Host
+    hc = Host("VM-C", "127.0.0.1")
+    busy = [f"VM-C tcp/{p}: {hc.port_owner(p)}" for p in hc.ports_in_use(list(TBCHECK_PORTS.values()))]
+    if busy:
+        raise StageFail("ports needed by tbcheck are in use: " + "; ".join(busy) + ". EviCon never stops other programs: stop them, then re-run")
+    gw_wd = f"{tb.cfg['state_dir']}/measure/tbcheck/gateway-vm-c"
+    hc.stop_all(gw_wd)
+    shutil.copy2(contract, m.out / "gateway_contract.json")
+    m.facts["tbcheck"] = {"gateway_contract": {"from": where, "sha256": sha256(contract),
+                                               "why": "the frozen gateway starts only with the MEASURED {Q_A, T} contract of its call shape; "
+                                                      "it does not change what the gateway sends"}}
+    rc, text = 1, ""
+    try:
+        m.deploy()
+        m.start_plant()
+        m.start_broker()  # compose up, install with demo data, the demo passwords replaced, the device created (_tb_provision)
+        P, e_ip, ref = m.P, tb.ip("E"), f"{m.root}/conformance/reference"
+        wd = m._wd("tb-device")
+        m.spawn_env(m.E, "tb-device", ["python3", f"{ref}/mqtt_device_tbcheck.py", "--mode", "thingsboard", "--broker",
+                                       f"{tb.ip('B')}:{P['tb_mqtt']}", "--device", "tb-1", "--plant", m.plant_url,
+                                       "--admin-port", str(P["tb_admin"]), "--admin-bind", m.listen, "--check-log", "tbcheck-device.jsonl"],
+                    wd, f"http://{e_ip}:{P['tb_admin']}/healthz", ["TB_DEVICE_TOKEN"], role="mqtt-device")
+        dev_uuid = m.facts["thingsboard"]["device_uuid"]
+        gw = f"127.0.0.1:{TBCHECK_PORTS['gateway']}"
+        gw_contract = f"{tb.cfg['state_dir']}/measure/tbcheck/gateway-contract.json"  # outside gw_wd, which spawn_env empties
+        hc.run(f"mkdir -p {shlex.quote(str(Path(gw_contract).parent))}")
+        shutil.copy2(contract, gw_contract)
+        m.spawn_env(hc, "tb-gateway", [sys.executable, str(REPO / "conformance" / "reference" / "tb_owner_gateway.py"), "--device-id", "tbc-gw-1",
+                                       "--tb-device", dev_uuid, "--listen", gw, "--admin-listen", f"127.0.0.1:{TBCHECK_PORTS['gateway_admin']}",
+                                       "--tb-url", f"http://{tb.ip('B')}:{P['tb_http']}", "--device-admin", f"http://{e_ip}:{P['tb_admin']}",
+                                       "--contract-file", gw_contract, "--log", "gateway.jsonl"],
+                    gw_wd, f"http://{gw}/healthz", ["TB_USERNAME", "TB_PASSWORD"], role="gateway")
+        off0 = m.E.clock_offset_s()
+        imgs = json.dumps(m.facts.get("broker", {}).get("image_ids", {}))
+        platform_kind = "stand-in" if "evicon.standin" in imgs else "testbed"
+        cfgd = {"tb_url": f"http://{tb.ip('B')}:{P['tb_http']}", "device_uuid": dev_uuid, "device_admin_url": f"http://{e_ip}:{P['tb_admin']}",
+                "plant_url": m.plant_url, "plant_device_id": "tb-1", "gateway_url": f"http://{gw}", "gateway_device_id": "tbc-gw-1",
+                "clock_offset_ms": round(1000 * (off0 or 0.0), 1), "clock_uncertainty_ms": 5.0, "platform": platform_kind, **TBCHECK_N}
+        (m.out / "tbcheck_config.json").write_text(json.dumps(cfgd, indent=2) + "\n")
+        RUN.log(f"tbcheck: ThingsBoard {m.facts['thingsboard'].get('system_info')}, platform {platform_kind}, clock offset VM-E - VM-C {off0} s")
+        rc, text = sh([sys.executable, "conformance/tb_rpc_checks.py", "--config", str(m.out / "tbcheck_config.json"), "--out", str(m.out)],
+                      timeout=3 * 3600, check=False)
+        m.facts["tbcheck"].update(clock_offset_e_s=[off0, m.E.clock_offset_s()], platform=platform_kind, rc=rc)
+    finally:
+        try:
+            hc.stop_all(gw_wd)
+            for f in ("gateway.jsonl", "tb-gateway.log"):
+                if (Path(gw_wd) / f).exists():
+                    shutil.copy2(Path(gw_wd) / f, m.out / f)
+        except Exception as e:  # noqa: BLE001 - keep cleaning up
+            RUN.problem("WARN", f"tbcheck: stopping the gateway on VM-C: {e}")
+        m.cleanup()
+        (m.out / "owner.json").write_text(json.dumps(m.facts, indent=2, default=str) + "\n")
+    res_f = m.out / "tbcheck.json"
+    if rc != 0 or not res_f.exists():
+        raise StageFail(f"tb_rpc_checks failed (rc={rc}): {text[-600:]}")
+    res = json.loads(res_f.read_text())
+    rules = res.get("rules", {})
+    left = (res.get("cleanup") or {}).get("left")
+    if left:
+        RUN.problem("WARN", f"tbcheck: {len(left)} RPC(s) of the checks were not deleted (the compose project was removed anyway)")
+    undecided = [k for k, v in rules.items() if v.get("verdict") == "NOT INTERPRETABLE"]
+    summ = (f"ThingsBoard {(res.get('system_info') or {}).get('version') if isinstance(res.get('system_info'), dict) else res.get('system_info')} "
+            f"({res.get('platform')}): " + "; ".join(f"{k} {v['verdict']}" for k, v in sorted(rules.items())) + f" -> {m.out / 'TBCHECK.md'}")
+    if undecided:
+        return "PARTIAL", summ + f"; not interpretable: {undecided} (run tbcheck again with --force)"
+    return "PASS", summ
+
+
 def cmd_latency_control(tb, a):
     """python3 evicon_review.py latency-control (release 077, PREREG_review_077.md): the RQ4 load
     (rq4_load_r1/r5/r20: the same seeded arrivals and generator design as campaign.py) from VM-C against
@@ -3602,6 +3741,35 @@ def cmd_report(tb, a):
                 index.append("- [Fence intake and periodic reconciliation on the plan's runs (E-FI, E-PF)](fi084/FI084.md)")
             else:
                 RUN.problem("WARN", f"fi084 failed: {text[-400:]}")
+    # release 085: the estimands E-PM of PREREG_extra_085.md (EVICON and PERIODIC_FULL in one campaign: owner calls, the break-even
+    # cost ratio, the fence pause, the same measured contract and binding, the order of the cells), from the plan's runs, its
+    # reference runs and the 084 PF runs (the earliest complete run of each campaign of its pairs-spec) and its cells.csv
+    p085 = REPO / "evaluation" / "prereg" / "PREREG_extra_085.md"
+    m085 = re.search(r"```pairs-spec\n(.*?)```", p085.read_text(), re.S) if p085.exists() else None
+    if m085:
+        pargs = []
+        for key, want in json.loads(m085.group(1)).get("runs", {}).items():
+            found = sorted({r for s in srcs for r in _find_complete_runs(s, want.get("campaign", ""))}, key=lambda r: r.name)
+            if found:
+                pargs += ["--run", f"{key}={found[0]}"]
+        if any(x.startswith(("PMz6=", "PMzi=", "PMm6=", "PMmi=")) for x in pargs):
+            cells085 = out / "pairs" / "PREREG_extra_085" / "cells.csv"
+            rc, text = sh([sys.executable, "evaluation/pm085.py", *pargs, "--cells", str(cells085), "--out", str(out / "pm085")],
+                          timeout=3600, quiet=True, check=False)
+            if rc == 0:
+                done.append("E-PM (085)")
+                index.append("- [EVICON and PERIODIC_FULL in the same campaign: owner calls, break-even, fence pause (E-PM)](pm085/PM085.md)")
+            else:
+                RUN.problem("WARN", f"pm085 failed: {text[-400:]}")
+    # release 085: the ThingsBoard RPC checks TB-1 to TB-4 (`tbcheck`), the newest among the sources
+    tbc = sorted((p for s in srcs for p in s.glob("measure/tbcheck/tbcheck.json")), key=lambda p: p.stat().st_mtime)
+    if tbc:
+        (out / "tbcheck").mkdir(parents=True, exist_ok=True)
+        for f in ("TBCHECK.md", "tbcheck.json", "tbcheck_config.json", "owner.json"):
+            if (tbc[-1].parent / f).exists():
+                shutil.copy2(tbc[-1].parent / f, out / "tbcheck" / f)
+        done.append("ThingsBoard RPC checks (085)")
+        index.append(f"- [ThingsBoard RPC checks TB-1 to TB-4 ({json.loads(tbc[-1].read_text()).get('platform')})](tbcheck/TBCHECK.md)")
     # release 084: the Level-2 analyses of the external review (M8 end of observation, M6 ThingsBoard late effects, N6 ReadRelease,
     # N11 admission, N7 sample counts, M3 R5 counterfactual, M4 rubric, ThingsBoard delivery, M10 per-request service time) over every
     # run read; never fails on a
@@ -3617,6 +3785,16 @@ def cmd_report(tb, a):
                          "counts, R5 counterfactual, rubric, ThingsBoard delivery, per-request service time)](l2_084/L2_084.md)")
         else:
             RUN.problem("WARN", f"review_l2_084 failed: {text[-400:]}")
+    # release 085: the report analyses for the reviewer of 4 November (the effect of removing the window on the firmware at QoS 0
+    # with an interval; the offline upper bound on clean fulfilment per campaign) over every campaign read
+    if camps:
+        rc, text = sh([sys.executable, "evaluation/review_l2_085.py", "--out", str(out / "l2_085")] + [x for c in camps for x in ("--campaign", str(c))],
+                      timeout=3600, quiet=True, check=False)
+        if rc == 0:
+            done.append("report analyses (085)")
+            index.append("- [Removing the window on the firmware with an interval; the offline upper bound on clean fulfilment](l2_085/L2_085.md)")
+        else:
+            RUN.problem("WARN", f"review_l2_085 failed: {text[-400:]}")
     measured =[s / "measure" for s in srcs if (s / "measure").is_dir()]
     if measured:
         rc, _ = sh([sys.executable, "conformance/run_probe.py", "map", "--catalog", "experiments/contracts", "--out", str(out / "contract_map")]
@@ -3645,6 +3823,41 @@ def cmd_report(tb, a):
             index.append("- [Claims against evidence (every preregistered hypothesis, every cross-cutting claim)](claims/CLAIMS.md)")
         else:
             RUN.problem("WARN", f"claims_check failed: {text[-400:]}")
+    # release 085: the earlier plans' verdicts must be those of the 084 final report (the newest report of release 084 among the
+    # sources); every difference is listed (report/verdicts085/VERDICTS.md) and logged as a FAIL
+    old084 = sorted((s / "report" for s in srcs if (s / "report" / "claims" / "claims.json").is_file() and (s / "report" / "REPORT.md").is_file()
+                     and "Release 084;" in (s / "report" / "REPORT.md").read_text()[:400] and s.resolve() != RUN.path.resolve()),
+                    key=lambda d: (d / "REPORT.md").stat().st_mtime)
+    if (out / "claims" / "claims.json").is_file() and old084:
+        rc, text = sh([sys.executable, "evaluation/verdicts085.py", "--new", str(out), "--old", str(old084[-1]), "--out", str(out / "verdicts085")],
+                      timeout=300, check=False, quiet=True)
+        vj = out / "verdicts085" / "verdicts.json"
+        if rc == 0 and vj.is_file():
+            v = json.loads(vj.read_text())
+            index.append(f"- [Verdicts of the earlier plans against the 084 final report]"
+                         f"(verdicts085/VERDICTS.md): {'identical' if v['identical'] else 'DIFFERENT'}")
+            done.append(f"earlier verdicts {'identical' if v['identical'] else 'DIFFER'} ({v['compared']} compared, "
+                        f"{len(v['verdicts_differ'])} differ, {len(v['missing_in_new'])} missing in this report)")
+            if not v["identical"]:
+                RUN.problem("FAIL", f"verdicts of earlier plans differ from the 084 final report ({old084[-1]}): "
+                                    f"{[(x['plan'], x['id'], x['old'], x['new']) for x in v['verdicts_differ']][:8]}; missing {v['missing_in_new'][:8]}")
+        else:
+            RUN.problem("WARN", f"verdicts085 failed: {text[-400:]}")
+    elif (out / "claims" / "claims.json").is_file():
+        RUN.log("report: no 084 final report among the sources: the earlier plans' verdicts were not compared")
+    # release 085 (last, after the tbcheck copy): provenance of every campaign of the safety total (release, review run, the
+    # plan its config carries) and of every plan (SHA-256, frozen, published), the runs' deviations and the numbers not
+    # regenerated (PROVENANCE.md)
+    if (out / "safety" / "safety.json").exists():
+        rc, text = sh([sys.executable, "scripts/provenance.py", "--report", str(out), "--out", str(out / "PROVENANCE.md"),
+                       "--trees", str(REPO.parent),  # fallback: the release trees next to this one (/root/EVICON_TOIT_0xx)
+                       "--source-label", f"this report (review run `{RUN.path.name}`, `report/safety/safety.json`) and each "
+                                         "campaign run's own `config.json`"], timeout=300, quiet=True, check=False)
+        if rc == 0:
+            done.append("provenance")
+            index.append("- [Provenance: campaigns, plans, publication, deviations](PROVENANCE.md)")
+        else:
+            RUN.problem("WARN", f"provenance failed: {text[-400:]}")
     (out / "REPORT.md").write_text("\n".join(index) + "\n")
     if not done:
         raise StageFail(f"nothing to report in {', '.join(map(str, srcs))} (no campaigns, no measurements)")
@@ -3770,9 +3983,9 @@ def _command(a, path) -> int:
     tb = load_testbed(a.testbed, a.local)
     (path / "testbed.json").write_text(json.dumps(tb.cfg, indent=2) + "\n")
     print(f"EviCon {RELEASE} reviewer driver -> {path}")
-    if kind in ("overhead", "report", "twin2", "latency-control", "qos-dup", "scale"):
+    if kind in ("overhead", "report", "twin2", "latency-control", "qos-dup", "scale", "tbcheck"):
         cmd = {"overhead": cmd_overhead, "report": cmd_report, "twin2": cmd_twin2, "latency-control": cmd_latency_control,
-               "qos-dup": cmd_qos_dup, "scale": cmd_scale}[kind]
+               "qos-dup": cmd_qos_dup, "scale": cmd_scale, "tbcheck": cmd_tbcheck}[kind]
         jobs = [(kind, (lambda cmd=cmd: cmd(tb, a)))]  # bound now: the loop below rebinds `fn`
     elif kind == "campaign":
         jobs = [(f"campaign:{Path(args[0]).stem}", lambda: cmd_campaign(tb, a, args[0]))]
@@ -3782,7 +3995,8 @@ def _command(a, path) -> int:
         raise SystemExit("campaign takes one config")
     rc, failed = 0, []
     for key, fn in jobs:
-        if not a.force and RUN.state.get(key, {}).get("status") == "PASS" and kind in ("measure", "overhead", "latency-control", "qos-dup", "scale"):
+        if not a.force and RUN.state.get(key, {}).get("status") == "PASS" and kind in ("measure", "overhead", "latency-control", "qos-dup", "scale",
+                                                                                        "tbcheck"):
             print(f"[{key}] already PASS in this run (use --force to repeat, or --new for a new run)")
             continue
         RUN.begin(key)
@@ -3940,6 +4154,12 @@ def make_bundle(a) -> int:
     the zip is then named EVICON_<release>_result_<YYYYmmddTHHMM>.zip."""
     stamp = dt.datetime.now().strftime("%Y%m%dT%H%M")
     name = f"EVICON_{RELEASE}_result" + (f"_{stamp}" if a.incremental else "")
+    # release 085: a second incremental bundle in the same minute got the same name and replaced the first, whose files the
+    # index already counted as sent (found by the simulated-testbed regression); it now gets _2, _3, ... (import_results reads them)
+    k = 2
+    while a.incremental and (REPO / f"{name}.zip").exists():
+        name = f"EVICON_{RELEASE}_result_{stamp}_{k}"
+        k += 1
     zpath = REPO / f"{name}.zip"
     results = REPO / "results"
     index_path = results / BUNDLE_INDEX
@@ -4097,7 +4317,7 @@ def _main(argv):
     ap = argparse.ArgumentParser(description="EviCon reviewer driver (run on VM-C as root)", formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog=__doc__)
     ap.add_argument("stages", nargs="+", help="all | status | plan | bundle | measure <stack> | campaign <config> | overhead | report | "
-                                               "twin2 | " + " | ".join(STAGES))
+                                               "twin2 | tbcheck | " + " | ".join(STAGES))
     ap.add_argument("--testbed")
     ap.add_argument("--run")
     ap.add_argument("--new", action="store_true")
@@ -4111,7 +4331,8 @@ def _main(argv):
     ap.add_argument("--new-campaign", action="store_true", help="campaign/pilot: start a new run instead of resuming")
     ap.add_argument("--from", dest="from_run", action="append", default=[],
                     help="report/twin2: also read the campaigns and measurements of this run directory (repeatable, "
-                         "e.g. the 066 and 067 runs); the current run is always included")
+                         "e.g. the 066 and 067 runs); the current run is always included; tbcheck (085): where to find the "
+                         "measured contract the ThingsBoard owner gateway starts with")
     ap.add_argument("--sources-of", dest="sources_of", default="",
                     help="report (074): also read every run the newest report of this release directory (e.g. "
                          "/root/EVICON_TOIT_073) read, and that report's own run: one option instead of a --from per release")
@@ -4160,6 +4381,12 @@ def _main(argv):
         print(f"{'overhead':11s} {'RQ4 load campaigns: about 2 h (36 cells)':40s} python3 evicon_review.py overhead")
         print(f"{'latency-control':11s} {'077, RQ4 loads against a no-op: about 25 min':40s} python3 evicon_review.py latency-control")
         print(f"{'qos-dup':11s} {'077, MQTT QoS 1 vs 0 under PUBACK loss: 10 min':40s} python3 evicon_review.py qos-dup")
+        print(f"{'tbcheck':11s} {'085, ThingsBoard RPC checks: 45-60 min':40s} python3 evicon_review.py tbcheck --from <run with measure thingsboard>")
+        for cfg_name, what in (("expPM_zephyr_w6", "085 PM, firmware W=6, EVICON + PERIODIC_FULL: about 1.9 h (16 cells)"),
+                               ("expPM_zephyr_winf", "085 PM, firmware W=inf: about 1.9 h (16 cells)"),
+                               ("expPM_minio_w6", "085 PM, MinIO W=6: about 1.9 h (16 cells)"),
+                               ("expPM_minio_winf", "085 PM, MinIO W=inf: about 1.9 h (16 cells)")):
+            print(f"{'campaign':11s} {what:40s} python3 evicon_review.py campaign {cfg_name}")
         print(f"{'scale':11s} {'077, RQ4 load with 8/16/32 domains: 1.2 h':40s} python3 evicon_review.py scale")
         print(f"{'report':11s} {'2-5 min (078: 15-30 min with an archive)':40s} python3 evicon_review.py report [--archive <dir>] [--from <run dir> ...]")
         print(f"{'import':11s} {'078, result bundles -> archive: 10-30 min':40s} python3 evicon_review.py import-results <bundles> --archive /root/evicon-archive")
@@ -4190,7 +4417,7 @@ def _main(argv):
     if a.stages == ["status"]:
         print_status(RUN)
         return 0
-    if a.stages[0] in ("campaign", "measure", "overhead", "report", "twin2", "latency-control", "qos-dup", "scale"):
+    if a.stages[0] in ("campaign", "measure", "overhead", "report", "twin2", "latency-control", "qos-dup", "scale", "tbcheck"):
         return _command(a, path)
     stages = STAGES if a.stages == ["all"] else a.stages
     for s in stages:

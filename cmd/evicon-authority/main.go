@@ -51,7 +51,7 @@ func main() {
 	// Release 061: EVICON evidence-contract resolution.
 	evidenceContract := flag.String("evidence-contract", "", "EVICON runtime evidence contract alias: E1, E2, E2_STOP, E3, or DEVICE (taken from the device handshake) (default: -profile)")
 	evidenceContractFile := flag.String("evidence-contract-file", "", "EVICON evidence contract JSON (RUNTIME_VERIFIED or MEASURED, e.g. from EviCon-Probe); capabilities must be advertised by the endpoint")
-	expiresAfter := flag.Duration("expires-after", -1, "dispatch expires_at_ms = creation + this (owner-enforced T); negative = contract expiry_ms when the contract has T, else none")
+	expiresAfter := flag.Duration("expires-after", -1, "dispatch expires_at_ms = creation + this (owner-enforced T); negative = contract expiry_ms when the contract has T, else none. Release 085: transport metadata only (e.g. a platform's RPC expirationTime): it sets the expires_at_ms of every dispatch and never enters the contract, its compilation, admission, resolution or release, so a contract without T stays one without T")
 	resolveMode := flag.String("resolve-mode", "SKI_RENTAL", "EVICON threshold: SKI_RENTAL, FIXED, IMMEDIATE, NEVER")
 	resolveFixed := flag.Duration("resolve-fixed", 5*time.Second, "EVICON FIXED threshold")
 	resolveQueryFirst := flag.Bool("resolve-query-first", true, "EVICON: query unqueried certificate targets before stop/fence")
@@ -198,12 +198,7 @@ func main() {
 		disp.RetryAllowed = eruntime.RetryCutFunc(store, disp.RetryAllowed, *releaseAfter-settle)
 		log.Printf("%s: same-identity resends stop %s after a command's creation (release-after %s - settle %s)", method, *releaseAfter-settle, *releaseAfter, settle)
 	}
-	switch {
-	case *expiresAfter >= 0:
-		disp.ExpiresAfter = *expiresAfter
-	case ec.Has(contract.CapExpiry):
-		disp.ExpiresAfter = time.Duration(ec.ExpiryMS) * time.Millisecond
-	}
+	disp.ExpiresAfter = outbox.DispatchExpiry(*expiresAfter, ec) // the rule of releases 061-084 (release 085: one function, tested)
 	if disp.ExpiresAfter > 0 {
 		log.Printf("dispatch carries expires_at_ms = created + %s", disp.ExpiresAfter)
 	}

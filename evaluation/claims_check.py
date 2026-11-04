@@ -3,7 +3,8 @@
 paper, checked mechanically against the files of one report (`evicon_review.py report`).
 
 Part 1 lists the verdict of every hypothesis of every plan the report decided (pairs_report.py plans,
-experiment A, experiment B2), with its estimate, so that the paper reports all of them, NOT MET included.
+experiment A, experiment B2), with its estimate, so that the paper reports all of them, NOT MET included; release 085:
+also the ThingsBoard checks TB-1 to TB-4 of PREREG_extra_085.md (tbcheck/tbcheck.json).
 Part 2 checks the cross-cutting claims, each against the file it rests on:
 
   safety       no safety violation in any guarded testbed cell (safety/safety.json), with the exact 95 %
@@ -154,6 +155,28 @@ def checks_077(report: Path) -> list:
     return rows
 
 
+TB_RULES = ("TB-1", "TB-2", "TB-3a", "TB-3b", "TB-4")
+
+
+def checks_085(report: Path) -> list:
+    """Release 085: the ThingsBoard checks of PREREG_extra_085.md (TB-1 to TB-4, kind "check", rules fixed in advance) from
+    tbcheck/tbcheck.json (conformance/tb_rpc_checks.py). A run against the simulated testbed's stand-in is marked so (not a
+    result). NOT RUN when the report has the plan's results but no check; left out when it has neither."""
+    t = load(report / "tbcheck" / "tbcheck.json")
+    if not t:
+        if (report / "pairs" / "PREREG_extra_085" / "results.json").exists():
+            return [{"plan": "PREREG_extra_085", "id": k, "test": "check", "verdict": "NOT RUN", "estimate": "no tbcheck among the sources",
+                     "p_holm": None} for k in TB_RULES]
+        return []
+    stand_in = t.get("platform") != "testbed"
+    out = []
+    for k in TB_RULES:
+        v = (t.get("rules") or {}).get(k, {"verdict": "NOT RUN", "evidence": "not decided by the check"})
+        out.append({"plan": "PREREG_extra_085", "id": k, "test": "check", "verdict": ("STAND-IN " if stand_in else "") + v["verdict"],
+                    "estimate": v.get("evidence", ""), "p_holm": None})
+    return out
+
+
 def claim_safety(report: Path) -> dict:
     s = load(report / "safety" / "safety.json")
     if not s:
@@ -264,7 +287,7 @@ def main(argv=None):
     ap.add_argument("--report", required=True)
     a = ap.parse_args(argv)
     report = Path(a.report)
-    hyp = hypotheses(report) + checks_077(report)
+    hyp = hypotheses(report) + checks_077(report) + checks_085(report)
     claims = [claim_safety(report), claim_t3(report), claim_contracts(report), claim_simulator(report), claim_fidelity(report),
               claim_reboot(report)]
     out = report / "claims"

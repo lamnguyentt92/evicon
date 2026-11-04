@@ -8,6 +8,7 @@
 | `campaign_tb.py` | EviCon on ThingsBoard CE's persistent RPC (release 077, run TB), on the frozen C2 runner's cell loop |
 | `ext083.py`, `campaign_ext083.py`, `campaign_real_ext083.py`, `campaign_tb_ext083.py` | The 083 policies (M1W, RELEASE_ON_READ_ANSWERED, RELEASE_ON_TIMEOUT_<n>S, EVICON_GREEDY, EVICON_FC<x>) installed on `campaign_ext077.py`, `campaign_real.py` and `campaign_tb.py`, which are imported unchanged (release 083, below) |
 | `ext084.py`, `campaign_ext084.py`, `campaign_real_ext084.py`, `campaign_zephyr_ext084.py` | The 084 policies (EVICON_FI, PERIODIC_FULL) and the `exclude_cells` key installed on the 083 and 077 runners, which are imported unchanged; the firmware runner checks the delivery binding rule before the first cell (release 084, below) |
+| `ext085.py`, `campaign_zephyr_ext085.py`, `campaign_real_ext085.py` | The runner option `policy_order` (`alternate_by_episode`: odd episodes run the config's policies in reverse order; default the config's order) on the frozen firmware and MinIO runners, through the 084 runners, which are imported unchanged (release 085, below) |
 | `campaigns/local_smoke.json` | Pipeline check on one machine (`make campaign-local`). **Development numbers are not measurements** |
 | `campaigns/pilot_pending_binding.json` | Testbed pilot, *pending-binding* regime |
 | `campaigns/pilot_capacity_binding.json` | Testbed pilot, *capacity-binding* regime |
@@ -372,3 +373,31 @@ by the 0.80 rule FI-2 (the stop against R5' at W = 6) and FI-3 (R5 against R5' a
 - Report sources: a review run that the archive holds and that is also read live (`--from`, or the run writing the
   report) is read once, from the live directory.
 - Tests: `test_release084.py` (J1-J14).
+
+## Release 085: the experiments for the reviewer of 4 November (`prereg/PREREG_extra_085.md`)
+
+The matched comparison of EviCon and full periodic reconciliation (review M5a), the ThingsBoard RPC checks (M3a, M3b), and
+checks without cells (N5, M1, M3b, M4, N7, section 8). 4 campaign configs, 64 cells, and the checks: about 10.3 testbed hours
+in one night or two sessions (`run085.sh`). 18 rules: 4 paired-difference hypotheses (PM-1 to PM-4, equivalence within 3 pp,
+power 1.00), 8 absence rules (PM-A1 to PM-A8), the safety rule PM-S and 5 checks (TB-1, TB-2, TB-3a, TB-3b, TB-4).
+
+| Item | Runs (configs) | What is new |
+|---|---|---|
+| matched comparison | PMz6, PMzi (`expPM_zephyr_w6`, `_winf`), PMm6, PMmi (`expPM_minio_w6`, `_winf`): copies of the 084 PF configs with policies EVICON and PERIODIC_FULL | `policy_order: alternate_by_episode` (`ext085.py`); E-PM (`pm085.py`: owner calls, the break-even cost ratio with a paired bootstrap interval, the fence pause, the same measured contract and binding in both arms, the order of the cells) |
+| ThingsBoard checks | the driver stage `tbcheck` (SEQ, CUT, ACK, TTL; 140 trials) | `conformance/tb_rpc_checks.py` (decides TB-1 to TB-4), `conformance/reference/mqtt_device_tbcheck.py` (test-only switches hold and ackmode, both off by default) |
+| fence pause (N5) | no cells | `overhead.py`: a pause ends at BARRIER_ANCHOR_COMMITTED, BARRIER_ABORTED or BARRIER_PER_IDENTITY_COMMITTED; per row the pauses, their end events, the open pauses, the cells with traces and the trace lines that are not JSON; the rounded-index percentile stated |
+| expiry as metadata (M3b) | no cells | `-expires-after` documented as transport metadata; the rule moved unchanged into `internal/outbox.DispatchExpiry`; tests: byte-identical dispatch requests and the same decisions for {Q_A, T(60 s)} and {Q_A} + `-expires-after 60s` |
+| timing boundaries (M1) | no cells | TLA+ `formal/EviconTiming.tla` (6 configurations), `formal/run_tlc_timing.sh`, `formal/TLC_RESULTS_TIMING.txt` |
+| provenance | no cells | `scripts/provenance.py`: `PROVENANCE.md` (top level, from the 084 final report) and `report/PROVENANCE.md` (every report): the release, review run and plan of every campaign of the safety total, every plan's SHA-256, freezing and GitHub publication, the runs' deviations, the numbers not regenerated |
+| report analyses | no cells | `safety_total.py`: the guarded cells with faults split by transport premise (Theorem 1 / dagger: cells, campaigns, admitted, late effects); `review_l2_085.py`: the effect of removing the window on the firmware at QoS 0 with an interval (paired on identical schedules, else Welch), the offline upper bound on clean fulfilment per campaign; `verdicts085.py`: the earlier plans' verdicts against the 084 final report |
+
+- **Analysis**: `pairs_ext083.py` (frozen) on the plan's ```pairs-spec``` and ```pairs-ext``` blocks; `policy_compare.py`;
+  `pm085.py` (E-PM); the checks' rules in `tb_rpc_checks.py`; the claims check lists TB-1 to TB-4 in Part 1 (a run against
+  the simulated testbed's ThingsBoard stand-in is marked STAND-IN: not a result).
+- **Power**: `power_extra085_testbed.py` (templates: the 084 PF pairs and two guarded arms within one run of the same owner,
+  `sim_predictions/extra085_templates.csv`; output `extra085_power.csv`).
+- `paper_tables.py` writes `tab_extra085.tex`, `tab_pm085.tex`, `tab_tbcheck.tex`, `tab_l2_window_ci.tex`,
+  `tab_l2_offline_bound.tex` and the macros `\evPM*`, `\evPMx*`, `\evTB*`, `\evPause*`, `\evLWin*`, `\evLOffline*`,
+  `\evSafetySplit*`.
+- Tests: `test_release085.py` (K1-K18); `conformance/tests/test_tbcheck_device.py` (the check device against Mosquitto, the
+  rules).

@@ -1,7 +1,8 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **084** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
-check them); `CHANGELOG.md` lists what each release changed.
+Release **085** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+check them); `PROVENANCE.md` gives the release, review run and plan of every campaign, every plan's SHA-256, freezing
+and publication, and the deviations of the runs; `CHANGELOG.md` lists what each release changed.
 
 **Question.** A client sends a command to a remote effect owner (a device, a broker plus
 device, a cloud API). The client times out, and the command is now *ambiguous*: it may or may
@@ -49,7 +50,10 @@ across fault rates, outage durations and seeds. Release 084 adds the plan `PRERE
 intake (rule R5', `-fence-intake per-identity`, default off) on the orphan schedules of the stop experiment, a full
 periodic reconciliation baseline (`-resolve-trigger PERIODIC_FULL`) on the firmware and on MinIO, the delivery binding
 rule made explicit (`conformance/reference/delivery_binding.py`), and analyses of the existing traces for the external
-review (`evaluation/review_l2_084.py`). Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
+review (`evaluation/review_l2_084.py`). Release 085 adds the plan `PREREG_extra_085.md`: EviCon and full periodic
+reconciliation in the same campaigns with the policy order alternated by episode, ThingsBoard RPC checks on the testbed
+(`evicon_review.py tbcheck`), the fence pause under rule R5', TLA+ timing boundary cases (`formal/EviconTiming.tla`) and
+report analyses for the reviewer of 4 November. Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 
 ## Layout
@@ -63,10 +67,10 @@ machine (`DEV_LOCAL`) are not measurements.
 | `experiments/` | Contract catalog, simulator regimes, query cost model, MinIO contracts measured in 070 (`owners/minio/`), the simulator's inputs for the firmware (`owners/zephyr/`) |
 | `firmware/zephyr-cutoff/` | Zephyr firmware (evidence modes plain, cutoff, stop; built with Zephyr v4.2.0 for native_sim/native/64 and nrf52840dk; host tests) |
 | `firmware/zephyr-mcu/`, `firmware/zephyr-auth/` | The same sources for MCU boards (QEMU mps2-an385, nRF52840 DK with OpenThread); the firmware with authenticated messages (HMAC-SHA256) |
-| `formal/` | TLA+ model `EviconFence` and TLC runner |
+| `formal/` | TLA+ models (`EviconFence`, `EviconFenceFI`, `EviconTiming`) and TLC runners |
 | `docs/spec/` | API and semantics specifications |
 | `evicon_review.py` | **Reviewer driver**: one command on VM-C for every stage, measurement, campaign and report |
-| `ARTIFACT.md`, `CITATION.cff` | Claims -> evidence map for artifact review; citation metadata |
+| `ARTIFACT.md`, `PROVENANCE.md`, `CITATION.cff` | Claims -> evidence map for artifact review; provenance of every campaign and plan (`scripts/provenance.py`); citation metadata |
 | `deploy/setup/` | Testbed addresses and SSH keys (`testbed_init.sh`), per-VM environment setup (`vm-{a,b,c,d,e}.sh`, `setup_all.sh` from VM-C, `build_iot.sh` for the firmware) |
 
 ## Quick start (one machine, development)

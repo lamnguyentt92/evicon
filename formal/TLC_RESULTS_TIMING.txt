@@ -1,0 +1,41 @@
+# TLC on the timing boundary cases (release 085, review M1): EviconTiming.tla, one identity (plus one queued re-issue),
+# discrete time, no other mechanism (no dedup, query, stop, fence or crash; the STOPPED evidence a re-issue needs is abstract).
+# start 2026-11-04T06:37:23Z / end 2026-11-04T06:37:33Z; tla2tools v1.7.4 (sha256 936a2620...0e88), OpenJDK 21.0.12.1, 2 workers
+# Command: TMPDIR=<tmp> TLA2TOOLS_JAR=<jar> bash formal/run_tlc_timing.sh <out>   (logs: formal/tlc_logs_timing/, paths sanitized)
+# The expected result of every configuration was written (run_tlc_timing.sh, PREREG_extra_085.md section 9) before the first run.
+# Bounded model checking of this abstraction (E = 3, eps = 1, D = 2 for the expiry cases; V = 4, D = 1 for the validity cases).
+# Not a proof about the Go code.
+config                           result                                    generated   distinct  depth cex verdict
+firstsend_after_expiry           no error                                      35355      13638     17   - EXPECTED
+firstsend_before_expiry_witness  Invariant NoHiddenEffect is violated             16         13      3   3 EXPECTED
+firstsend_boundary_witness       Invariant NoHiddenEffect is violated             40         35      8   7 EXPECTED
+original_after_validity          Invariant NoLateEffect is violated             1536        670      8   8 EXPECTED
+reissue_after_validity           Invariant NoLateEffect is violated             5432       2974     12  12 EXPECTED
+validity_every_attempt           no error                                      10865       7804     18   - EXPECTED
+
+# firstsend_after_expiry: a first send after t0 + e + eps (5..8): no copy is ever accepted, so no identity takes effect
+#   (NoEffect holds). Client-local evidence: an identity first sent after t0 + e + eps cannot take effect.
+# firstsend_before_expiry_witness: a first send <= t0 + e (0..3): TLC finds a behaviour in which the identity takes
+#   effect and the client receives no answer (the reply is lost): its view (the same sends, no answer) is the one of
+#   the behaviour in which every copy is lost. This is the indistinguishable execution of Theorem 2(b).
+# firstsend_boundary_witness: a first send at exactly t0 + e + eps (4): still a witness, with the owner's clock eps behind
+#   and no delay; with the first case, the boundary is t0 + e + eps exactly.
+# original_after_validity: the dispatcher's rule (internal/outbox/dispatcher.go; RetryAllowedUntilFunc allows attempt 0
+#   always, the validity cut applies to resends only): the original waits in the outbox, leaves after V and takes
+#   effect late (NoLateEffect violated): Proposition 1(ii) holds for resends, not for an original dispatched after V.
+# reissue_after_validity: the original obeys V - D, STOPPED evidence, a re-issue created while now + D <= V and queued;
+#   its original (attempt 0 of a new identity) leaves after V - D and takes effect late.
+# validity_every_attempt: every attempt (originals, resends, the queued re-issue) leaves only while now + D <= V, and an
+#   attempt that can no longer leave is suppressed (never sent): NoLateEffect holds, and a suppressed identity never takes
+#   effect (SuppressedNoEffect), i.e. its reservation could be released on that client-local evidence. Release 085 does
+#   not change the dispatcher: this is the rule the boundary needs, not the runtime's rule.
+
+# SHA-256 of the model files
+2d0f86aea83b767cff2423c2eff03d5eb5443405a262756e56e5a8c014cd4191  formal/EviconTiming.tla
+95becc7bd1076f2ff466eeae1b79c5792067ea2671f868ee602f01159f98a491  formal/EviconTiming_firstsend_after_expiry.cfg
+b0eac190ac0cb31b52ebe0ec788939fc190d8a0a9b109a5c85745a0b3b6dd181  formal/EviconTiming_firstsend_before_expiry_witness.cfg
+f21d209353f687c028376cb0c9c8e6027b8228b7cc57e5aaef1933376ebdd119  formal/EviconTiming_firstsend_boundary_witness.cfg
+6d636933322efe2bb8b0f7bd5556e22ca246b0a585dd13660c04773f1873d44e  formal/EviconTiming_original_after_validity.cfg
+273cb7e871dd56dcc1597a485f76c23b942d522a0bc03693ba7e90a4a3ca259a  formal/EviconTiming_reissue_after_validity.cfg
+970a3314fac602bda5530c5c228463afab926d9914feccdfd8780ec93e8e2c4d  formal/EviconTiming_validity_every_attempt.cfg
+306b7d3d9e2ec800201eb32def513c4f1dbb65f3d6e2e931cafa8f50ece89852  formal/run_tlc_timing.sh

@@ -1,5 +1,85 @@
 # Changelog
 
+## 085 — 2026-11-04
+
+The experiments answering the JNCA reviewer of 4 November 2026 (plan `evaluation/prereg/PREREG_extra_085.md`, frozen
+before its first cell; 4 campaign configs, 64 cells, and the ThingsBoard RPC checks, about 10.3 testbed hours in one
+night or two sessions), the fence-pause analysis fixed for rule R5', and bounded TLC checks of the timing boundary
+cases. Every file an earlier plan freezes is byte-identical (`PREREG_review_077.md`: `db67640d...`;
+`PREREG_extra_083.md`: `6e3f24a9...`; `PREREG_extra_084.md`: `b1135164...`). The authority's admission, resolution
+and release behaviour is unchanged; every new option is off by default.
+
+- **Fence pause under R5'** (reviewer N5; `evaluation/overhead.py`, not frozen by any plan): a pause now also ends at
+  `BARRIER_PER_IDENTITY_COMMITTED` (the event R5' writes instead of an anchor), besides `BARRIER_ANCHOR_COMMITTED` and
+  `BARRIER_ABORTED`. The 084 report counted these pauses to the end of the cell (8.0 s / 11.0 s, paused fraction above 1);
+  on the 084 traces the corrected values are R5' W = 6: 187 pauses, median 1,137.0 ms, paused fraction 0.1248; W
+  unbounded: 99, 1,105.5 ms, 0.1264; the R5 rows are unchanged. New columns: pauses per end event, pauses still open at
+  the end of the cell, cells with traces and trace parse errors. Percentiles use the rounded-index convention (stated
+  in the module).
+- **Transport expiry as metadata** (reviewer M3b): no new flag. `-expires-after` (since 061) is documented as transport
+  metadata (`expires_at_ms` on every dispatch; it never enters contract compilation, admission, resolution or release);
+  the rule the authority applied inline is now one tested function, `outbox.DispatchExpiry` (same behaviour). Tests:
+  the 084 ThingsBoard configuration {Q_A, T(60 s)}, r = 0, and the strict contract {Q_A} with `-expires-after 60s`
+  give byte-identical dispatch requests (`TestExpiresAfterDispatchIdentical085`), and their compiled allowed actions are
+  equal for 20,000 random timings (`TestTTLChangesNoDecision085`).
+- **ThingsBoard RPC checks** (reviewer M3a, M3b; driver stage `tbcheck`): `conformance/reference/mqtt_device_tbcheck.py`
+  (the frozen reference device, imported unchanged, with test-only admin endpoints, default off: `/_test/hold` blocks the
+  next RPC handler after receipt and before the plant write; `/_test/ackmode before` sends the paho manual
+  acknowledgement before the plant write, a negative-control device; every action logged) and
+  `conformance/tb_rpc_checks.py` (SEQ n = 20, CUT n = 10, ACK n = 10 per direction, TTL n = 5 per kind through the frozen
+  ThingsBoard owner gateway; rules TB-1, TB-2, TB-3a, TB-3b, TB-4 fixed in the plan; every RPC deleted afterwards and the
+  device left in its default modes). Output `measure/tbcheck/TBCHECK.md` and `tbcheck.json`; `report` copies them to
+  `report/tbcheck/` and `paper_tables.py` writes `tab_tbcheck.tex` and the `\evTB*` macros. Credentials only from
+  `TB_USERNAME`, `TB_PASSWORD`, `TB_DEVICE_TOKEN`. Only the testbed run on the real platform counts; a run against the
+  simulated testbed's stand-in is marked "stand-in".
+- **EVICON and PERIODIC_FULL in the same campaigns** (reviewer M5a): `expPM_zephyr_w6`, `expPM_zephyr_winf`,
+  `expPM_minio_w6`, `expPM_minio_winf`, copies of the 084 PF configs (same seeds, episodes, schedules, contract, binding,
+  owner configuration) with `policies: [EVICON, PERIODIC_FULL]` and the new config key `policy_order:
+  alternate_by_episode` (`evaluation/ext085.py`; even episodes in the config's order, odd ones reversed; without the key
+  every runner behaves as before). Runners `campaign_zephyr_ext085.py` and `campaign_real_ext085.py` patch only the
+  policy loop of the frozen runners; the manifest records the order of every episode. `evaluation/pm085.py`: the
+  estimands E-PM (logical owner calls, fulfilment, time to terminal, fence pause with the fix above, the break-even
+  cost ratio with a paired bootstrap interval, the run-to-run differences against C2, Rz, C, Rm and the 084 PF runs, the
+  same-contract check from the gateway logs, the order the cells ran).
+- **Plan `PREREG_extra_085.md`**: PM-1..PM-4 (equivalence within 3 pp, families pm-fw and pm-minio, Holm; power 1.00
+  under the 084 PF-pair and within-run templates, `power_extra085_testbed.py`, so all four are hypotheses), PM-A1..PM-A8
+  and PM-S (safety), TB-1..TB-4 (kind "check", both interpretations written), the estimands, the deviations policy, the
+  runs table, reference runs, frozen files and pairs spec; section 9 records the pre-release checks (TLC, the expiry
+  tests).
+- **TLC boundary cases** (reviewer M1): `formal/EviconTiming.tla` (discrete time, one identity) with six
+  configurations and their expected results written before the run (`formal/run_tlc_timing.sh`,
+  `formal/TLC_RESULTS_TIMING.txt`, `formal/tlc_logs_timing/`): first send after t0 + e + eps -> `NoEffect` holds; first
+  send by t0 + e with every copy lossy -> witness found (`NoHiddenEffect` violated: an effect with no answer, the
+  indistinguishable execution of Theorem 2(b)); first send at exactly t0 + e + eps -> still a witness;
+  original dispatched after the validity under the dispatcher's rule (attempt 0 always allowed) -> `NoLateEffect`
+  violated (the boundary of Proposition 1(ii)); a queued re-issue after the validity -> violated; validity checked on
+  every attempt -> holds. All six as expected. The driver's `formal` stage runs them too.
+- **Report** (`evicon_review.py report`): PREREG_extra_085 with every earlier plan (pairs spec, pairs ext, policy
+  compare, `pm085.py`, the TB checks, claims check Part 1 for the 18 new rules, paper tables and macros); the safety
+  total split by transport premise (Theorem-1 subset and dagger subset: admitted commands, cells, campaigns, late
+  effects; `safety_total.py`); `evaluation/review_l2_085.py`: an interval for the "removing the window" differences
+  (cross-run; paired t and bootstrap over episodes with byte-identical schedules, Welch t and a two-sample bootstrap
+  where they differ; the method is recorded per pair) and an offline upper bound on clean
+  fulfilment per campaign (reviewer N7); `evaluation/verdicts085.py`: the earlier plans' verdicts compared with the
+  newest 084 report among the sources (`report/verdicts085/VERDICTS.md`; any difference is logged as a FAIL).
+- **Provenance** (`PROVENANCE.md`, `scripts/provenance.py`): for every campaign of the report's safety total, the
+  release that ran it, its review run and the plan (with SHA-256) its config carries; every plan with its SHA-256, the
+  date it was frozen and, for plans 077, 083, 084 and 085, the GitHub commit and UTC time of its publication (verified
+  read-only on GitHub: 077 first in `ed044bb`, 2026-10-25 16:12, and in its frozen version `db67640d...` in `d67fd27`,
+  2026-10-28 05:25, after the first 077 campaign began at 01:47; 083 `ad4c714`, 2026-10-31 01:13; 084 `ce7fd12`,
+  2026-10-31 11:37, tag v084; 085 to be filled when published); the deviations of each plan's runs; and the numbers the
+  analysis does not regenerate. The top-level file is generated from the 084 final report (the 085 rows to be filled);
+  `report` writes it again, with this run's campaigns, to `report/PROVENANCE.md`.
+- **Operator script** `run085.sh` (one night or two pieces with `--until HH:MM` Vietnam time; resumes, skips finished
+  steps, stops on an unplanned safety violation, bundles after new work, refuses while another `evicon_review.py`
+  runs); it replaces `run084_part1.sh` and `run084_part2.sh`.
+- **Bundles**: a second `bundle --incremental` in the same minute was given the same name and replaced the first, whose
+  files the bundle index already counted as sent (found by the simulated-testbed regression, where the bundle after the
+  campaigns and the one after a quick report fell in one minute); it is now named `..._<stamp>_2.zip` (`_3`, ...), which
+  `import-results` reads. The operator script and the run guide ask for every bundle not sent yet.
+- **Tests**: `evaluation/test_release085.py` (K1-K18) in the verify list; `conformance/tests/test_tbcheck_device.py`;
+  the Go tests above.
+
 ## 084 — 2026-10-31
 
 The review experiments of the external review of 31 October 2026 (plan `evaluation/prereg/PREREG_extra_084.md`, frozen

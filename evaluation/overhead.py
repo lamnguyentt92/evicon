@@ -35,8 +35,21 @@ Per campaign, contract and policy (aggregated over the cells):
   cpu_pct, rss_mb       per authority process: mean CPU over its lifetime, maximum RSS
   events_per_cmd        trace events per offered command; db_bytes_per_cmd: SQLite journal size
   fences/queries/stops per offered command; fence_pause_ms p50/p95/max (BARRIER_PAUSE_COMMITTED ->
-                        anchor or abort of the same token) and the fraction of cell time a domain
+                        the end of the same token's fence) and the fraction of cell time a domain
                         was paused
+  release 085 (review N5): a fence pause ends at one of three events of its token (the reason up to the
+  first ':'): BARRIER_ANCHOR_COMMITTED (certified), BARRIER_ABORTED (rule R5) or
+  BARRIER_PER_IDENTITY_COMMITTED (rule R5', internal/runtime/fence_intake.go; releases <= 084 did not
+  recognise it and counted such a pause to the end of its cell). A pause with no end event is counted
+  to the cell's last trace event (paused_ms only, not a pause sample). The exposure (denominator of
+  paused_fraction) is the domain-time of the cell: the span between the first and the last trace event
+  with a monotonic time over the cell's authority traces, times the number of traces (one domain per
+  authority; the runs' authorities run for the whole cell, one trace each). Per row: fence_pause_n,
+  fence_pause_ends {end event: count}, fence_pause_open (pauses without an end event), cells_with_traces
+  and trace_parse_errors (lines that are not JSON, skipped and counted).
+  Percentiles (every *_p50/_p95/_p99 here): the rounded-index rule, sorted(v)[round(q/100 * (n-1))]
+  with Python's round (half to even); for an odd n the p50 is the middle value (the median); for an
+  even n it is one of the two middle values, not their mean.
 
     python3 evaluation/overhead.py --campaign <run dir> [...] [--samples <jsonl> ...] --out <dir>
 
@@ -64,14 +77,22 @@ def pct(v, q):
     return round(v[i], 3)
 
 
-def load_jsonl(p: Path):
+FENCE_PAUSE_END = ("BARRIER_ANCHOR_COMMITTED", "BARRIER_ABORTED", "BARRIER_PER_IDENTITY_COMMITTED")  # release 085: + R5'
+
+
+def load_jsonl(p: Path, errors: list = None):
+    """The JSON lines of p ([] when unreadable); a line that is not JSON is skipped and, with `errors`, appended there
+    (release 085: counted per row as trace_parse_errors)."""
     out = []
     try:
         for line in p.read_text(errors="replace").splitlines():
+            if not line.strip():
+                continue
             try:
                 out.append(json.loads(line))
             except ValueError:
-                pass
+                if errors is not None:
+                    errors.append(f"{p.name}: {line[:80]}")
     except OSError:
         pass
     return out
@@ -100,6 +121,7 @@ def cell_metrics(cell: Path, deadline_s: float = None) -> dict:
          "admitted_requests": 0, "admitted_after_deadline": 0, "identities_admitted_after_deadline": 0,
          "in_ms": [], "out_ms": [], "client_ms": [], "lock_ms": [], "eval_ms": [],
          "events": 0, "fence_pause_ms": [], "paused_ms": 0.0, "cell_ms": 0.0, "db_bytes": 0,
+         "fence_pause_ends": {}, "fence_pause_open": 0, "trace_parse_errors": 0, "has_traces": bool(traces(cell)),
          "fences": int(row.get("fences") or 0), "queries": int(row.get("queries") or 0), "stops": int(row.get("stops") or 0),
          "dispatch_attempts": int(row.get("dispatch_attempts") or 0)}
     wall_recv, wall_prep, wall_dec = {}, {}, {}
@@ -138,9 +160,10 @@ def cell_metrics(cell: Path, deadline_s: float = None) -> dict:
                         m["lock_ms"].append(wait_s * 1000.0)
                         m["eval_ms"].append((tp - tr) * 1000.0)
     t_first, t_last = None, None
+    perr = []
     for tf in traces(cell):
         prep, disp, pause = {}, {}, {}
-        for e in load_jsonl(tf):
+        for e in load_jsonl(tf, perr):
             m["events"] += 1
             ns = e.get("monotonic_ns")
             if ns is None:
@@ -158,15 +181,18 @@ def cell_metrics(cell: Path, deadline_s: float = None) -> dict:
                 m["dispatch_ms"].append((ns - disp.pop(cid)) / 1e6)
             elif ev == "BARRIER_PAUSE_COMMITTED":
                 pause.setdefault(str(e.get("reason", "")), ns)
-            elif ev in ("BARRIER_ANCHOR_COMMITTED", "BARRIER_ABORTED"):
+            elif ev in FENCE_PAUSE_END:
                 tok = str(e.get("reason", "")).split(":", 1)[0]
                 if tok in pause:
                     d = (ns - pause.pop(tok)) / 1e6
                     m["fence_pause_ms"].append(d)
                     m["paused_ms"] += d
+                    m["fence_pause_ends"][ev] = m["fence_pause_ends"].get(ev, 0) + 1
         if t_last is not None:
             for tok, ns in pause.items():  # still paused when the cell ended
                 m["paused_ms"] += (t_last - ns) / 1e6
+                m["fence_pause_open"] += 1
+    m["trace_parse_errors"] = len(perr)
     if t_first is not None:
         m["cell_ms"] = (t_last - t_first) / 1e6 * max(1, len(traces(cell)))  # domain-time: one domain per authority
     m["db_bytes"] = sum(p.stat().st_size for p in dbs(cell))
@@ -231,8 +257,11 @@ def summarize(campaigns: list, samples: list) -> list:
                       "lock_ms", "eval_ms"):
                 g[k] += m[k]
             for k in ("offered", "events", "db_bytes", "fences", "queries", "stops", "dispatch_attempts", "paused_ms", "cell_ms",
-                      "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline"):
+                      "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline", "fence_pause_open",
+                      "trace_parse_errors", "has_traces"):
                 g[k].append(m[k])
+            for ev, n in m["fence_pause_ends"].items():
+                g[f"end:{ev}"].append(n)
             r = match_resources(cell, run, res)
             for name, v in r.items():
                 g[f"cpu_pct:{name}"] += v["cpu_pct"]
@@ -258,6 +287,12 @@ def summarize(campaigns: list, samples: list) -> list:
         row["fence_pause_ms_p50"], row["fence_pause_ms_p95"] = pct(g["fence_pause_ms"], 50), pct(g["fence_pause_ms"], 95)
         row["fence_pause_ms_max"] = round(max(g["fence_pause_ms"]), 1) if g["fence_pause_ms"] else None
         row["paused_fraction"] = sum(g["paused_ms"]) / sum(g["cell_ms"]) if sum(g["cell_ms"]) else None  # 083: unrounded
+        # release 085 (review N5): what the pause figures rest on
+        row["fence_pause_n"] = len(g["fence_pause_ms"])
+        row["fence_pause_ends"] = {ev: sum(g[f"end:{ev}"]) for ev in FENCE_PAUSE_END if g.get(f"end:{ev}")}
+        row["fence_pause_open"] = sum(g["fence_pause_open"])
+        row["cells_with_traces"] = sum(1 for x in g["has_traces"] if x)
+        row["trace_parse_errors"] = sum(g["trace_parse_errors"])
         # release 083 (A2): admissions after the request's deadline
         row["admitted_requests"] = sum(g["admitted_requests"])
         row["admitted_after_deadline"] = sum(g["admitted_after_deadline"])
@@ -273,8 +308,8 @@ COLS = ["campaign", "contract", "policy", "cells", "offered_per_s", "admit_n", "
         "decide_ms_p50", "decide_ms_p95", "dispatch_ms_p50", "dispatch_ms_p95", "terminal_ms_p50", "terminal_ms_p95",
         "authority_cpu_pct_mean", "authority_rss_mb_max", "device_cpu_pct_mean", "device_rss_mb_max", "events_per_cmd",
         "db_bytes_per_cmd", "dispatch_attempts_per_cmd", "queries_per_cmd", "stops_per_cmd", "fences_per_cmd",
-        "fence_pause_ms_p50", "fence_pause_ms_p95", "fence_pause_ms_max", "paused_fraction",
-        "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline", "admitted_after_deadline_share"]
+        "fence_pause_ms_p50", "fence_pause_ms_p95", "fence_pause_ms_max", "paused_fraction", "fence_pause_n", "fence_pause_open",
+        "cells_with_traces", "trace_parse_errors", "admitted_requests", "admitted_after_deadline", "identities_admitted_after_deadline", "admitted_after_deadline_share"]
 
 
 def markdown(rows: list) -> str:
@@ -317,12 +352,22 @@ def markdown(rows: list) -> str:
     act = [r for r in rows if (r["fences_per_cmd"] or 0) + (r["queries_per_cmd"] or 0) + (r["stops_per_cmd"] or 0) > 0]
     if act:
         L += ["", "Evidence actions (cells with faults):", "",
-              "| campaign | contract | policy | dispatch/cmd | queries/cmd | stops/cmd | fences/cmd | fence pause p50/p95/max ms | paused fraction |",
-              "|---|---|---|---|---|---|---|---|---|"]
+              "| campaign | contract | policy | dispatch/cmd | queries/cmd | stops/cmd | fences/cmd | fence pause p50/p95/max ms | paused fraction | "
+              "pauses (ended by anchor / abort / per-identity; open at the end) | cells with traces |",
+              "|---|---|---|---|---|---|---|---|---|---|---|"]
         for r in act:
+            ends = r.get("fence_pause_ends") or {}
             L.append(f"| {r['campaign']} | {r['contract']} | {r['policy']} | {f(r['dispatch_attempts_per_cmd'])} | {f(r['queries_per_cmd'])} | "
                      f"{f(r['stops_per_cmd'])} | {f(r['fences_per_cmd'])} | {f(r['fence_pause_ms_p50'], r['fence_pause_ms_p95'], r['fence_pause_ms_max'])} | "
-                     f"{f(r['paused_fraction'])} |")
+                     f"{f(r['paused_fraction'])} | {r.get('fence_pause_n', 0)} ({ends.get('BARRIER_ANCHOR_COMMITTED', 0)} / "
+                     f"{ends.get('BARRIER_ABORTED', 0)} / {ends.get('BARRIER_PER_IDENTITY_COMMITTED', 0)}; {r.get('fence_pause_open', 0)}) | "
+                     f"{r.get('cells_with_traces', 0)} of {r['cells']} |")
+        L += ["", "Fence pause (release 085): from BARRIER_PAUSE_COMMITTED to the first of BARRIER_ANCHOR_COMMITTED, BARRIER_ABORTED or "
+              "BARRIER_PER_IDENTITY_COMMITTED of the same token (the reason up to the first ':'); a pause without an end event counts "
+              "to the cell's last trace event in the paused fraction and is no pause sample. Paused fraction = paused time / domain-time "
+              "(first to last trace event of the cell times its number of authority traces). Percentiles: rounded index, "
+              "sorted(v)[round(q/100 (n-1))]. Trace lines that are not JSON: "
+              f"{sum(r.get('trace_parse_errors', 0) for r in rows)} (skipped)."]
     return "\n".join(L) + "\n"
 
 

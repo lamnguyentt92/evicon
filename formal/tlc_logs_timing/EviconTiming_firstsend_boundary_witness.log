@@ -1,0 +1,100 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 55 and seed 5043499703740147147 with 2 workers on 2 cores with 1330MB heap and 64MB offheap memory [pid: 6335] (Linux 6.18.44-fc-v233 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <the release tree>/formal/EviconTiming.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Integers.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EviconTiming
+Starting... (2026-11-04 13:37:27)
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 3 distinct states generated at 2026-11-04 13:37:28.
+Error: Invariant NoHiddenEffect is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ now = 0
+/\ effects = {}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 2: <Tick line 132, col 9 to line 135, col 93 of module EviconTiming>
+/\ now = 1
+/\ effects = {}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 3: <Tick line 132, col 9 to line 135, col 93 of module EviconTiming>
+/\ now = 2
+/\ effects = {}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 4: <Tick line 132, col 9 to line 135, col 93 of module EviconTiming>
+/\ now = 3
+/\ effects = {}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 5: <Tick line 132, col 9 to line 135, col 93 of module EviconTiming>
+/\ now = 4
+/\ effects = {}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 6: <SendOriginal line 88, col 17 to line 90, col 58 of module EviconTiming>
+/\ now = 4
+/\ effects = {}
+/\ skew = -1
+/\ flight = {[id |-> "o", at |-> 4, n |-> 0]}
+/\ sent = {[id |-> "o", at |-> 4, n |-> 0]}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+State 7: <Next line 138, col 12 to line 138, col 61 of module EviconTiming>
+/\ now = 4
+/\ effects = {[id |-> "o", at |-> 4]}
+/\ skew = -1
+/\ flight = {}
+/\ sent = {[id |-> "o", at |-> 4, n |-> 0]}
+/\ stoppedO = FALSE
+/\ suppressed = {}
+/\ answers = {}
+/\ rCreated = -1
+
+40 states generated, 35 distinct states found, 12 states left on queue.
+The depth of the complete state graph search is 8.
+The average outdegree of the complete state graph is 1 (minimum is 1, the maximum 4 and the 95th percentile is 4).
+Finished in 00s at (2026-11-04 13:37:28)

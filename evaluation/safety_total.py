@@ -35,6 +35,10 @@ firmware's cells at QoS 1 (mode PLAIN of the Zephyr firmware, which executes eve
 QoS 1: the 074/075 gateway's only call shape, or binding "qos1"; binding "auto" and "qos0" give QoS 0 to the plain
 firmware), and ThingsBoard's guarded cells (the platform delivers at QoS 1 to a reference device without deduplication).
 The remaining guarded cells with faults test Theorem 1. Per experiment (the campaign's name) and in total.
+Release 085 (reviewer of 4 November, M4): the guarded VALID cells with faults split by the transport premise, each subset
+with its cells, campaigns, admitted and offered commands, safety violations and late effects (summary "premise_split":
+"theorem1", where Phi1 is established by the delivery binding or the owner's suppression, and "dagger", the cells above),
+so that the paper can show the premise-covered and the premise-unestablished subsets where it states the safety result.
 
     python3 evaluation/safety_total.py --out <dir> <campaign run dir> ...
 Writes SAFETY.md and safety.json.
@@ -150,7 +154,8 @@ def read_run(run: Path) -> dict:
     out = {"run": f"{cfg.get('name', run.parent.name)}/{run.name}", "dir": str(run), "release": man.get("release", ""),
            "scope": man.get("scope", ""), "cells": 0, "invalid": 0, "guarded": Counter(), "control": defaultdict(Counter),
            "unsafe": defaultdict(Counter), "unguarded_dedup": defaultdict(Counter), "guarded_fault_schedules": {},
-           "experiment": cfg.get("name", run.parent.name), "phi1_fault_model": Counter()}
+           "experiment": cfg.get("name", run.parent.name), "phi1_fault_model": Counter(),
+           "premise_split": {"theorem1": Counter(), "dagger": Counter()}}
     digests = {}
     with open(run / "runtime_episodes.csv", newline="") as fh:
         for r in csv.DictReader(fh):
@@ -186,6 +191,13 @@ def read_run(run: Path) -> dict:
                         why = phi1_on_fault_model(cfg, r["contract"])  # release 084
                         if why:
                             out["phi1_fault_model"][why] += 1
+                        ps = out["premise_split"]["dagger" if why else "theorem1"]  # release 085
+                        ps["cells"] += 1
+                        ps["admitted"] += _f(r.get("admitted"))
+                        ps["offered"] += _f(r.get("offered"))
+                        ps["late_effects"] += _f(r.get("late_effects"))
+                        ps["violations"] += sum(viol.values())
+                        ps["cells_with_violation"] += any(viol.values())
                     else:
                         g["cells_with_faults_no_schedule"] += 1
     return out
@@ -219,7 +231,17 @@ def summarize(runs: list) -> dict:
             by_exp[r.get("experiment", r["run"].split("/")[0])] += n
             by_reason[why] += n
     dag = int(sum(by_exp.values()))
-    return {"testbed_runs": len(tb), "guarded": {k: int(v) for k, v in g.items()}, "guarded_violations": viol,
+    split = {}  # release 085: the guarded cells with faults by transport premise
+    for sub in ("theorem1", "dagger"):
+        c = Counter()
+        camps = 0
+        for r in tb:
+            x = (r.get("premise_split") or {}).get(sub) or {}
+            c.update(x)
+            camps += bool(x.get("cells"))
+        split[sub] = dict({k: int(v) for k, v in c.items()}, campaigns=camps,
+                          upper95_per_admitted_command=upper95(int(c["admitted"])) if not c["violations"] else None)
+    return {"premise_split": split, "testbed_runs": len(tb), "guarded": {k: int(v) for k, v in g.items()}, "guarded_violations": viol,
             "distinct_fault_schedules": n_s, "cells_with_faults": int(g["cells_with_faults"]),
             "cells_with_faults_no_schedule": int(g["cells_with_faults_no_schedule"]),
             "max_cells_per_schedule": max(sched.values()) if sched else 0,
@@ -261,6 +283,17 @@ def markdown(runs: list, s: dict) -> str:
               f"{(pf.get('by_reason') or {}).get('plain_firmware_qos1', 0)}; ThingsBoard, QoS 1 to a device without deduplication: "
               f"{(pf.get('by_reason') or {}).get('thingsboard', 0)}; per experiment: {per}); the other "
               f"**{s.get('theorem1_cells_with_faults', 0)}** test Theorem 1.", ""]
+        sp = s.get("premise_split") or {}
+        if sp:
+            L += ["Guarded cells with faults by transport premise (release 085):", "",
+                  "| subset | cells | campaigns | admitted commands | offered | violations | late effects | 95 % bound per admitted command |",
+                  "|---|---|---|---|---|---|---|---|"]
+            for sub, name in (("theorem1", "Theorem 1 (Phi1 by the binding or the owner)"), ("dagger", "dagger (Phi1 on the fault model)")):
+                x = sp.get(sub) or {}
+                ub = x.get("upper95_per_admitted_command")
+                L.append(f"| {name} | {x.get('cells', 0)} | {x.get('campaigns', 0)} | {x.get('admitted', 0)} | {x.get('offered', 0)} | "
+                         f"{x.get('violations', 0)} | {x.get('late_effects', 0)} | {f'{ub:.2e}' if ub is not None else '-'} |")
+            L.append("")
     L += [f"Negative controls (violations planned): {s['controls'].get('detecting_cells', 0)} of {s['controls'].get('cells', 0)} cells detected a "
           f"violation. Blind retry on owners with dedup (no violation planned): {s['unguarded_dedup'].get('cells_with_violation', 0)} of "
           f"{s['unguarded_dedup'].get('cells', 0)} cells with a violation. Unsafe by design (the practice baselines, a blind retry on "
@@ -296,6 +329,7 @@ def main(argv=None):
     js = {"summary": s, "runs": [dict(r, guarded=dict(r["guarded"]), control={k: dict(v) for k, v in r["control"].items()},
                                       guarded_fault_schedules=len(r.get("guarded_fault_schedules", {})),
                                       phi1_fault_model=dict(r.get("phi1_fault_model", {})),
+                                      premise_split={k: dict(v) for k, v in r.get("premise_split", {}).items()},
                                       unsafe={k: dict(v) for k, v in r["unsafe"].items()},
                                       unguarded_dedup={k: dict(v) for k, v in r["unguarded_dedup"].items()}) for r in runs]}
     (out / "safety.json").write_text(json.dumps(js, indent=1) + "\n")

@@ -1,0 +1,37 @@
+id,family,template,true_mean_pp,scale,power,what
+PM-1,pm-fw,pf-cross-fw-w6,-0.01,1,1.0000,primary at the prediction
+PM-1,pm-fw,within-fw,-0.01,1,1.0000,within-run at the prediction
+PM-2,pm-fw,pf-cross-fw-winf,-0.01,1,1.0000,primary at the prediction
+PM-2,pm-fw,within-fw,-0.01,1,1.0000,within-run at the prediction
+PM-3,pm-minio,pf-cross-minio-w6,-0.00,1,1.0000,primary at the prediction
+PM-3,pm-minio,within-minio,-0.00,1,1.0000,within-run at the prediction
+PM-4,pm-minio,pf-cross-minio-winf,+0.02,1,1.0000,primary at the prediction
+PM-4,pm-minio,within-minio,+0.02,1,1.0000,within-run at the prediction
+PM-1,pm-fw,pf-cross-fw-w6,-0.01,1,1.0000,"primary, nearby mean"
+PM-1,pm-fw,pf-cross-fw-w6,+1.00,1,1.0000,"primary, nearby mean"
+PM-1,pm-fw,pf-cross-fw-w6,+2.00,1,1.0000,"primary, nearby mean"
+PM-1,pm-fw,pf-cross-fw-w6,+2.50,1,0.9998,"primary, nearby mean"
+PM-1,pm-fw,pf-cross-fw-w6,-2.00,1,1.0000,"primary, nearby mean"
+PM-1,pm-fw,pf-cross-fw-w6,-0.01,3,1.0000,primary x3
+PM-1,pm-fw,pf-cross-fw-w6,-0.01,10,0.8975,primary x10
+PM-2,pm-fw,pf-cross-fw-winf,-0.01,1,1.0000,"primary, nearby mean"
+PM-2,pm-fw,pf-cross-fw-winf,+1.00,1,1.0000,"primary, nearby mean"
+PM-2,pm-fw,pf-cross-fw-winf,+2.00,1,1.0000,"primary, nearby mean"
+PM-2,pm-fw,pf-cross-fw-winf,+2.50,1,1.0000,"primary, nearby mean"
+PM-2,pm-fw,pf-cross-fw-winf,-2.00,1,1.0000,"primary, nearby mean"
+PM-2,pm-fw,pf-cross-fw-winf,-0.01,3,1.0000,primary x3
+PM-2,pm-fw,pf-cross-fw-winf,-0.01,10,1.0000,primary x10
+PM-3,pm-minio,pf-cross-minio-w6,-0.00,1,1.0000,"primary, nearby mean"
+PM-3,pm-minio,pf-cross-minio-w6,+1.00,1,1.0000,"primary, nearby mean"
+PM-3,pm-minio,pf-cross-minio-w6,+2.00,1,1.0000,"primary, nearby mean"
+PM-3,pm-minio,pf-cross-minio-w6,+2.50,1,1.0000,"primary, nearby mean"
+PM-3,pm-minio,pf-cross-minio-w6,-2.00,1,1.0000,"primary, nearby mean"
+PM-3,pm-minio,pf-cross-minio-w6,-0.00,3,1.0000,primary x3
+PM-3,pm-minio,pf-cross-minio-w6,-0.00,10,0.9750,primary x10
+PM-4,pm-minio,pf-cross-minio-winf,+0.02,1,1.0000,"primary, nearby mean"
+PM-4,pm-minio,pf-cross-minio-winf,+1.00,1,1.0000,"primary, nearby mean"
+PM-4,pm-minio,pf-cross-minio-winf,+2.00,1,1.0000,"primary, nearby mean"
+PM-4,pm-minio,pf-cross-minio-winf,+2.50,1,1.0000,"primary, nearby mean"
+PM-4,pm-minio,pf-cross-minio-winf,-2.00,1,1.0000,"primary, nearby mean"
+PM-4,pm-minio,pf-cross-minio-winf,+0.02,3,1.0000,primary x3
+PM-4,pm-minio,pf-cross-minio-winf,+0.02,10,0.9433,primary x10
