@@ -54,7 +54,7 @@ func (a *Authority) evaluateWithPolicy(d journal.Domain, req protocol.CommandReq
 		// Release 083 (T1): the window-full trigger of EVICON, without anything else of EVICON.
 		return a.evaluateQueryOnlyWindow(req, stats)
 	}
-	if res.Verdict == analyzer.Safe || a.cfg.Policy == probe.M0NoProbe || probe.IsReleaseBaseline(a.cfg.Policy) || (res.Verdict != analyzer.Counterexample && res.Verdict != analyzer.ConservativeBlock) {
+	if res.Verdict == analyzer.Safe || a.cfg.Policy == probe.M0NoProbe || probe.HasReconcileSweep(a.cfg.Policy) || (res.Verdict != analyzer.Counterexample && res.Verdict != analyzer.ConservativeBlock) {
 		return res, stats, nil
 	}
 	if (a.cfg.Policy == probe.M5 || a.cfg.Policy == probe.M5V2 || a.cfg.Policy == probe.M5V2D1) && res.Verdict == analyzer.Counterexample {

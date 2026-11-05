@@ -22,6 +22,19 @@ import (
 //
 // Returns the new revision and the sealed identities (in sequence order).
 func (s *Store) CommitBarrierPerIdentity(domainID, token string, generation, cutoff uint64, ownerState []int64, ownerVersion uint64, receipts []ReceiptRecord, uncertain []string) (uint64, []string, error) {
+	return s.commitBarrierPartial(domainID, token, generation, cutoff, ownerState, ownerVersion, receipts, uncertain, true)
+}
+
+// CommitBarrierUnanchored (release 086, -fence-anchor evidence) ends a PENDING fence whose answer is complete
+// and lists no UNCERTAIN identity but whose evidence allows several owner states (a SET domain where the order
+// of an applied ADD relative to the last applied SET is not known): exactly CommitBarrierPerIdentity with no
+// UNCERTAIN identity, except that the unlisted identities are sealed only when seal is true (as
+// CommitBarrierLifecycleSeal). Nothing is anchored; the lifecycle is PARTIAL.
+func (s *Store) CommitBarrierUnanchored(domainID, token string, generation, cutoff uint64, ownerState []int64, ownerVersion uint64, receipts []ReceiptRecord, seal bool) (uint64, []string, error) {
+	return s.commitBarrierPartial(domainID, token, generation, cutoff, ownerState, ownerVersion, receipts, nil, seal)
+}
+
+func (s *Store) commitBarrierPartial(domainID, token string, generation, cutoff uint64, ownerState []int64, ownerVersion uint64, receipts []ReceiptRecord, uncertain []string, seal bool) (uint64, []string, error) {
 	statej, _ := js(ownerState)
 	t := now()
 	var newRev uint64
@@ -121,6 +134,9 @@ func (s *Store) CommitBarrierPerIdentity(domainID, token string, generation, cut
 		if er != nil {
 			return er
 		}
+		if !seal {
+			rows = nil // release 086: a policy that does not seal (CommitBarrierLifecycleSeal with seal=false)
+		}
 		for _, r := range rows {
 			cid, _ := sqlitecgo.TextAt(r, 0)
 			ih, _ := sqlitecgo.TextAt(r, 1)
@@ -168,4 +184,18 @@ func (s *Store) BarrierStatusCounts(domainID string) (partial, aborted int, err 
 		}
 	}
 	return partial, aborted, nil
+}
+
+// BarrierTokens (release 086) lists the fence tokens of a domain in the order they began; for tests and audits.
+func (s *Store) BarrierTokens(domainID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT token FROM authority_barrier_history WHERE domain_id=? ORDER BY created_at,token`, domainID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		tok, _ := sqlitecgo.TextAt(r, 0)
+		out = append(out, tok)
+	}
+	return out, nil
 }

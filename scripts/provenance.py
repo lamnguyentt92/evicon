@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PROVENANCE.md (release 085): where every campaign the paper uses comes from, every preregistered plan with its SHA-256,
+"""PROVENANCE.md (release 085; release 086: plan 085 published, its runs, plan 086): where every campaign the paper uses comes from, every preregistered plan with its SHA-256,
 when it was frozen and published, the deviations of each plan's runs, and the numbers that the analysis does not
 regenerate. The paper points here instead of carrying release and commit details.
 
@@ -10,7 +10,7 @@ cells), and the plan it carries, from the campaign run's own `config.json` (the 
 when the run directory is there (as in `evicon_review.py report`, which writes `report/PROVENANCE.md`), else from the
 config of the same name in the release tree that ran it (`<trees>/EVICON_TOIT_<release>/evaluation/campaigns/`; the
 source of each row is shown). The runs of the newest plan that the report does not hold yet are listed as "to be filled
-by the 085 report". Plans: every plan under evaluation/prereg/ with the SHA-256 of the file (checked against the SHA-256
+by the 086 report". Plans: every plan under evaluation/prereg/ with the SHA-256 of the file (checked against the SHA-256
 the configs carry), the date it was frozen (the plan's header, else the date of the release it names), and, for the plans
 published on GitHub before their runs, the commit and UTC time (verified read-only with `gh api` on
 lamnguyentt92/evicon: the commit, its time, and the SHA-256 of the plan file at that commit). Deviations and exceptions:
@@ -26,10 +26,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PREREG = REPO / "evaluation" / "prereg"
-NEWEST_PLAN = "PREREG_extra_085.md"
+NEWEST_PLAN = "PREREG_extra_086.md"
+NEWEST_RELEASE = "086"
 
-# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04: commit time (UTC) and the
-# SHA-256 of the plan file at that commit (contents API, raw).
+# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04 (077-084) and 2026-11-05 (085):
+# commit time (UTC) and the SHA-256 of the plan file at that commit (contents API, raw).
 PUBLISHED = {
     "PREREG_review_077.md": [
         {"commit": "ed044bb", "utc": "2026-10-25 16:12", "sha256": "d0f28c5a691fd06a1c645612acc9ca95bd195abc3457284b2b2fe744b0a58138",
@@ -40,7 +41,10 @@ PUBLISHED = {
                  "(expR-zephyr-winf/20261028T084744, VM-C time UTC+7) began at 01:47 UTC"}],
     "PREREG_extra_083.md": [{"commit": "ad4c714", "utc": "2026-10-31 01:13", "sha256": "6e3f24a918de659c1feb8aaa886d9e9681195353528b5df10e615e8897ff3a06", "note": "release 083"}],
     "PREREG_extra_084.md": [{"commit": "ce7fd12", "utc": "2026-10-31 11:37", "sha256": "b11351645c1e0f05f4a270412539a072f17148ea8607223dcb6182a171505345", "note": "release 084, tag v084"}],
-    "PREREG_extra_085.md": [],  # to be filled when release 085 is published
+    "PREREG_extra_085.md": [{"commit": "40e451d", "utc": "2026-11-04 10:05", "sha256": "22586c782aa3ac704bcc56376324faeb7c4047da6e35c1668a65a34924bf4790",
+                             "note": "release 085, pushed 10:07 UTC; the 085 review run (review-20261104T171522, VM-C time UTC+7) began at "
+                                     "10:15 UTC and its first cell at 11:18 UTC"}],
+    "PREREG_extra_086.md": [],  # to be filled when release 086 is published
 }
 
 # Plans frozen as a later version than the release in their header says (date of the frozen version).
@@ -81,14 +85,20 @@ DEVIATIONS = {
         "The 084 report's fence pause for rule R5' counted the pauses that R5' ends with BARRIER_PER_IDENTITY_COMMITTED to "
         "the end of the cell (an analysis defect, review N5); release 085's `evaluation/overhead.py` corrects it, and the "
         "corrected values come from the 085 report."],
-    NEWEST_PLAN: ["To be filled after the 085 runs (none at release time)."],
+    "PREREG_extra_085.md": [
+        "None: the plan's runs (review run `review-20261104T171522`: `tbcheck`, then expPM-zephyr-w6, -zephyr-winf, -minio-w6, "
+        "-minio-winf, 16 cells each) ran in the planned order in one session; 64 cells, 0 INVALID; `tbcheck` decided at the "
+        "first run (95 trials: SEQ 20, CUT 10 and ACK 10 per direction, TTL 5 per kind; 0 invalid); the final report found the 150 earlier verdicts identical to the 084 final "
+        "report's (`report/verdicts085/`)."],
+    NEWEST_PLAN: ["To be filled after the 086 runs (none at release time)."],
 }
 
 # Numbers the report does not regenerate.
 EXCEPTIONS = [
     "TLC results: `formal/TLC_RESULTS.txt`, `formal/TLC_RESULTS_FI.txt` and `formal/TLC_RESULTS_TIMING.txt` (with "
     "`formal/tlc_logs*/`) come from the release tree: TLC was run when each model was added (releases 082, 084, 085), "
-    "not by `report`; `python3 evicon_review.py formal` runs them again.",
+    "not by `report`; `python3 evicon_review.py formal` runs them again. Release 086 adds no TLA+ configuration (the fence "
+    "models never anchor on the owner's state: the guard's reservations come from the authority's own statuses).",
     "Simulator predictions and the power tables of the plans: `evaluation/sim_predictions/` (and sections 1 and 5 of each "
     "plan) were computed before the plan was frozen and are frozen with it; `report` reads them and does not recompute "
     "them (each file's command is in `evaluation/sim_predictions/README.md`).",
@@ -190,8 +200,8 @@ def markdown(report_label: str, rows: list, pending: list, summary: dict, report
             carried.setdefault(r["plan"], set()).add(r["plan_sha256"])
     L = ["# Provenance", "",
          f"Generated by `scripts/provenance.py` (release {(REPO / 'VERSION').read_text().strip()}) from {report_label}. "
-         "The final report of release 085 writes the same tables, with its own campaigns filled in, to "
-         "`report/PROVENANCE.md`; that file supersedes this one for the 085 rows.", "",
+         f"The final report of release {NEWEST_RELEASE} writes the same tables, with its own campaigns filled in, to "
+         f"`report/PROVENANCE.md`; that file supersedes this one for the {NEWEST_RELEASE} rows.", "",
          "## 1. Campaigns", "",
          f"Every TESTBED campaign of the report's safety total ({len(rows)} campaigns, {summary.get('guarded', {}).get('cells', '?') if isinstance(summary.get('guarded'), dict) else '?'} "
          "guarded VALID cells): the release that ran it, the review run it belongs to (on VM-C, or in the archive imported "
@@ -204,16 +214,16 @@ def markdown(report_label: str, rows: list, pending: list, summary: dict, report
                  f"{('`' + r['plan'] + '`') if r['plan'] else 'none (exploratory)'} | "
                  f"{('`' + r['plan_sha256'][:16] + '...`') if r['plan_sha256'] else '-'} | {r['source']} |")
     for p in pending:
-        L.append(f"| `{p['campaign']}/<to be filled by the 085 report>` | 085 | to be filled by the 085 report | - | - | "
+        L.append(f"| `{p['campaign']}/<to be filled by the {NEWEST_RELEASE} report>` | {NEWEST_RELEASE} | to be filled by the {NEWEST_RELEASE} report | - | - | "
                  f"`{NEWEST_PLAN}` | `{sha256(PREREG / NEWEST_PLAN)[:16]}...` | plan {NEWEST_PLAN} ({p['key']}) |")
     tbc = report / "tbcheck" / "tbcheck.json"
     if tbc.is_file():
         t = json.loads(tbc.read_text())
-        L += ["", f"The ThingsBoard checks TB-1 to TB-4 of `{NEWEST_PLAN}` are not a campaign: stage `tbcheck`, copied to "
+        L += ["", f"The ThingsBoard checks TB-1 to TB-4 of `PREREG_extra_085.md` are not a campaign: stage `tbcheck`, copied to "
                   f"`report/tbcheck/` (platform {t.get('platform')}, started {t.get('started')})."]
     else:
-        L += ["", f"The ThingsBoard checks TB-1 to TB-4 of `{NEWEST_PLAN}` are not a campaign: stage `tbcheck` of the 085 "
-                  "review run (`measure/tbcheck/`, copied to `report/tbcheck/`); to be filled by the 085 report."]
+        L += ["", "The ThingsBoard checks TB-1 to TB-4 of `PREREG_extra_085.md` are not a campaign: stage `tbcheck` of the 085 "
+                  "review run (`measure/tbcheck/`, copied to `report/tbcheck/`); not among this report's sources."]
     L += ["", "## 2. Plans", "",
           "Every plan with the SHA-256 of the file in this release (the frozen version: nothing above a plan's Deviations "
           "section is edited after freezing), the date it was frozen, and where the configs carry it, whether they "

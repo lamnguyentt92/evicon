@@ -541,8 +541,10 @@ class K17Provenance(unittest.TestCase):
         self.assertIn("| `expK2-w6/20261030T092059` | 078 | `review-20261028T080322` | 20 | 0 | `PREREG_review_077.md` | `db67640d1709b06d...` | run config |", md)
         self.assertIn("| `expS-w6/20261022T161003` | 072 | `review-20261021T173508` | 36 | 0 | `PREREG_expS_072.md` | `0000000000000000...` | config of release 072 |", md)
         self.assertIn("none (exploratory) | - | - |", md)  # no config anywhere
-        for c in ("expPM-zephyr-w6", "expPM-zephyr-winf", "expPM-minio-w6", "expPM-minio-winf"):
-            self.assertIn(f"| `{c}/<to be filled by the 085 report>` | 085 |", md)
+        # release 086: the newest plan's campaigns are to be filled by the newest release's report
+        newest = json.loads(re.search(r"```pairs-spec\n(.*?)```", (REPO / "evaluation" / "prereg" / PV.NEWEST_PLAN).read_text(), re.S).group(1))
+        for c in [v["campaign"] for v in newest["runs"].values() if not v.get("reference")]:
+            self.assertIn(f"| `{c}/<to be filled by the {PV.NEWEST_RELEASE} report>` | {PV.NEWEST_RELEASE} |", md)
         self.assertIn("DIFFERENT", md)  # the fake 072 config's SHA differs from the plan file
         for p in PV.plan_files():
             self.assertIn(f"| `{p.name}` | `{sha(p)}` |", md)
@@ -554,7 +556,7 @@ class K17Provenance(unittest.TestCase):
             self.assertEqual(pub[n][0]["sha256"], sha(REPO / "evaluation" / "prereg" / n))
         self.assertEqual([x["commit"] for x in pub["PREREG_review_077.md"]] + [pub["PREREG_extra_083.md"][0]["commit"], pub["PREREG_extra_084.md"][0]["commit"]],
                          ["ed044bb", "d67fd27", "ad4c714", "ce7fd12"])
-        self.assertEqual(pub["PREREG_extra_085.md"], [])
+        self.assertEqual(pub[PV.NEWEST_PLAN], [])  # release 086: plan 085 is published (40e451d), plan 086 not yet
         self.assertIn("to be filled when published", md)
         # the release's own file and the report's
         top = (REPO / "PROVENANCE.md").read_text()
@@ -576,7 +578,7 @@ class K18BundleNames(unittest.TestCase):
         import import_results as IR
         for n in ("EVICON_085_result_20261104T1621.zip", "EVICON_085_result_20261104T1621_2.zip", "EVICON_085_result_20261104T1621_3.zip"):
             self.assertTrue(IR.BUNDLE_RE.match(n), n)
-        sh_ = (REPO / "run085.sh").read_text()
+        sh_ = sorted(REPO.glob("run08*.sh"))[-1].read_text()  # the current operator script (release 086: run086.sh)
         self.assertNotIn("Send the newest", sh_)
         self.assertIn("not sent yet", sh_)
 

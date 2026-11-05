@@ -9,6 +9,8 @@
 | `ext083.py`, `campaign_ext083.py`, `campaign_real_ext083.py`, `campaign_tb_ext083.py` | The 083 policies (M1W, RELEASE_ON_READ_ANSWERED, RELEASE_ON_TIMEOUT_<n>S, EVICON_GREEDY, EVICON_FC<x>) installed on `campaign_ext077.py`, `campaign_real.py` and `campaign_tb.py`, which are imported unchanged (release 083, below) |
 | `ext084.py`, `campaign_ext084.py`, `campaign_real_ext084.py`, `campaign_zephyr_ext084.py` | The 084 policies (EVICON_FI, PERIODIC_FULL) and the `exclude_cells` key installed on the 083 and 077 runners, which are imported unchanged; the firmware runner checks the delivery binding rule before the first cell (release 084, below) |
 | `ext085.py`, `campaign_zephyr_ext085.py`, `campaign_real_ext085.py` | The runner option `policy_order` (`alternate_by_episode`: odd episodes run the config's policies in reverse order; default the config's order) on the frozen firmware and MinIO runners, through the 084 runners, which are imported unchanged (release 085, below) |
+| `sr086.py`, `sr086_schedules.py`, `anchor086.py`, `verdicts086.py` | Release 086 (below): the estimands of the second-seed replication, the check that the new seed's schedules differ from every earlier one, the fence anchors of every run against the evidence, the earlier verdicts against the 085 final report |
+| `ext086.py`, `campaign_ext086.py`, `campaign_zephyr_ext086.py`, `nvs_flash.py`, `cost086.py` | Release 086, Addendum (below): the policy SHADOW_RECONCILE for the emulated-owner runner, the firmware runner with the broker and flash counters, the flash-write counter, the cost table in physical units |
 | `campaigns/local_smoke.json` | Pipeline check on one machine (`make campaign-local`). **Development numbers are not measurements** |
 | `campaigns/pilot_pending_binding.json` | Testbed pilot, *pending-binding* regime |
 | `campaigns/pilot_capacity_binding.json` | Testbed pilot, *capacity-binding* regime |
@@ -401,3 +403,33 @@ power 1.00), 8 absence rules (PM-A1 to PM-A8), the safety rule PM-S and 5 checks
   `\evSafetySplit*`.
 - Tests: `test_release085.py` (K1-K18); `conformance/tests/test_tbcheck_device.py` (the check device against Mosquitto, the
   rules).
+
+## Release 086: the fence anchor from evidence and the second-seed replication (`prereg/PREREG_extra_086.md`)
+
+The authority computes the anchor of a complete fence from evidence (verifier finding B2-02; default on, `-fence-anchor
+owner-state` restores releases 061-085): the previous anchor plus the APPLIED identities at or below the cutoff; a reported
+state the evidence does not allow aborts the fence as an evidence conflict. The plan replicates the four real-owner headline
+contrasts on the new seed 20261105, each within one campaign, and (Addendum) runs the documented shadow reconciliation
+baseline, measures the MQTT QoS 2 row and reports the costs in physical units: 6 campaign configs, 84 cells, one
+measurement, about 12.5 testbed hours in one continuous overnight session (`run086.sh`). 17 rules: 4 paired-difference
+hypotheses (SR-1 to SR-4, `at_least` half the original estimate, power 0.99-1.00), 12 absence rules (SR-A1 to SR-A8,
+SH-A1 to SH-A4) and the safety rule SR-S (no exempt contract).
+
+| Item | Runs (configs) | What is new |
+|---|---|---|
+| replication, MinIO | SRm6, SRmi (`expSR_minio_w6`, `_winf`): copies of `expC_minio` and `expR_minio_winf` (MINIO_PLAIN, MINIO_COND; EVICON) with seed 20261105 | the rules SR-1, SR-2 against C (073 C3, +53.40) and Rm (077 U-1, +16.50) |
+| replication, firmware | SRz6, SRzi (`expSR_zephyr_w6`, `_winf`): the plain firmware at QoS 0 (binding auto, of `expT4_zephyr_*`) and {F} at QoS 1 (of `expC3_ablation` / `expR_zephyr_winf`), direct channel, both in one campaign | the rules SR-3, SR-4 against T4-3 (+53.65) and T4-4 (+18.59), which paired two runs of different releases |
+| the new seed | no cells | `sr086_schedules.py`: every config of the release trees 062-086 replayed through `campaign.schedule`; no SR arrival sequence or fault schedule equals an earlier one (`sim_predictions/extra086_schedules.csv`) |
+| fence anchors (B2-02) | no cells | `anchor086.py` over every campaign the report reads: completed fences, anchors compared, mismatches per campaign and policy ("not available" without journals); `FENCE_ANCHOR_CHECK` of release-086 traces |
+| earlier verdicts | no cells | `verdicts086.py`: the 168 verdicts of the plans up to 085 against the 085 final report |
+| shadow baseline (Addendum C) | SHq, SHd (`expSH_queue`, `expSH_direct`): copies of `expRRA_queue` and `expRR_direct` with EVICON and SHADOW_RECONCILE (runner `campaign_ext086.py`) | SH-A1 to SH-A4 (absence); E-SH by `policy_compare.py`: within run and against RR/RA on the same schedules |
+| MQTT QoS 2 (Addendum B) | `measure mosquitto-qos2` (no cells) | a contract-map row measured with the QoS 1 row's probes at QoS 2 end to end, and the directed expiry check `qos2_expiry_check.py` (what P9T's T label means at QoS 2; `report/qb086/`) |
+| costs (Addendum A) | no cells; the SR firmware runs run on `campaign_zephyr_ext086.py` (broker `$SYS` packets and flash writes per cell) | `cost086.py` (E-COST): owner calls, MQTT requests, broker packets, flash writes counted and derived, paused time per offered request; `tab_cost086.tex`, `\evCost*` |
+
+- **Analysis**: `pairs_report.py` (frozen) on the plan's ```pairs-spec```; `sr086.py` (E-SR: the replication's effect next
+  to the original's, the difference between the seeds by Welch t and a two-sample bootstrap; nothing paired across seeds).
+- **Power**: `power_extra086_testbed.py` (templates: the per-episode differences of the original runs,
+  `sim_predictions/extra086_templates.csv`; output `extra086_power.csv`; the plan's margin and the stricter lower-95 % one).
+- `paper_tables.py` writes `tab_sr086.tex`, `tab_cost086.tex` and the macros `\evSR*`, `\evAnchor*`, `\evCost*`, `\evQosTwo*`.
+- Tests: `test_release086.py` (K1-K22); the Go tests `TestShadowReconcile*086`; `conformance/tests/test_qos2_device.py`; the Go tests `TestFenceAnchor*086`; `conformance/tests/test_fence_anchor_reboot.py`
+  (B2-02 end to end: the MQTT owner gateway, the firmware's wire path and core as a host library, the authority).

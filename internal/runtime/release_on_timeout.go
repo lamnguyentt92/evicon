@@ -47,6 +47,8 @@ func (a *Authority) ReleaseSweepOnce() (int, error) {
 		return a.releaseOnTimeoutOnce()
 	case probe.ReleaseOnRead, probe.ReleaseOnReadAnswered:
 		return a.releaseOnReadOnce()
+	case probe.ShadowReconcile: // release 086: never releases; returns the number of commands published again
+		return a.shadowReconcileOnce()
 	}
 	return 0, nil
 }
@@ -301,7 +303,7 @@ func (a *Authority) readOwner(c journal.CommandRecord, dim int) ownerRead {
 
 // RunReleaseSweep calls ReleaseSweepOnce every interval until ctx is done.
 func (a *Authority) RunReleaseSweep(ctx context.Context, interval time.Duration) {
-	if interval <= 0 || !probe.IsReleaseBaseline(a.cfg.Policy) {
+	if interval <= 0 || !probe.HasReconcileSweep(a.cfg.Policy) {
 		return
 	}
 	t := time.NewTicker(interval)

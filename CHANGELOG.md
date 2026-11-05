@@ -1,5 +1,112 @@
 # Changelog
 
+## 086 — 2026-11-05
+
+Two items the author approved on 5 November 2026 after the independent checks of the manuscript, the fence anchor
+computed from evidence (verifier finding B2-02, a safety fix of the authority's default behaviour, approved as the one
+exception to "defaults behave as before") and a second-seed replication of the four real-owner headline contrasts
+(review M4, warnings W3/W4), and three more approved the same morning (Addendum, review comment M3 and question Q6): a
+cost table in physical units, an MQTT QoS 2 row for the contract map and a baseline that reproduces the documented
+device-shadow reconciliation loop. One plan, `evaluation/prereg/PREREG_extra_086.md`, frozen before its first cell; 6
+campaign configs, 84 cells, one measurement; about 12.5 testbed hours in one continuous overnight session. Every file an earlier plan freezes is byte-identical
+(`PREREG_review_077.md`: `db67640d...`; `PREREG_extra_083.md`: `6e3f24a9...`; `PREREG_extra_084.md`: `b1135164...`;
+`PREREG_extra_085.md`: `22586c78...`).
+
+- **Fence anchor from evidence (B2-02; default on).** After a complete fence (rule R5, and R5' when no listed identity
+  is UNCERTAIN) releases 061-085 replaced the authority's anchor by the owner's reported `state`, so soundness rested on
+  an unstated premise (the owner's aggregate state is true); the firmware's level is RAM only, so after a reboot a
+  complete fence could re-anchor to 0 and forget delivered doses. The authority now computes the anchor from evidence:
+  the previous anchor plus every identity above the previous cutoff and at or below the fence's cutoff that is APPLIED
+  (a receipt of the answer or terminal evidence already committed), by the domain's exact terminal reducer
+  (`internal/evidence/fence_anchor.go`: ADD and SET, every dimension); every other identity contributes nothing. A
+  reported state the evidence does not allow is an **evidence conflict**: the fence is aborted as every evidence
+  conflict is (trace `EVIDENCE_CONFLICT` with both vectors, `BARRIER_ABORTED`, no seal, no anchor change, the domain
+  marked conflicted) and the reported state is never adopted. An identity at or below the cutoff without terminal
+  knowledge, or an inconsistent history, aborts the fence too. When the evidence allows several states (a SET domain
+  where an applied ADD may have taken effect before or after the last applied SET) every answer is taken in and the
+  unlisted identities sealed, but no anchor is committed (lifecycle PARTIAL, `CommitBarrierUnanchored`). Every complete
+  fence writes `FENCE_ANCHOR_CHECK` (mode, computed and reported vectors, batch, result). `-fence-anchor owner-state`
+  restores releases 061-085 for regression tests (`internal/runtime/fence_anchor.go`, `authority.go`,
+  `cmd/evicon-authority`). Tests: unit tests of the reducer and 4,000 random ADD/SET batches executed in every order
+  the model allows (the owner's true state is always a computed state, the only one when no SET applied); runtime
+  tests (an honest owner anchors the computed state; an owner reporting a reset level aborts the fence; owner-state
+  adopts it; a SET domain completes unanchored); property tests on random histories with losses, late copies and
+  fences on the E2 owner (ADD/SET) and with crash orphans under R5 and R5' on evicon-device (ADD), honest and with a
+  reboot that resets the reported level: with the evidence anchor no committed anchor differs from the owner's true
+  state and no bound is violated; with `-fence-anchor owner-state` the same histories violate the bound (negative
+  control). End to end (`conformance/tests/test_fence_anchor_reboot.py`): the real MQTT owner gateway in front of the
+  firmware's own wire path and decision core (`firmware/zephyr-cutoff/tests/host/evc_wire_shim.c`, built by the host
+  tests) and the real authority reproduce B2-02 (four doses, a reboot, the next command above the claim mark lost, a
+  complete fence answer with state [0]): the evidence anchor aborts the fence and the plant stays within the budget
+  (19 of 20); owner-state anchors [0] and the plant exceeds it (31). The TLA+ fence models never anchor on the owner's
+  state (the guard's reservations come from the authority's statuses), so no configuration is added.
+- **Fence anchors of every archived run** (`evaluation/anchor086.py`, run by `report` over every campaign it reads):
+  for every completed fence, the anchor the evidence gives against the anchor the run committed, per campaign and
+  policy (fences completed, anchors compared, mismatches; "not available" for cells without journals) with every
+  mismatch listed; macros `\evAnchor*`. Archived journals are opened immutable (or copied with their WAL first), so the
+  analysis writes nothing next to them (a first draft opened them read-only, which still made SQLite create `-wal` and
+  `-shm` files beside WAL-mode journals). On the 10 campaign runs of 084 and 085 available locally (FI, PF, PM): 1,091
+  completed fences, 0 mismatches.
+- **Second-seed replication** (plan `PREREG_extra_086.md`): `expSR_minio_w6`, `expSR_minio_winf` (copies of
+  `expC_minio`, `expR_minio_winf`: MINIO_PLAIN and MINIO_COND, EVICON), `expSR_zephyr_w6`, `expSR_zephyr_winf` (the plain
+  firmware at QoS 0 of `expT4_zephyr_*` and {F} at QoS 1 of `expC3_ablation` / `expR_zephyr_winf`, direct channel, both
+  in one campaign), seed 20261105, 8 episodes each. `evaluation/sr086_schedules.py` shows that none of the new
+  schedules equals any of the 276 earlier episode schedules of 687 configs in the release trees 062-086. Rules SR-1 to
+  SR-4 (`at_least` half the original estimate: 26.70, 8.25, 26.83, 9.30; families sr-minio and sr-fw, Holm; power
+  0.99-1.00 at n = 8 under the original runs' spread, `power_extra086_testbed.py`; the stricter lower-95 % margin would
+  have power 0.63-0.67), SR-A1 to SR-A8 and SR-S (every arm guarded, no exempt contract). Estimands E-SR
+  (`evaluation/sr086.py`: the replication next to the original, the difference between the seeds by Welch t and a
+  two-sample bootstrap).
+- **Documented shadow reconciliation baseline** (Addendum C; policy `SHADOW_RECONCILE`, off unless a campaign names it;
+  `internal/runtime/shadow_reconcile.go`, quoting the AWS IoT Device Shadow and Azure IoT Hub device-twin rules it
+  follows): the client publishes each command (the desired state) with its version (identity and sequence); at the
+  reconciliation timeout (`-release-after`, 10 s, then every 10 s) it reads the reported state of every unresolved
+  command; a reported APPLIED or STOPPED is recorded, a command the reported state does not show is published again under
+  its own identity (also after the campaign's resend window), nothing is ever released without the owner's report, and
+  no query, stop or fence is sent on a guard block. Tests: the policy and its wiring, safety on K2 (a lost command is
+  published again, an applied one recorded, the late copy deduplicated, nothing released) and the negative control on K0
+  (the re-publish executes an applied command twice). Runner `evaluation/campaign_ext086.py` with `evaluation/ext086.py`
+  (RELEASE_ON_READ's arguments with `-policy SHADOW_RECONCILE`); campaigns `expSH_queue` (a copy of `expRRA_queue`: K2,
+  queue, `-shadow-reads`) and `expSH_direct` (a copy of `expRR_direct`), EVICON and SHADOW_RECONCILE, the RR/RA schedules
+  (seed 20261017, 5 episodes). Rules SH-A1 to SH-A4 (absence; predicted ABSENT by construction on K2), estimands E-SH
+  (`policy_compare.py`: within run against EVICON, across runs against RR and RA on byte-identical schedules).
+- **MQTT QoS 2 row** (Addendum B): `measure mosquitto-qos2`: the probes, parameters and fault proxy of the QoS 1 row
+  (`conformance/configs/mosquitto-rpc-qos2.json`), the probe at QoS 2 end to end (`adapters/mqtt5_qos2.py`, its own
+  operation name and contract-map row), the reference device with its subscriptions and replies at QoS 2 and a persistent
+  session (`conformance/reference/mqtt_device_qos2.py`, on the frozen device). Then a directed expiry check
+  (`conformance/reference/qos2_expiry_check.py`, about 7 min): P9T delays every request-path byte by more than the expiry,
+  which at QoS 2 also holds the publisher's PUBREL, so its T label alone cannot say whether the expiry bounds execution;
+  the check delays the request path by a constant 0.75 x the expiry and by P9T's delay (3 trials each) and records when
+  the effect appears after the client's send. In the simulated regression P9T labelled T and the check's request at
+  0.75 x the expiry took effect at about twice the delay, after the expiry. Expectation written in the plan: K0 as the
+  QoS 1 row, T labelled by P9T and contradicted by the check (the report puts both in `report/qb086/`). The firmware is not measured at QoS 2 (the measured build subscribes with a maximum QoS of 1 and has no
+  QoS 2 receive flow). Conformance test `test_qos2_device.py` (3).
+- **Costs in physical units** (Addendum A; `evaluation/cost086.py`, estimand E-COST, no new cells): for the matched 085
+  runs and the 086 runs, per arm and offered request: logical owner calls (in the SH runs with the shadow loop's reads
+  of the reported state, which the row's queries do not count, and its re-publishes), the gateway's MQTT requests to the firmware
+  (operation logs, exact), every MQTT packet through the broker (086 firmware runs: the broker's `$SYS` counters read
+  around each cell by the new runner `evaluation/campaign_zephyr_ext086.py`; not recoverable for 085), the firmware's
+  flash writes (086: counted from the flash files with `evaluation/nvs_flash.py` before the frozen runner deletes them;
+  085 and 086: derived from the traces with the firmware's write rule, with bounds where a fence got no answer), domain
+  paused time; paired intervals, the break-even r* next to the measured unit costs of a query and a fence; `tab_cost086.tex`,
+  `\evCost*`. On the 085 matched firmware runs: EVICON and PERIODIC_FULL send the same number of MQTT requests per offered
+  request (+0.004 and +0.001, intervals around 0), PERIODIC_FULL writes the flash more often (+0.014 and +0.016 writes) and
+  pauses the domain about 0.34 s more per offered request.
+- **Report**: PREREG_extra_086 with every earlier plan; E-SR; E-SH; E-COST; the QoS 2 row in the contract map
+  (`\evQosTwo*`); the fence-anchor analysis; `evaluation/verdicts086.py`
+  compares the 168 earlier verdicts with the 085 final report (a difference is a FAIL); `paper_tables.py` writes
+  `tab_sr086.tex` and the `\evSR*`, `\evAnchor*` macros. Final report: `report --archive /root/evicon-archive --from
+  /root/EVICON_TOIT_078/results/review-20261028T080322 --from <083> --from <084> --from <085>`.
+- **Operator script** `run086.sh` (replaces `run085.sh`): ONE command for the whole night (the author's request): stages,
+  `measure zephyr-plain zephyr`, `measure mosquitto-qos2` (once more if it does not PASS), the six campaigns, the final
+  report, bundles; started again after an interruption it resumes; `--until` stays as an option; safety STOP, refusal
+  while another driver runs.
+- **Provenance**: plan 085's publication filled (`40e451d`, committed 2026-11-04 10:05 UTC, pushed 10:07 UTC, before the
+  085 review run began at 10:15 UTC), its runs (64 cells, 0 INVALID; no deviation), plan 086 the newest.
+- Release rules: VERSION, buildinfo, CITATION, VM banners 086; `evaluation/test_release086.py` (K1-K22) in the verify
+  list; the Vietnamese run guide of 086 replaces that of 085; `test_release085` reads the current operator script and the
+  newest plan.
+
 ## 085 — 2026-11-04
 
 The experiments answering the JNCA reviewer of 4 November 2026 (plan `evaluation/prereg/PREREG_extra_085.md`, frozen

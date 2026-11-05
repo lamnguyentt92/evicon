@@ -1,6 +1,6 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **085** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+Release **086** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
 check them); `PROVENANCE.md` gives the release, review run and plan of every campaign, every plan's SHA-256, freezing
 and publication, and the deviations of the runs; `CHANGELOG.md` lists what each release changed.
 
@@ -53,7 +53,14 @@ rule made explicit (`conformance/reference/delivery_binding.py`), and analyses o
 review (`evaluation/review_l2_084.py`). Release 085 adds the plan `PREREG_extra_085.md`: EviCon and full periodic
 reconciliation in the same campaigns with the policy order alternated by episode, ThingsBoard RPC checks on the testbed
 (`evicon_review.py tbcheck`), the fence pause under rule R5', TLA+ timing boundary cases (`formal/EviconTiming.tla`) and
-report analyses for the reviewer of 4 November. Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
+report analyses for the reviewer of 4 November. Release 086 computes the anchor of a complete fence from evidence (the
+previous anchor plus the APPLIED identities at or below the cutoff; a fence whose owner-reported state differs is aborted
+as an evidence conflict; `-fence-anchor owner-state` restores the earlier anchor for regression tests), checks every
+archived fence against that rule (`evaluation/anchor086.py`), and adds the plan `PREREG_extra_086.md`: a second-seed
+replication of the four real-owner headline contrasts, each within one campaign; a baseline that reproduces the
+documented device-shadow reconciliation loop (`SHADOW_RECONCILE`); an MQTT QoS 2 row of the contract map (`measure
+mosquitto-qos2`); and a cost table in physical units (`evaluation/cost086.py`). One overnight command runs it all
+(`run086.sh`). Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 
 ## Layout

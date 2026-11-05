@@ -43,9 +43,13 @@ type fiRig struct {
 	held       []protocol.CommandRequest // requests lost now, delivered late
 	crashArmed string
 	incomplete bool // negative control: fence answers omit UNCERTAIN identities (no FC)
-	orphans    int
-	partial    int
-	aborted    int
+	// release 086: after a simulated reboot the fence answers report the level minus shift (a RAM counter that
+	// restarted at 0; the device's durable records and the plant are unchanged)
+	rebooted bool
+	shift    int64
+	orphans  int
+	partial  int
+	aborted  int
 }
 
 func newFIRig(t *testing.T, rng *rand.Rand, mut func(*device.Config), incomplete bool) *fiRig {
@@ -118,6 +122,13 @@ func newFIRig(t *testing.T, rng *rand.Rand, mut func(*device.Config), incomplete
 					kept = append(kept, x)
 				}
 				br.Receipts = kept
+				r.mu.Lock()
+				if r.rebooted && len(br.State) == 1 {
+					if br.State[0] -= r.shift; br.State[0] < 0 {
+						br.State[0] = 0
+					}
+				}
+				r.mu.Unlock()
 				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(rec.Code)
 				_ = json.NewEncoder(w).Encode(br)
@@ -152,6 +163,21 @@ func (r *fiRig) deliverHeld(n int) {
 // runFIExecution plays one random execution and checks it against the plant.
 func runFIExecution(t *testing.T, seed int64, intake string, incomplete bool) fiOutcome {
 	t.Helper()
+	return runFIExecutionWith(t, seed, fiOpts{intake: intake, incomplete: incomplete})
+}
+
+// fiOpts (release 086): the fence anchor of the authority (default: evidence) and whether the owner reboots at a
+// random step and then reports a reset level in its fence answers.
+type fiOpts struct {
+	intake     string
+	incomplete bool
+	anchor     string
+	reboot     bool
+}
+
+func runFIExecutionWith(t *testing.T, seed int64, op fiOpts) fiOutcome {
+	t.Helper()
+	intake, incomplete := op.intake, op.incomplete
 	rng := rand.New(rand.NewSource(seed))
 	query := rng.Intn(3) == 0
 	dedup := query && rng.Intn(2) == 0
@@ -179,7 +205,7 @@ func runFIExecution(t *testing.T, seed int64, intake string, incomplete bool) fi
 	}
 	a, err := NewAuthority(AuthorityConfig{Store: st, Domain: d, EndpointURL: r.srv.URL, Profile: "DEVICE", Policy: probe.EVICON, Dispatcher: disp,
 		ProbeBudget: 4, MaxOutstanding: 3 + rng.Intn(5), MaxConfigurations: 256, PlannerComputeBudget: 50 * time.Millisecond,
-		EvidenceContract: ec, AmbiguityAfter: time.Millisecond, FenceIntake: intake,
+		EvidenceContract: ec, AmbiguityAfter: time.Millisecond, FenceIntake: intake, FenceAnchor: op.anchor,
 		ResolvePolicy: resolve.Policy{Mode: mode, QueryFirst: true}, ResolveCosts: resolve.Costs{HoldPerUnitPerSec: 1, QueryCost: 0.01, StopCost: 0.01, FenceCost: 0.01}})
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +213,17 @@ func runFIExecution(t *testing.T, seed int64, intake string, incomplete bool) fi
 	var seq uint64
 	ids := []string{}
 	steps := 14 + rng.Intn(14)
+	rebootAt := -1
+	if op.reboot {
+		rebootAt = 2 + rng.Intn(6)
+	}
 	for i := 0; i < steps; i++ {
+		if i == rebootAt {
+			lvl, _, _, _ := r.dev.State()
+			r.mu.Lock()
+			r.rebooted, r.shift = true, lvl
+			r.mu.Unlock()
+		}
 		switch k := rng.Intn(10); {
 		case k < 6:
 			seq++
@@ -307,6 +343,54 @@ func TestFenceIntakePropertyRandomExecutions(t *testing.T) {
 				t.Fatal("R5' must have completed fences with per-identity intake")
 			case tc.intake == FenceIntakeAllOrNothing && tot.partial != 0:
 				t.Fatal("R5 never completes a fence with per-identity intake")
+			}
+		})
+	}
+}
+
+// TestFenceAnchorPropertyDevice086 (release 086, B2-02): random executions with crash orphans, losses, late copies
+// and fences on evicon-device (ADD), under R5 and R5', in which the owner reboots at a random step and from then on
+// reports a reset level (its records and the plant are unchanged): with the evidence anchor no execution is unsafe;
+// with -fence-anchor owner-state (the anchor of releases 061-085) the checker finds bound violations.
+func TestFenceAnchorPropertyDevice086(t *testing.T) {
+	n := 60
+	if testing.Short() {
+		n = 15
+	}
+	for _, tc := range []struct {
+		name   string
+		intake string
+		anchor string
+	}{
+		{"R5, evidence anchor", FenceIntakeAllOrNothing, FenceAnchorEvidence},
+		{"R5', evidence anchor", FenceIntakePerIdentity, FenceAnchorEvidence},
+		{"negative control: R5, owner-state anchor", FenceIntakeAllOrNothing, FenceAnchorOwnerState},
+		{"negative control: R5', owner-state anchor", FenceIntakePerIdentity, FenceAnchorOwnerState},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var tot fiOutcome
+			for i := 0; i < n; i++ {
+				o := runFIExecutionWith(t, int64(8600+i), fiOpts{intake: tc.intake, anchor: tc.anchor, reboot: true})
+				if tc.anchor == FenceAnchorEvidence && o.falseStopped+o.falseApplied+o.duplicates+o.boundViolations > 0 {
+					t.Fatalf("seed %d: unsafe execution under %s: %+v", 8600+i, tc.name, o)
+				}
+				tot.falseStopped += o.falseStopped
+				tot.boundViolations += o.boundViolations
+				tot.orphans += o.orphans
+				tot.partial += o.partial
+				tot.aborted += o.aborted
+				tot.admitted += o.admitted
+			}
+			t.Logf("%s: %d executions with a reboot, %d admitted, %d crash orphans, %d per-identity fences, %d aborted fences, false STOPPED %d, bound violations %d",
+				tc.name, n, tot.admitted, tot.orphans, tot.partial, tot.aborted, tot.falseStopped, tot.boundViolations)
+			if tot.orphans == 0 {
+				t.Fatal("the executions must contain crash orphans")
+			}
+			if tc.anchor == FenceAnchorEvidence && tot.aborted == 0 {
+				t.Fatal("a reset level must make complete fences abort")
+			}
+			if tc.anchor == FenceAnchorOwnerState && tot.boundViolations == 0 {
+				t.Fatal("negative control: the owner-state anchor must violate the bound")
 			}
 		})
 	}

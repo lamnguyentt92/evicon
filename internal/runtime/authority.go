@@ -83,6 +83,16 @@ type AuthorityConfig struct {
 	// or FenceIntakePerIdentity (rule R5': take in every listed terminal answer, seal every unlisted
 	// identity at or below the cutoff as STOPPED, keep each UNCERTAIN identity pending and owner-uncertain).
 	FenceIntake string
+	// FenceAnchor (release 086) is where the new anchor of a complete fence comes from (the R5 path, and R5'
+	// when no listed identity is UNCERTAIN): FenceAnchorEvidence (default from release 086) computes it from
+	// evidence (the previous anchor plus every identity at or below the cutoff that is APPLIED, by the
+	// domain's exact terminal reducer; every other identity contributes nothing) and aborts the fence as an
+	// evidence conflict when the owner's reported state differs; FenceAnchorOwnerState restores releases
+	// 061-085 (the owner's reported state becomes the anchor), for regression tests (fence_anchor.go).
+	FenceAnchor string
+	// Republish (release 086, policy SHADOW_RECONCILE only) lets the reconciliation sweep publish an unresolved
+	// command again under its own identity (shadow_reconcile.go); the dispatcher's RetryAllowed consults it.
+	Republish *Republisher
 	// Test-only synchronization hook used to force a domain revision change
 	// after analysis and verify that the authority recomputes before commit.
 	AfterPolicyEvaluationForTest func()
@@ -124,6 +134,9 @@ const (
 	// release 084: fence intake (rules R5 and R5')
 	FenceIntakeAllOrNothing = "all-or-nothing"
 	FenceIntakePerIdentity  = "per-identity"
+	// release 086: the anchor of a complete fence (fence_anchor.go)
+	FenceAnchorEvidence   = "evidence"
+	FenceAnchorOwnerState = "owner-state"
 )
 
 const runtimeAnalyzer = "RELATIONAL_ONLINE_BELIEF"
@@ -209,8 +222,16 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 			cfg.CertificateDepth = 3
 		}
 	}
-	if probe.IsReleaseBaseline(cfg.Policy) && cfg.ReleaseAfter <= 0 {
+	if probe.HasReconcileSweep(cfg.Policy) && cfg.ReleaseAfter <= 0 { // release 086: also SHADOW_RECONCILE
 		cfg.ReleaseAfter = 10 * time.Second
+	}
+	if probe.IsShadowReconcile(cfg.Policy) { // release 086: the re-publish of the reconciliation loop
+		if cfg.Republish == nil {
+			cfg.Republish = NewRepublisher()
+		}
+		if cfg.Dispatcher != nil {
+			cfg.Dispatcher.RetryAllowed = cfg.Republish.RetryAllowedFunc(cfg.Dispatcher.RetryAllowed)
+		}
 	}
 	if cfg.Policy == probe.M1W && cfg.AmbiguityAfter <= 0 {
 		cfg.AmbiguityAfter = 2 * time.Second // release 083: EVICON's default
@@ -236,6 +257,13 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 	case FenceIntakeAllOrNothing, FenceIntakePerIdentity:
 	default:
 		return nil, fmt.Errorf("unknown fence intake %q (want %s or %s)", cfg.FenceIntake, FenceIntakeAllOrNothing, FenceIntakePerIdentity)
+	}
+	switch cfg.FenceAnchor {
+	case "":
+		cfg.FenceAnchor = FenceAnchorEvidence
+	case FenceAnchorEvidence, FenceAnchorOwnerState:
+	default:
+		return nil, fmt.Errorf("unknown fence anchor %q (want %s or %s)", cfg.FenceAnchor, FenceAnchorEvidence, FenceAnchorOwnerState)
 	}
 	if cfg.PlannerDepth <= 0 {
 		cfg.PlannerDepth = 2
@@ -905,8 +933,45 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 	}
 	// EVICON seals unreported identities below an owner-certified cutoff so
 	// that clients learn STOPPED and can retry the intent (fence-then-retry).
-	rev, sealed, err := a.cfg.Store.CommitBarrierLifecycleSeal(br.DomainID, br.Token, d.Generation, rc.CutoffSequence, rc.State, rc.OwnerVersion, recs,
-		a.cfg.Policy == probe.EVICON && a.cfg.EvidenceContract.Has(contract.CapFence))
+	seal := a.cfg.Policy == probe.EVICON && a.cfg.EvidenceContract.Has(contract.CapFence)
+	// Release 086 (B2-02): the new anchor is computed from evidence; the owner's reported state is only
+	// compared with it (fence_anchor.go). -fence-anchor owner-state keeps the anchor of releases 061-085.
+	anchor := rc.State
+	fa, err := a.computeFenceAnchor(d, rc.CutoffSequence, recs)
+	if err != nil && a.cfg.FenceAnchor == FenceAnchorEvidence {
+		return 500, map[string]any{"error": err.Error()}
+	}
+	if err == nil {
+		a.traceFenceAnchor(br, d, rc, fa)
+	}
+	if a.cfg.FenceAnchor == FenceAnchorEvidence {
+		switch {
+		case len(fa.Unknown) > 0 || fa.Inconsistent != "":
+			reason := "FENCE_ANCHOR_UNKNOWN"
+			if fa.Inconsistent != "" {
+				reason = "FENCE_ANCHOR_INCONSISTENT"
+			}
+			if er := a.cfg.Store.AbortBarrier(br.DomainID, d.Generation, br.Token, reason); er != nil {
+				return 500, map[string]any{"error": er.Error()}
+			}
+			a.traceBarrierAbort(br, reason+":"+strings.Join(fa.Unknown, ",")+fa.Inconsistent)
+			return 409, map[string]any{"error": reason, "command_ids": fa.Unknown, "detail": fa.Inconsistent}
+		case fa.Undetermined:
+			// more evidence-consistent states than the configuration budget: no anchor can be named
+			return a.commitUnanchoredLocked(br, d, rc, recs, seal, 0)
+		case !fa.Contains(rc.State):
+			// an evidence conflict: the owner's aggregate state is not a state the evidence allows (e.g. a
+			// firmware reboot reset a RAM level): abort as any evidence conflict, never adopt the reported state
+			return a.barrierConflict(br, d.Generation, []evidenceConflict{{Authority: "anchor=" + fa.StatesString(), Owner: "state=" + vecString(rc.State),
+				Detail: "FENCE_ANCHOR_MISMATCH", Computed: fa.statesJSON(), Reported: append([]int64(nil), rc.State...)}})
+		case len(fa.States) > 1:
+			// the evidence leaves the order of an applied ADD relative to the last applied SET open: take in
+			// every answer and seal as on completion, anchor nothing (the belief keeps the batch by status)
+			return a.commitUnanchoredLocked(br, d, rc, recs, seal, len(fa.States))
+		}
+		anchor = []int64(fa.States[0])
+	}
+	rev, sealed, err := a.cfg.Store.CommitBarrierLifecycleSeal(br.DomainID, br.Token, d.Generation, rc.CutoffSequence, anchor, rc.OwnerVersion, recs, seal)
 	if err == nil && a.cfg.Trace != nil {
 		for _, r := range recs {
 			_ = a.cfg.Trace.Write(trace.Event{DomainID: br.DomainID, CommandID: r.CommandID, Event: "EVIDENCE_COMMITTED", Revision: rev, Outcome: r.Outcome, Reason: "BARRIER_RECEIPT:" + br.Token})
@@ -1039,6 +1104,9 @@ type evidenceConflict struct {
 	Authority string `json:"authority,omitempty"` // committed outcome
 	Owner     string `json:"owner,omitempty"`     // outcome the owner now reports
 	Detail    string `json:"detail,omitempty"`
+	// release 086 (FENCE_ANCHOR_MISMATCH): the anchor(s) the evidence allows and the state the owner reported
+	Computed [][]int64 `json:"computed,omitempty"`
+	Reported []int64   `json:"reported,omitempty"`
 }
 
 func terminalStatus(s string) bool { return s == "APPLIED" || s == "STOPPED" }

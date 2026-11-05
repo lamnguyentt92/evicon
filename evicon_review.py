@@ -34,8 +34,8 @@ Stages (in order):
     collect     one zip of the run directory with a SHA-256 manifest
 
 Commands (release 065-068; run after `all` has passed build, distribute and controls):
-    measure     stacks mosquitto, coap, temporal, emqx, nats, minio, dbos, k3s, thingsboard,
-                zephyr. Starts the truth plant and a reference device/worker/app when the stack
+    measure     stacks mosquitto, mosquitto-qos2 (086: QoS 2 end to end), coap, temporal, emqx, nats, minio,
+                dbos, k3s, thingsboard, zephyr. Starts the truth plant and a reference device/worker/app when the stack
                 needs them, brings the system up (Mosquitto, EMQX, NATS JetStream, MinIO,
                 PostgreSQL for DBOS, k3s, ThingsBoard through docker compose on VM-B; its own
                 Temporal dev server on VM-D:7243, or testbed key temporal_address; the Zephyr
@@ -572,7 +572,7 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084", "evaluation.test_release085"],
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084", "evaluation.test_release085", "evaluation.test_release086"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -1242,6 +1242,7 @@ from safety_total import BASELINES as RELEASE_BASELINES  # noqa: E402  (077, 083
 import ext083  # noqa: E402  (release 083: the authority policies of PREREG_extra_083.md)
 import ext084  # noqa: E402  (release 084: the authority policies of PREREG_extra_084.md)
 import ext085  # noqa: E402  (release 085: the runner option policy_order of PREREG_extra_085.md)
+import ext086  # noqa: E402  (release 086: the policy SHADOW_RECONCILE of PREREG_extra_086.md)
 
 
 def _uses_083_policies(cfg: dict) -> bool:
@@ -1265,6 +1266,11 @@ def _uses_085_options(cfg: dict) -> bool:
     return ext085.KEY in cfg
 
 
+def _uses_086_policies(cfg: dict) -> bool:
+    """Release 086: a config with the policy of evaluation/ext086.py (SHADOW_RECONCILE), on the emulated owner."""
+    return any(ext086.is_086_policy(p) for p in cfg.get("policies", []))
+
+
 def _emulated_runner(cfg: dict):
     """Release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines and the validity cut of the retry
     guard (authority.resend_until) (PREREG_review_077.md) run on evaluation/campaign_ext077.py, which imports
@@ -1274,6 +1280,10 @@ def _emulated_runner(cfg: dict):
     baselines = sorted(set(cfg["policies"]) & set(RELEASE_BASELINES))
     if _uses_085_options(cfg):
         raise StageFail(f"{cfg.get('name')}: {ext085.KEY} is an option of the release-085 firmware and MinIO runners only")
+    if _uses_086_policies(cfg):  # release 086: campaign_ext086 installs the 077, 083, 084 and 086 policies
+        if cfg.get("real_owner"):
+            raise StageFail(f"{cfg.get('name')}: SHADOW_RECONCILE runs on the emulated owner only")
+        return "evaluation/campaign_ext086.py", baselines
     if _uses_084_policies(cfg):  # release 084: campaign_ext084 installs the 077, 083 and 084 policies
         return "evaluation/campaign_ext084.py", baselines
     if _uses_083_policies(cfg):
@@ -1288,6 +1298,9 @@ def _zephyr_runner(cfg: dict) -> str:
     Release 077: experiment Q (the delivery binding of the commands, the offline cut) runs on
     evaluation/campaign_zephyr_ext077.py, which imports the C3 runner."""
     specs = cfg["real_owner"]["contracts"].values()
+    if str((cfg.get("preregistration") or {}).get("path", "")).endswith("PREREG_extra_086.md"):
+        # release 086: the 077 runner (binding keys) with the broker and flash counters of the cost table (E-COST)
+        return "evaluation/campaign_zephyr_ext086.py"
     if _uses_085_options(cfg):  # release 085: the 084 runner with policy_order (EVICON and PERIODIC_FULL in one campaign)
         return "evaluation/campaign_zephyr_ext085.py"
     if _uses_084_policies(cfg):  # release 084: PERIODIC_FULL, on the 077 runner, with the delivery binding rule checked
@@ -1622,6 +1635,13 @@ COMPOSE_PROJECT = "evicon-probe-owner"
 STACKS = {
     "mosquitto": {"configs": ["mosquitto-rpc"], "py": {"C": ["paho.mqtt.client"], "E": ["paho.mqtt.client"]},
                   "what": "Eclipse Mosquitto 2.0.20 (docker, VM-B) + reference MQTT 5 device (VM-E)"},
+    # release 086 (PREREG_extra_086.md QB; reviewer comment M3(2), question Q6): the same broker and probes at QoS 2 end to
+    # end: the probe publishes and subscribes at QoS 2, the reference device (reference/mqtt_device_qos2.py, the frozen
+    # device with its subscriptions and replies at QoS 2, persistent session) on VM-E; then the directed expiry check
+    # (conformance/reference/qos2_expiry_check.py: what P9T's T label means at QoS 2, about 7 min)
+    "mosquitto-qos2": {"configs": ["mosquitto-rpc-qos2"], "py": {"C": ["paho.mqtt.client"], "E": ["paho.mqtt.client"]}, "owner": "mosquitto",
+                       "device_script": "mqtt_device_qos2.py", "expiry_check": True,
+                       "what": "Eclipse Mosquitto 2.0.20 (docker, VM-B) + reference MQTT 5 device at QoS 2 (VM-E): QoS 2 end to end"},
     "coap": {"configs": ["coap-message", "coap-application"], "py": {"E": ["aiocoap"]},
              "what": "aiocoap 0.4.17 reference CoAP actuator (VM-E), message-level and application-level identity"},
     "temporal": {"configs": ["temporal-activity"], "py": {"C": ["temporalio"], "A": ["temporalio"]},
@@ -1676,22 +1696,24 @@ STACKS = {
 # processes each stack starts (role, workdir name), the ports that must be free before it starts
 # (VM-C: the in-process fault proxy; others: the reference processes) and the VMs that need the
 # conformance tree (release 068: one table instead of per-stack branches)
-STACK_PROCS = {"mosquitto": [("E", "mqtt-device"), ("B", "broker")], "emqx": [("E", "mqtt-device"), ("B", "broker")],
+STACK_PROCS = {"mosquitto": [("E", "mqtt-device"), ("B", "broker")], "mosquitto-qos2": [("E", "mqtt-device"), ("B", "broker")],
+               "emqx": [("E", "mqtt-device"), ("B", "broker")],
                "nats": [("B", "broker")], "minio": [("B", "broker")], "coap": [("E", "coap-device")],
                "dbos": [("A", "dbos-app"), ("B", "broker")], "k3s": [("B", "broker")],
                "thingsboard": [("E", "tb-device"), ("B", "broker")], "zephyr": [("E", "zephyr-fw"), ("B", "broker")],
                "zephyr-stop": [("E", "zephyr-fw"), ("B", "broker")], "zephyr-plain": [("E", "zephyr-fw"), ("B", "broker")],
                "zephyr-reboot": [("E", "zephyr-fw"), ("B", "broker")], "zephyr-mcu": [("E", "zephyr-fw"), ("B", "broker")],
                "zephyr-auth": [("E", "zephyr-fw"), ("B", "broker")]}
-STACK_FREE = {"mosquitto": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]}, "emqx": {"C": ["proxy_emqx"], "E": ["mqtt_admin"]},
+STACK_FREE = {"mosquitto": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]}, "mosquitto-qos2": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]},
+              "emqx": {"C": ["proxy_emqx"], "E": ["mqtt_admin"]},
               "nats": {"C": ["proxy_nats"]}, "minio": {"C": ["proxy_minio"]}, "temporal": {"C": ["proxy_temporal"]},
               "coap": {"E": ["coap_health"]}, "dbos": {"C": ["proxy_dbos"], "A": ["dbos_app"]}, "k3s": {"C": ["proxy_k3s"]},
               "thingsboard": {"C": ["proxy_tb"], "E": ["tb_admin"]}, "zephyr": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
               "zephyr-stop": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]}, "zephyr-plain": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
               "zephyr-reboot": {"E": ["zephyr_plant_tcp"]}, "zephyr-mcu": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
               "zephyr-auth": {"E": ["zephyr_plant_tcp"]}}
-STACK_DEPLOY = {"mosquitto": ["E"], "emqx": ["E"], "coap": ["E"], "temporal": ["E", "A"], "dbos": ["A"], "thingsboard": ["E"]}
-MEASURE_DURATION = {"mosquitto": "10-15 min (--quick: 3-5 min)", "coap": "60-75 min (--quick: 20-25 min)",
+STACK_DEPLOY = {"mosquitto": ["E"], "mosquitto-qos2": ["E"], "emqx": ["E"], "coap": ["E"], "temporal": ["E", "A"], "dbos": ["A"], "thingsboard": ["E"]}
+MEASURE_DURATION = {"mosquitto": "10-15 min (--quick: 3-5 min)", "mosquitto-qos2": "20-35 min with the expiry check (--quick: 8 min); 086", "coap": "60-75 min (--quick: 20-25 min)",
                     "temporal": "5-10 min (--quick: 2 min)", "emqx": "10-15 min (--quick: 4-6 min)",
                     "nats": "25-35 min (--quick: 10 min)", "minio": "30-40 min (--quick: 12-15 min; 070: P5 waits 600 s per repetition); +10-20 min the first time (MinIO image built from source)",
                     "dbos": "10-15 min (--quick: 4 min)", "k3s": "30-40 min (--quick: 12-15 min; 070: P5 waits 600 s per repetition)",
@@ -2458,9 +2480,10 @@ class _Measure:
     def start_reference(self):
         P, e_ip, py = self.P, self.tb.ip("E"), "python3" if not self.tb.local else sys.executable
         ref = f"{self.root}/conformance/reference"
-        if self.stack in ("mosquitto", "emqx"):
+        if self.stack in ("mosquitto", "mosquitto-qos2", "emqx"):
             wd = self._wd("mqtt-device")
-            self.spawn(self.E, "mqtt-device", [py, f"{ref}/mqtt_device.py", "--broker", f"{self.tb.ip('B')}:{P[self.owner['port']]}",
+            script = self.spec.get("device_script", "mqtt_device.py")  # release 086: the QoS 2 device
+            self.spawn(self.E, "mqtt-device", [py, f"{ref}/{script}", "--broker", f"{self.tb.ip('B')}:{P[self.owner['port']]}",
                                                "--device", "pump-mqtt-1", "--plant", self.plant_url, "--admin-port", str(P["mqtt_admin"]),
                                                "--admin-bind", self.listen], wd, f"http://{e_ip}:{P['mqtt_admin']}/healthz")
         elif self.stack == "coap":
@@ -2606,6 +2629,25 @@ class _Measure:
         self.facts["firmware"] = {"built_on": src.name, "sha256": fw_sha, "zephyr": zst.split(":", 1)[-1].strip() or "?", "path_on_E": exe,
                                   "variant": "firmware/zephyr-auth (request and reply MACs, cutoff bound)"}
         return exe
+
+    def expiry_check(self) -> dict:
+        """Release 086 (`measure mosquitto-qos2`, PREREG_extra_086.md QB): conformance/reference/qos2_expiry_check.py with the
+        derived probe config (the same broker, device, plant, adapter and fault proxy), after the probe run: a constant
+        request-path delay of 0.75 x the expiry and of P9T's delay, 3 trials each (1 with --quick). Writes qos2_expiry.json
+        and QOS2_EXPIRY.md next to measure.md."""
+        res = {"config": "qos2-expiry-check", "capabilities": "n/a (directed check of P9T's T label at QoS 2)", "level": "-", "rc": 0}
+        cfg = self.out / "configs" / "mosquitto-rpc-qos2.json"
+        rc, text = sh([sys.executable, "conformance/reference/qos2_expiry_check.py", "--config", str(cfg), "--out", str(self.out),
+                       "--reps", "1" if self.a.quick else "3"], timeout=1800, check=False)
+        if rc != 0 or not (self.out / "qos2_expiry.json").exists():
+            res.update(rc=rc or 1, error=f"qos2_expiry_check: {text[-400:]}")
+            return res
+        q = json.loads((self.out / "qos2_expiry.json").read_text())
+        res.update(verdict="; ".join(f"d {c['delay_s']:g} s: {c['with_effect']}/{c['trials']} took effect, {c['late_effects']} after the "
+                                     f"expiry from send" + (f" (first effect {c['first_effect_s_median']} s)" if c["first_effect_s_median"] else "")
+                                     for c in q["cases"]), out=str(self.out / "QOS2_EXPIRY.md"))
+        RUN.log(f"qos2-expiry: {res['verdict']}; {q['finding']}")
+        return res
 
     def auth_check(self) -> dict:
         """Release 077 (`measure zephyr-auth`): conformance/reference/zephyr_auth_check.py against the authenticated firmware
@@ -2792,8 +2834,8 @@ class _Measure:
         if self.uses_plant:
             ac["plant_url"] = self.plant_url
         lh = "127.0.0.1"
-        if self.stack in ("mosquitto", "emqx"):
-            px = P["proxy_mqtt" if self.stack == "mosquitto" else "proxy_emqx"]
+        if self.stack in ("mosquitto", "mosquitto-qos2", "emqx"):
+            px = P["proxy_emqx" if self.stack == "emqx" else "proxy_mqtt"]
             ac.update(broker=f"127.0.0.1:{px}", device_admin_url=f"http://{tb.ip('E')}:{P['mqtt_admin']}")
             cfg["faults"] = {"kind": "proxy", "proto": "tcp", "listen_host": lh, "listen_port": px,
                              "target_host": tb.ip("B"), "target_port": P[self.owner["port"]], "linger_s": 3.0}
@@ -3761,6 +3803,68 @@ def cmd_report(tb, a):
                 index.append("- [EVICON and PERIODIC_FULL in the same campaign: owner calls, break-even, fence pause (E-PM)](pm085/PM085.md)")
             else:
                 RUN.problem("WARN", f"pm085 failed: {text[-400:]}")
+    # release 086: the estimands E-SR of PREREG_extra_086.md (the second-seed replication: the replication's effect next to the
+    # original's, the difference between the seeds), from the plan's runs and the original runs (the earliest complete run of
+    # each campaign among the sources)
+    sr_runs = {"SRm6": "expSR-minio-w6", "SRmi": "expSR-minio-winf", "SRz6": "expSR-zephyr-w6", "SRzi": "expSR-zephyr-winf",
+               "C": "expC-minio", "Rm": "expR-minio-winf", "C3": "expC3-ablation", "Rz": "expR-zephyr-winf", "Z6": "expT4-zephyr-w6",
+               "Zi": "expT4-zephyr-winf"}
+    srargs = []
+    for key, name in sr_runs.items():
+        found = sorted({r for s in srcs for r in _find_complete_runs(s, name)}, key=lambda r: r.name)
+        if found:
+            srargs += ["--run", f"{key}={found[0]}"]
+    if any(x.startswith(("SRm6=", "SRmi=", "SRz6=", "SRzi=")) for x in srargs):
+        rc, text = sh([sys.executable, "evaluation/sr086.py", *srargs, "--out", str(out / "sr086")], timeout=1800, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-SR (086)")
+            index.append("- [The second-seed replication: the replication next to the original, the difference between the seeds (E-SR)](sr086/SR086.md)")
+        else:
+            RUN.problem("WARN", f"sr086 failed: {text[-400:]}")
+    # release 086 (Addendum A, reviewer comment M3(1)): the cost table in physical units (estimand E-COST of PREREG_extra_086.md):
+    # the matched 085 runs and the 086 runs, per arm and offered request (owner calls, gateway MQTT requests, broker packets,
+    # flash writes counted and derived, domain paused time), paired intervals, the break-even in these units next to r*
+    cost_runs = {"PMz6": "expPM-zephyr-w6", "PMzi": "expPM-zephyr-winf", "PMm6": "expPM-minio-w6", "PMmi": "expPM-minio-winf",
+                 "SRz6": "expSR-zephyr-w6", "SRzi": "expSR-zephyr-winf", "SRm6": "expSR-minio-w6", "SRmi": "expSR-minio-winf",
+                 "SHq": "expSH-queue", "SHd": "expSH-direct"}
+    cargs = []
+    for key, name in cost_runs.items():
+        found = sorted({r for s in srcs for r in _find_complete_runs(s, name)}, key=lambda r: r.name)
+        if found:
+            cargs += ["--run", f"{key}={found[0]}"]
+    if cargs:
+        rc, text = sh([sys.executable, "evaluation/cost086.py", *cargs, "--out", str(out / "cost086")], timeout=3600, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-COST (086)")
+            index.append("- [Costs in physical units per offered request: MQTT messages, flash writes, owner calls, paused time (E-COST)]"
+                         "(cost086/COST086.md)")
+        else:
+            RUN.problem("WARN", f"cost086 failed: {text[-400:]}")
+    # release 086 (verifier finding B2-02): for every completed fence of every campaign read, the anchor the evidence gives against
+    # the anchor the run committed (releases 061-085: the owner's reported state); "not available" on lean archives
+    if camps:
+        rc, text = sh([sys.executable, "evaluation/anchor086.py", "--out", str(out / "anchor086")] + [x for c in camps for x in ("--campaign", str(c))],
+                      timeout=7200, quiet=True, check=False)
+        aj = out / "anchor086" / "anchor086.json"
+        if rc == 0 and aj.is_file():
+            t = json.loads(aj.read_text())["total"]
+            done.append(f"fence anchors against evidence (086: {t['mismatches']} mismatch(es) in {t['anchors_compared']} compared)")
+            index.append(f"- [Fence anchors: the owner's reported state against the evidence ({t['mismatches']} mismatches in "
+                         f"{t['anchors_compared']} completed fences)](anchor086/ANCHOR086.md)")
+            if t["mismatches"]:
+                RUN.problem("WARN", f"anchor086: {t['mismatches']} completed fence(s) committed an anchor that differs from the evidence "
+                                    f"(anchor086/ANCHOR086.md): the runs concerned depend on the anchor rule")
+        else:
+            RUN.problem("WARN", f"anchor086 failed: {text[-400:]}")
+    # release 086 (Addendum B, estimand E-QB): the QoS 2 row's directed expiry check (measure mosquitto-qos2), the newest one
+    qxs = sorted((p for s in srcs for p in s.glob("measure/mosquitto-qos2/qos2_expiry.json")), key=lambda p: p.stat().st_mtime)
+    if qxs:
+        (out / "qb086").mkdir(parents=True, exist_ok=True)
+        for f in ("QOS2_EXPIRY.md", "qos2_expiry.json", "measure.md"):
+            if (qxs[-1].parent / f).exists():
+                shutil.copy2(qxs[-1].parent / f, out / "qb086" / f)
+        done.append("QoS 2 expiry check (086)")
+        index.append("- [The MQTT QoS 2 row: what its T label means under a constant request-path delay (E-QB)](qb086/QOS2_EXPIRY.md)")
     # release 085: the ThingsBoard RPC checks TB-1 to TB-4 (`tbcheck`), the newest among the sources
     tbc = sorted((p for s in srcs for p in s.glob("measure/tbcheck/tbcheck.json")), key=lambda p: p.stat().st_mtime)
     if tbc:
@@ -3845,6 +3949,28 @@ def cmd_report(tb, a):
             RUN.problem("WARN", f"verdicts085 failed: {text[-400:]}")
     elif (out / "claims" / "claims.json").is_file():
         RUN.log("report: no 084 final report among the sources: the earlier plans' verdicts were not compared")
+    # release 086: the 168 verdicts of the plans up to PREREG_extra_085 must be those of the 085 final report (the newest report of
+    # release 085 among the sources); every difference is listed (report/verdicts086/VERDICTS.md) and logged as a FAIL
+    old085 = sorted((s / "report" for s in srcs if (s / "report" / "claims" / "claims.json").is_file() and (s / "report" / "REPORT.md").is_file()
+                     and "Release 085;" in (s / "report" / "REPORT.md").read_text()[:400] and s.resolve() != RUN.path.resolve()),
+                    key=lambda d: (d / "REPORT.md").stat().st_mtime)
+    if (out / "claims" / "claims.json").is_file() and old085:
+        rc, text = sh([sys.executable, "evaluation/verdicts086.py", "--new", str(out), "--old", str(old085[-1]), "--out", str(out / "verdicts086")],
+                      timeout=300, check=False, quiet=True)
+        vj = out / "verdicts086" / "verdicts.json"
+        if rc == 0 and vj.is_file():
+            v = json.loads(vj.read_text())
+            index.append(f"- [Verdicts of the earlier plans against the 085 final report]"
+                         f"(verdicts086/VERDICTS.md): {'identical' if v['identical'] else 'DIFFERENT'}")
+            done.append(f"earlier verdicts against 085 {'identical' if v['identical'] else 'DIFFER'} ({v['compared']} compared, "
+                        f"{len(v['verdicts_differ'])} differ, {len(v['missing_in_new'])} missing in this report)")
+            if not v["identical"]:
+                RUN.problem("FAIL", f"verdicts of earlier plans differ from the 085 final report ({old085[-1]}): "
+                                    f"{[(x['plan'], x['id'], x['old'], x['new']) for x in v['verdicts_differ']][:8]}; missing {v['missing_in_new'][:8]}")
+        else:
+            RUN.problem("WARN", f"verdicts086 failed: {text[-400:]}")
+    elif (out / "claims" / "claims.json").is_file():
+        RUN.log("report: no 085 final report among the sources: the 168 earlier verdicts were not compared with it")
     # release 085 (last, after the tbcheck copy): provenance of every campaign of the safety total (release, review run, the
     # plan its config carries) and of every plan (SHA-256, frozen, published), the runs' deviations and the numbers not
     # regenerated (PROVENANCE.md)
@@ -3912,6 +4038,8 @@ def cmd_measure(tb, a, stack):
             results.append(m.reboot_check())
         if m.spec.get("auth_check"):
             results.append(m.auth_check())
+        if m.spec.get("expiry_check"):
+            results.append(m.expiry_check())
     finally:
         m.cleanup()
         m.facts["results"] = results
@@ -4385,8 +4513,15 @@ def _main(argv):
         for cfg_name, what in (("expPM_zephyr_w6", "085 PM, firmware W=6, EVICON + PERIODIC_FULL: about 1.9 h (16 cells)"),
                                ("expPM_zephyr_winf", "085 PM, firmware W=inf: about 1.9 h (16 cells)"),
                                ("expPM_minio_w6", "085 PM, MinIO W=6: about 1.9 h (16 cells)"),
-                               ("expPM_minio_winf", "085 PM, MinIO W=inf: about 1.9 h (16 cells)")):
+                               ("expPM_minio_winf", "085 PM, MinIO W=inf: about 1.9 h (16 cells)"),
+                               ("expSR_zephyr_w6", "086 SR, firmware W=6, plain QoS 0 + {F}: about 2.0 h (16 cells)"),
+                               ("expSR_zephyr_winf", "086 SR, firmware W=inf: about 2.0 h (16 cells)"),
+                               ("expSR_minio_w6", "086 SR, MinIO W=6, plain + cond: about 1.95 h (16 cells)"),
+                               ("expSR_minio_winf", "086 SR, MinIO W=inf: about 1.95 h (16 cells)"),
+                               ("expSH_queue", "086 SH, K2 queue, EVICON + SHADOW_RECONCILE: about 1.2 h (10 cells)"),
+                               ("expSH_direct", "086 SH, K2 direct: about 1.2 h (10 cells)")):
             print(f"{'campaign':11s} {what:40s} python3 evicon_review.py campaign {cfg_name}")
+        print(f"{'measure':11s} {'086 QB, MQTT QoS 2 row: 25-35 min':40s} python3 evicon_review.py measure mosquitto-qos2")
         print(f"{'scale':11s} {'077, RQ4 load with 8/16/32 domains: 1.2 h':40s} python3 evicon_review.py scale")
         print(f"{'report':11s} {'2-5 min (078: 15-30 min with an archive)':40s} python3 evicon_review.py report [--archive <dir>] [--from <run dir> ...]")
         print(f"{'import':11s} {'078, result bundles -> archive: 10-30 min':40s} python3 evicon_review.py import-results <bundles> --archive /root/evicon-archive")

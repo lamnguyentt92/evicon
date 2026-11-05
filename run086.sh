@@ -1,24 +1,33 @@
 #!/bin/bash
-# EviCon 085: plan PREREG_extra_085 in one review run of release 085: the firmware's contract, the ThingsBoard RPC checks
-# (TB-1 to TB-4), EVICON and PERIODIC_FULL in the same campaigns on the cutoff firmware and on MinIO (PMz6, PMzi, PMm6,
-# PMmi), then the final report of the paper (the data freeze) and the bundle. About 10.3 h; it can run in pieces.
+# EviCon 086: everything of plan PREREG_extra_086 in ONE continuous overnight session, in one review run of release 086:
+# the firmware's contracts, the MQTT QoS 2 row, the second-seed replication of the four real-owner headline contrasts
+# (SRz6, SRzi on the firmware, SRm6, SRmi on MinIO; both arms of each contrast in one campaign), the documented
+# shadow-reconciliation baseline (SHq, SHd on the emulated owner), then the final report of the paper (the data freeze,
+# with the fence-anchor analysis of every archived run and the cost table in physical units) and the bundles.
 #   tmux new -s evicon        (or tmux attach -t evicon)
-#   bash /root/EVICON_TOIT_085/run085.sh [--until HH:MM] [--recheck] [--label NAME] 2>&1 | tee -a /root/run085.log
-#   --until HH:MM  Vietnam time (UTC+7), the next such time (at most 20 h ahead). A step starts only if it is expected to
-#                  end by then (a campaign: its cells x 7.3 min, or this run's own pace if slower, + 8 min; the checks
-#                  60 min; the firmware measurement 50 min; the report 60 min). So turning the machine off after the piece
-#                  cuts nothing. Run the same command again later: it goes on where it stopped.
+#   bash /root/EVICON_TOIT_086/run086.sh 2>&1 | tee -a /root/run086.log
+# About 12.5 h in all (at most 13 h). Expected per step (from the 085 testbed run's own times):
+#   preflight build verify distribute    0.15 h      measure zephyr-plain zephyr   0.65 h
+#   measure mosquitto-qos2               0.5 h       campaign expSR_zephyr_w6      2.0 h (16 cells, with the counters)
+#   campaign expSR_zephyr_winf           2.0 h       campaign expSR_minio_w6       1.95 h (16 cells)
+#   campaign expSR_minio_winf            1.95 h      campaign expSH_queue          1.2 h (10 cells)
+#   campaign expSH_direct                1.2 h       report (the data freeze)      0.85 h; bundles: minutes
+# After an interruption (power off, ssh lost, Ctrl-C) run the SAME command again (with --recheck after the machine was
+# off): steps that passed and campaigns that finished are skipped, an interrupted campaign is resumed.
+# Options (not needed for the overnight run):
+#   --until HH:MM  Vietnam time (UTC+7), the next such time (at most 20 h ahead): a step starts only if it is expected to
+#                  end by then (a campaign: its cells x 7.3 min, or this run's own pace if slower, + 8 min; the firmware
+#                  measurement 50 min; the QoS 2 measurement with its expiry check 40 min; the report 60 min); run the command again later.
 #   --recheck      after the machine was off: testbed check, refuse a campaign directory cut at its very start,
 #                  preflight --force.
-# Order (plan section 6): preflight build verify distribute; measure zephyr-plain zephyr; tbcheck (once more if PARTIAL);
-# campaigns expPM_zephyr_w6, expPM_zephyr_winf, expPM_minio_w6, expPM_minio_winf; report --archive ... --from 078
-# --from 083 --from 084 (only when the four campaigns finished and tbcheck is decided); bundle.
-# Steps that passed and campaigns that finished are skipped, an interrupted campaign is resumed; a bundle is made after
-# new work only. An unplanned safety violation stops everything (exit 3). It refuses to start while another
-# evicon_review.py runs.
+# Order (plan section 6): preflight build verify distribute; measure zephyr-plain zephyr (the firmware gate); measure
+# mosquitto-qos2 (once more if it does not PASS: the second run decides); campaigns expSR_zephyr_w6, expSR_zephyr_winf,
+# expSR_minio_w6, expSR_minio_winf, expSH_queue, expSH_direct; report --archive ... --from 078 --from 083 --from 084
+# --from 085 (only when the six campaigns finished); bundle after new work. An unplanned safety violation stops
+# everything (exit 3). It refuses to start while another evicon_review.py runs.
 set -uo pipefail
-cd "${EVICON085_DIR:-/root/EVICON_TOIT_085}" || exit 1
-UNTIL=""; RECHECK=0; LABEL="run085"
+cd "${EVICON086_DIR:-/root/EVICON_TOIT_086}" || exit 1
+UNTIL=""; RECHECK=0; LABEL="run086"
 while [ $# -gt 0 ]; do
   case "$1" in
     --until) [ $# -ge 2 ] || { echo "--until needs HH:MM"; exit 2; }; UNTIL="$2"; shift 2;;
@@ -31,8 +40,9 @@ RAN=0; WORK=0
 R078=/root/EVICON_TOIT_078/results/review-20261028T080322
 R083=${EVICON083_RUN:-$(readlink -f /root/EVICON_TOIT_083/results/LATEST 2>/dev/null)}
 R084=${EVICON084_RUN:-$(readlink -f /root/EVICON_TOIT_084/results/LATEST 2>/dev/null)}
+R085=${EVICON085_RUN:-$(readlink -f /root/EVICON_TOIT_085/results/LATEST 2>/dev/null)}
 ARCHIVE=${EVICON_ARCHIVE:-/root/evicon-archive}
-CAMPAIGNS="expPM_zephyr_w6 expPM_zephyr_winf expPM_minio_w6 expPM_minio_winf"
+CAMPAIGNS="expSR_zephyr_w6 expSR_zephyr_winf expSR_minio_w6 expSR_minio_winf expSH_queue expSH_direct"
 
 T() {  # T now | T in <min> | T fmt <epoch> | T epoch <HH:MM> | T fits <deadline epoch> <min>   (Vietnam time)
 python3 - "$@" <<'PY'
@@ -161,11 +171,6 @@ for p in pathlib.Path("/proc").glob("[0-9]*"):
 sys.exit(1)
 PY
 }
-tb_decided() {  # tbcheck PASS, or PARTIAL in two runs (plan section 3: the second run decides)
-  status_is tbcheck PASS && return 0
-  status_is tbcheck PARTIAL || return 1
-  [ "$(grep -c '^===== tbcheck PARTIAL' results/LATEST/logs/tbcheck.log 2>/dev/null)" -ge 2 ]
-}
 report_current() {  # the report PASSed after every campaign and check of this run ended
 python3 - <<'PY'
 import json, pathlib, sys
@@ -174,7 +179,7 @@ st = json.loads(f.read_text()) if f.exists() else {}
 r = st.get("report", {})
 if r.get("status") != "PASS":
     sys.exit(1)
-others = [v.get("ended", "") for k, v in st.items() if k.startswith(("campaign:", "measure:")) or k == "tbcheck"]
+others = [v.get("ended", "") for k, v in st.items() if k.startswith(("campaign:", "measure:"))]
 sys.exit(0 if all(str(r.get("ended", "")) >= str(e) for e in others) else 1)
 PY
 }
@@ -186,14 +191,15 @@ fits() {  # fits <minutes> <what>: with --until, is there time for the step? (el
   STOP_BEFORE="$2 (about $1 min)"; return 1
 }
 
-echo "######## EviCon 085 $LABEL: started $(T now) (Vietnam time from this machine's clock: check it is right)"
+echo "######## EviCon 086 $LABEL: started $(T now) (Vietnam time from this machine's clock: check it is right)"
 if o=$(other_driver) || ! lock_free; then
   echo "######## REFUSED: another evicon_review.py is running (${o:-the driver lock /run/lock/evicon-review.lock is held}); wait until it ends"; exit 1
 fi
-for r in "$R078" "$R083" "$R084"; do
-  [ -n "$r" ] && [ -d "$r" ] || { echo "######## REFUSED: a review run the final report reads is missing: '$r' (078: $R078; 083: /root/EVICON_TOIT_083/results/LATEST; 084: /root/EVICON_TOIT_084/results/LATEST)"; exit 1; }
+for r in "$R078" "$R083" "$R084" "$R085"; do
+  [ -n "$r" ] && [ -d "$r" ] || { echo "######## REFUSED: a review run the final report reads is missing: '$r' (078: $R078; 083: /root/EVICON_TOIT_083/results/LATEST; 084: /root/EVICON_TOIT_084/results/LATEST; 085: /root/EVICON_TOIT_085/results/LATEST)"; exit 1; }
 done
-echo "######## the report will read: archive $ARCHIVE, 078 $R078, 083 $R083, 084 $R084"
+[ -f "$R085/report/claims/claims.json" ] || { echo "######## REFUSED: the 085 final report is missing ($R085/report/claims/claims.json): the earlier verdicts are compared with it"; exit 1; }
+echo "######## the report will read: archive $ARCHIVE, 078 $R078, 083 $R083, 084 $R084, 085 $R085"
 DEADLINE=""; STOP_BEFORE=""
 if [ -n "$UNTIL" ]; then
   DEADLINE=$(T epoch "$UNTIL"); rc=$?
@@ -202,7 +208,7 @@ if [ -n "$UNTIL" ]; then
   echo "######## steps must end by $(T fmt "$DEADLINE"); one that would not is left for the next piece"
 fi
 if bad=$(unsafe); then
-  echo "######## STOP: unplanned safety violation in $bad. Send every EVICON_085_result_*.zip not sent yet; run nothing else."; exit 3
+  echo "######## STOP: unplanned safety violation in $bad. Send every EVICON_086_result_*.zip not sent yet; run nothing else."; exit 3
 fi
 if [ $RECHECK = 1 ] && [ -e results/LATEST ]; then
   echo; echo "######## testbed check (column notes: ok, or only 'clock not NTP-synchronised')"
@@ -216,30 +222,27 @@ if [ $RECHECK = 1 ] && [ -e results/LATEST ]; then
 fi
 NEW=""; [ -e results/LATEST ] || NEW=--new
 E preflight build verify distribute $NEW --quick || { echo "######## build/verify FAIL: nothing run. Send: python3 evicon_review.py bundle"; exit 1; }
-# a later piece: copy 085's binaries to the VMs again, so every campaign runs on exactly this release
+# a later piece: copy 086's binaries to the VMs again, so every campaign runs on exactly this release
 [ -z "$NEW" ] && { E distribute --force || { echo "######## distribute FAIL: nothing run. Send: python3 evicon_review.py bundle"; exit 1; }; }
 echo "######## review run: $(readlink -f results/LATEST)"
 
-# 1. the firmware's contract in this review run (the firmware campaigns need it), then 2. the ThingsBoard checks
+# 1. the firmware's contracts in this review run (the firmware campaigns refuse to start without them: the firmware gate)
 if ! { status_is measure:zephyr-plain PASS && status_is measure:zephyr PASS; }; then
   if fits 50 "measure zephyr-plain zephyr"; then RAN=1; WORK=1; E measure zephyr-plain zephyr || echo "######## measure did not PASS (see above): the firmware campaigns will refuse to start"; fi
 fi
-# PARTIAL = a check NOT INTERPRETABLE (plan section 3): run once more, the second run decides
-for attempt in 1 2; do
-  { [ -n "$STOP_BEFORE" ] || tb_decided; } && break
-  fits 60 "tbcheck" || break
-  RAN=1; WORK=1
-  E tbcheck --from "$R083"   # exit 0 for PASS and for PARTIAL: the status decides
-  status_is tbcheck PASS && break
-  if status_is tbcheck PARTIAL; then
-    if tb_decided; then echo "######## tbcheck PARTIAL twice: the second run decides (NOT INTERPRETABLE stays in the report)"; break; fi
-    echo "######## tbcheck PARTIAL (a check not interpretable): it runs once more, as the plan says"
-  else
-    echo "######## tbcheck did not PASS (see above); going on with the campaigns. Run this script again later: it repeats tbcheck"; break
-  fi
-done
 B
-# 3. EVICON and PERIODIC_FULL in the same campaigns
+# 2. the MQTT QoS 2 row of the contract map (Addendum B; the same broker as the firmware measurement)
+if ! status_is measure:mosquitto-qos2 PASS; then
+  for try in 1 2; do
+    fits 40 "measure mosquitto-qos2" || break
+    RAN=1; WORK=1
+    E measure mosquitto-qos2 && break
+    [ $try = 1 ] && echo "######## measure mosquitto-qos2 did not PASS: once more (the plan: the second run decides)"
+    [ $try = 2 ] && echo "######## measure mosquitto-qos2 did not PASS twice: going on; send the bundle and the end of /root/run086.log"
+  done
+fi
+B
+# 3. the second-seed replication (the firmware right after its measurement, then MinIO), then the shadow baseline
 for c in $CAMPAIGNS; do
   [ -n "$STOP_BEFORE" ] && break
   finished "$c" && { echo "[campaign $c] finished earlier in this run: skipped"; continue; }
@@ -257,35 +260,35 @@ done
 B
 
 left=""; for c in $CAMPAIGNS; do finished "$c" || left="$left $c"; done
-tb_decided || left="$left tbcheck"
 echo
 if [ -n "$left" ]; then
   [ -n "$STOP_BEFORE" ] && echo "######## $LABEL ENDED $(T now): the next step, $STOP_BEFORE, would not end by $(T fmt "$DEADLINE")"
   echo "######## not finished yet:$left"
   echo "######## no report: run this script again (it resumes), or send the bundle if a step keeps failing"
   echo "######## no campaign is running now. Bundles of this release (send those not sent yet):"
-  ls -1t EVICON_085_result_*.zip 2>/dev/null | head -8 | sed 's/^/   /'
+  ls -1t EVICON_086_result_*.zip 2>/dev/null | head -8 | sed 's/^/   /'
   exit 0
 fi
+qos2=""; status_is measure:mosquitto-qos2 PASS || qos2=" (measure mosquitto-qos2 did not PASS: its row is missing from the contract map)"
 if [ $WORK = 0 ] && report_current; then
   echo "######## nothing new in this piece and the final report passed earlier: not repeated. Its result: $(summary_of report | cut -c1-200)"
-  echo "######## (to repeat it: python3 evicon_review.py report --archive $ARCHIVE --from $R078 --from $R083 --from $R084)"
+  echo "######## (to repeat it: python3 evicon_review.py report --archive $ARCHIVE --from $R078 --from $R083 --from $R084 --from $R085)"
   exit 0
 fi
 if ! fits 60 "the final report"; then
-  echo "######## $LABEL ENDED $(T now): all campaigns and the checks finished; the report (about 60 min) would not end by $(T fmt "$DEADLINE")"
+  echo "######## $LABEL ENDED $(T now): all campaigns finished; the report (about 60 min) would not end by $(T fmt "$DEADLINE")"
   echo "######## run this script again without --until (or with a later one) for the report"; exit 0
 fi
-if E report --archive "$ARCHIVE" --from "$R078" --from "$R083" --from "$R084"; then
+if E report --archive "$ARCHIVE" --from "$R078" --from "$R083" --from "$R084" --from "$R085"; then
   E bundle --incremental
   s=$(summary_of report)
   case "$s" in
-    *"earlier verdicts identical"*) echo; echo "######## ALL DONE $(T now). The earlier plans' verdicts are those of the 084 final report. Send every EVICON_085_result_*.zip not sent yet (each holds only the files new since the one before)";;
-    *"earlier verdicts DIFFER"*) echo; echo "######## REPORT DONE WITH A DIFFERENCE $(T now): an earlier plan's verdict differs from the 084 final report (report/verdicts085/VERDICTS.md). Send every EVICON_085_result_*.zip not sent yet (each holds only the files new since the one before)";;
-    *) echo; echo "######## ALL DONE $(T now) (the earlier verdicts were not compared: is the 084 run's report among the sources?). Send every EVICON_085_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *"earlier verdicts against 085 DIFFER"*) echo; echo "######## REPORT DONE WITH A DIFFERENCE $(T now): an earlier plan's verdict differs from the 085 final report (report/verdicts086/VERDICTS.md). Send every EVICON_086_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *"earlier verdicts against 085 identical"*) echo; echo "######## ALL DONE $(T now)$qos2. The 168 earlier verdicts are those of the 085 final report. Send every EVICON_086_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *) echo; echo "######## ALL DONE $(T now) (the earlier verdicts were not compared: is the 085 run's report among the sources?). Send every EVICON_086_result_*.zip not sent yet (each holds only the files new since the one before)";;
   esac
 else
   E bundle --incremental
-  echo; echo "######## REPORT FAIL $(T now): the campaigns are done. Send every EVICON_085_result_*.zip not sent yet (each holds only the files new since the one before) and the end of /root/run085.log"
+  echo; echo "######## REPORT FAIL $(T now): the campaigns are done. Send every EVICON_086_result_*.zip not sent yet (each holds only the files new since the one before) and the end of /root/run086.log"
   exit 1
 fi

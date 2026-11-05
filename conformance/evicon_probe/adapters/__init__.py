@@ -10,6 +10,7 @@ REGISTRY = {
     "evicon_device": ("evicon_device", "EviconDeviceAdapter"),
     "coap": ("coap", "CoapAdapter"),
     "mqtt5_rpc": ("mqtt5", "Mqtt5RpcAdapter"),
+    "mqtt5_rpc_qos2": ("mqtt5_qos2", "Mqtt5RpcQos2Adapter"),  # release 086: QoS 2 end to end
     "nats_jetstream": ("nats_js", "NatsJetStreamAdapter"),
     "thingsboard_rpc": ("thingsboard", "ThingsBoardRpcAdapter"),
     "leshan_execute": ("leshan", "LeshanExecuteAdapter"),

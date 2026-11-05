@@ -3,10 +3,12 @@
 #                   (release 084), then a syntax/type
 #                   check of the Zephyr glue against minimal stub headers (main.c
 #                   also with CONFIG_ARCH_POSIX: the native_sim options of release 074)
-#                   (zephyr_stub/: declarations only; NOT a Zephyr build)
+#                   (zephyr_stub/: declarations only; NOT a Zephyr build); release 086: the host library of the
+#                   firmware's wire path (evc_wire_shim.c) that conformance/tests/test_fence_anchor_reboot.py loads
+#                   (built here without sanitizers: it is loaded into the Python test process)
 CFLAGS ?= -std=c11 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined
 SRC := ../../src
-test: test_evc_core test_evc_proto test_evc_late_copy test_evc_late_copy_neg glue
+test: test_evc_core test_evc_proto test_evc_late_copy test_evc_late_copy_neg libevcshim.so glue
 	./test_evc_core
 	./test_evc_proto
 	./test_evc_late_copy
@@ -22,11 +24,13 @@ test_evc_late_copy: test_evc_late_copy.c $(SRC)/evc_core.c $(SRC)/evc_proto.c $(
 	$(CC) $(CFLAGS) -o $@ test_evc_late_copy.c $(SRC)/evc_core.c $(SRC)/evc_proto.c
 test_evc_late_copy_neg: test_evc_late_copy.c $(SRC)/evc_core.c $(SRC)/evc_proto.c $(SRC)/evc_core.h $(SRC)/evc_proto.h
 	$(CC) $(CFLAGS) -DEVC_LATE_COPY_NO_GUARD -o $@ test_evc_late_copy.c $(SRC)/evc_core.c $(SRC)/evc_proto.c
+libevcshim.so: evc_wire_shim.c $(SRC)/evc_core.c $(SRC)/evc_proto.c $(SRC)/evc_core.h $(SRC)/evc_proto.h
+	$(CC) -std=c11 -Wall -Wextra -Werror -O1 -shared -fPIC -o $@ evc_wire_shim.c $(SRC)/evc_core.c $(SRC)/evc_proto.c
 glue:
 	$(CC) -std=gnu11 -Wall -Wextra -Werror -fsyntax-only -Izephyr_stub -I$(SRC) $(SRC)/main.c
 	$(CC) -std=gnu11 -Wall -Wextra -Werror -fsyntax-only -Izephyr_stub -I$(SRC) -DCONFIG_ARCH_POSIX $(SRC)/main.c
 	$(CC) -std=gnu11 -Wall -Wextra -Werror -fsyntax-only -Izephyr_stub -I$(SRC) $(SRC)/footprint_main.c
 	@echo "zephyr glue: syntax/type check against stub headers OK (not a Zephyr build)"
 clean:
-	rm -f test_evc_core test_evc_proto test_evc_late_copy test_evc_late_copy_neg
+	rm -f test_evc_core test_evc_proto test_evc_late_copy test_evc_late_copy_neg libevcshim.so
 .PHONY: test clean glue

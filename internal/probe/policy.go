@@ -65,6 +65,15 @@ const (
 	// command of this policy only until ReleaseAfter minus the settle time after its creation, so that
 	// every send has arrived before the read when the one-way delay is below the settle time.
 	ReleaseOnReadAnswered Method = "RELEASE_ON_READ_ANSWERED"
+	// SHADOW_RECONCILE (release 086, PREREG_extra_086.md SH; reviewer comment M3): a practice baseline that follows
+	// the documented desired/reported reconciliation of a device shadow (AWS IoT Device Shadow, Azure IoT Hub device
+	// twins): the client publishes the desired command with a version (the command's identity and sequence), the owner
+	// applies it and reports, and on every reconciliation timeout (ReleaseAfter, then every ReleaseAfter) the client
+	// reads the reported state of each unresolved command: a reported APPLIED or STOPPED is recorded; a command the
+	// reported state does not show is published again (the same identity and version, as the desired state stays in
+	// the shadow until the device reports it); it never releases a command without the owner's report. No resolver on
+	// a guard block (the documented loop has none). internal/runtime/shadow_reconcile.go.
+	ShadowReconcile Method = "SHADOW_RECONCILE"
 )
 
 // IsReleaseBaseline reports the unsafe baselines of releases 077 and 083, which commit STOPPED
@@ -73,13 +82,20 @@ func IsReleaseBaseline(m Method) bool {
 	return m == ReleaseOnTimeout || m == ReleaseOnRead || m == ReleaseOnReadAnswered
 }
 
+// IsShadowReconcile (release 086) reports the documented device-shadow reconciliation baseline.
+func IsShadowReconcile(m Method) bool { return m == ShadowReconcile }
+
+// HasReconcileSweep (release 086) reports the policies whose only resolver is the authority's release/reconciliation
+// sweep (ReleaseSweepOnce): the release baselines of releases 077 and 083 and SHADOW_RECONCILE.
+func HasReconcileSweep(m Method) bool { return IsReleaseBaseline(m) || IsShadowReconcile(m) }
+
 // IsQueryOnly reports the query-only policies: M1 and its window-full variant M1W (release 083).
 func IsQueryOnly(m Method) bool { return m == M1 || m == M1W }
 
 func ParseMethod(s string) (Method, error) {
 	m := Method(strings.ToUpper(strings.TrimSpace(s)))
 	switch m {
-	case M0, M0NoProbe, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON, ReleaseOnTimeout, ReleaseOnRead, M1W, ReleaseOnReadAnswered:
+	case M0, M0NoProbe, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON, ReleaseOnTimeout, ReleaseOnRead, M1W, ReleaseOnReadAnswered, ShadowReconcile:
 		return m, nil
 	default:
 		return "", fmt.Errorf("unsupported policy %q", s)

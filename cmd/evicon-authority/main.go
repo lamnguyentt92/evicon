@@ -47,7 +47,7 @@ func main() {
 	poll := flag.Duration("dispatch-poll", 250*time.Millisecond, "durable outbox poll interval")
 	maxCfg := flag.Int("max-configurations", 256, "online belief configuration cap")
 	maxOutstanding := flag.Int("max-outstanding", 4, "tracked commands including candidate")
-	policyName := flag.String("policy", "M0", "evidence policy: M0, M0-NO-PROBE, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON (release 061), or RELEASE_ON_TIMEOUT, RELEASE_ON_READ (release 077: unsafe baselines), M1W (release 083: M1 with the window-full query trigger), RELEASE_ON_READ_ANSWERED (release 083: unsafe baseline, releases on an answered NOT_FOUND only)")
+	policyName := flag.String("policy", "M0", "evidence policy: M0, M0-NO-PROBE, M1, M2, M3, M4, M5, M4P, M5V2, M5V2D1, EVICON (release 061), or RELEASE_ON_TIMEOUT, RELEASE_ON_READ (release 077: unsafe baselines), M1W (release 083: M1 with the window-full query trigger), RELEASE_ON_READ_ANSWERED (release 083: unsafe baseline, releases on an answered NOT_FOUND only), SHADOW_RECONCILE (release 086: the documented device-shadow reconciliation loop; re-publishes, never releases)")
 	// Release 061: EVICON evidence-contract resolution.
 	evidenceContract := flag.String("evidence-contract", "", "EVICON runtime evidence contract alias: E1, E2, E2_STOP, E3, or DEVICE (taken from the device handshake) (default: -profile)")
 	evidenceContractFile := flag.String("evidence-contract-file", "", "EVICON evidence contract JSON (RUNTIME_VERIFIED or MEASURED, e.g. from EviCon-Probe); capabilities must be advertised by the endpoint")
@@ -79,9 +79,10 @@ func main() {
 	traceSeed := flag.Int64("trace-seed", 0, "nonnegative experiment seed recorded in the authority JSONL trace")
 	ledgerName := flag.String("ledger-reconcile", "M1", "M0 reconciliation ranking: M1 (sequential ID), M2, M3, M4")
 	resendUntil := flag.Duration("resend-until", 0, "release 077: with -retry-guard, resend a command under its own identity only until this long after its creation (0 = no validity cut, the rule of releases 072-076); to never resend after the intent's validity, the intent's validity minus the longest time a client may take to submit it")
-	releaseAfter := flag.Duration("release-after", 10*time.Second, "release 077, policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ only (unsafe baselines): a command unresolved this long after creation is committed STOPPED without owner evidence of non-occurrence (RELEASE_ON_READ first reads the owner's receipt)")
+	releaseAfter := flag.Duration("release-after", 10*time.Second, "release 077, policies RELEASE_ON_TIMEOUT and RELEASE_ON_READ only (unsafe baselines): a command unresolved this long after creation is committed STOPPED without owner evidence of non-occurrence (RELEASE_ON_READ first reads the owner's receipt); release 086, SHADOW_RECONCILE: the reconciliation timeout (the reported state is read this long after creation and every this long after that)")
 	releaseSettle := flag.Duration("release-settle", 0, "release 083, policy RELEASE_ON_READ_ANSWERED only: the one-way delay bound the baseline assumes; it re-sends a command only until release-after minus this after its creation and releases on an answered NOT_FOUND only when the read was sent at least this long after the command's last dispatch attempt (0 = release-after)")
 	fenceIntake := flag.String("fence-intake", eruntime.FenceIntakeAllOrNothing, "release 084: intake of a complete fence answer that lists identities the owner cannot certify (UNCERTAIN): all-or-nothing (rule R5, releases 062-083: abort, seal and anchor nothing) or per-identity (rule R5': take in the listed terminal answers, seal the unlisted identities at or below the cutoff as STOPPED, keep the UNCERTAIN ones pending and owner-uncertain)")
+	fenceAnchor := flag.String("fence-anchor", eruntime.FenceAnchorEvidence, "release 086: the anchor of a complete fence: evidence (default: the previous anchor plus every identity at or below the cutoff that is APPLIED, by the domain's reducer; a fence whose owner-reported state differs is aborted as an evidence conflict and the reported state is never adopted) or owner-state (releases 061-085: the owner's reported state becomes the anchor; for regression tests)")
 	certificate := flag.String("certificate", eruntime.CertificateEnumerate, "release 083, EVICON: certificate search of a guard block: enumerate (bounded enumeration up to -certificate-depth, releases 061-082) or greedy (the greedy certificate of an additive domain, Section 3.6; other domains use the enumeration)")
 	flag.Parse()
 	if *traceSeed < 0 {
@@ -207,7 +208,8 @@ func main() {
 	auth, e := eruntime.NewAuthority(eruntime.AuthorityConfig{Store: store, Domain: journal.Domain{ID: *domainID, Generation: *generation, InstalledEpoch: *epoch, Revision: 0, Dimension: len(st), ComponentMin: mins, ComponentMax: maxs, SumMax: sm, Anchor: st, CutoffSequence: 0, ContractHash: *contractHash}, EndpointURL: *endpoint, Profile: p, Dispatcher: disp, Faults: fc, Trace: tr, MaxConfigurations: *maxCfg, MaxOutstanding: *maxOutstanding, Policy: method, LedgerReconcile: probe.Method(strings.ToUpper(*ledgerName)), QueryCosts: costs, OutcomeModel: outcomeModel, ProbeBudget: *probeBudget, PlannerDepth: *plannerDepth, PlannerComputeBudget: *plannerBudget, QueryConcurrency: *queryConcurrency, PlannerCache: *plannerCache,
 		EvidenceContract: ec, ResolvePolicy: rp, ResolveCosts: resolve.Costs{HoldPerUnitPerSec: *holdCost, QueryCost: *eviconQueryCost, StopCost: *stopCost, FenceCost: *fenceCost},
 		AmbiguityAfter: *ambiguityAfter, CertificateDepth: *certDepth, ResolveTrigger: strings.ToUpper(*resolveTrigger), ReleaseAfter: *releaseAfter,
-		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate)), FenceIntake: strings.ToLower(strings.TrimSpace(*fenceIntake))})
+		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate)), FenceIntake: strings.ToLower(strings.TrimSpace(*fenceIntake)),
+		FenceAnchor: strings.ToLower(strings.TrimSpace(*fenceAnchor))})
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -219,6 +221,14 @@ func main() {
 	if method == probe.EVICON && *resolveSweep > 0 {
 		go auth.RunSweep(ctx, *resolveSweep)
 		log.Printf("EVICON sweep every %s (trigger %s)", *resolveSweep, strings.ToUpper(*resolveTrigger))
+	}
+	if probe.IsShadowReconcile(method) {
+		iv := *resolveSweep
+		if iv <= 0 {
+			iv = time.Second
+		}
+		go auth.RunReleaseSweep(ctx, iv)
+		log.Printf("%s baseline (release 086): the documented device-shadow loop: %s after creation and every %s after that, an unresolved command's reported state is read; a command it does not show is published again under its own identity; nothing is released (sweep every %s)", method, *releaseAfter, *releaseAfter, iv)
 	}
 	if probe.IsReleaseBaseline(method) {
 		iv := *resolveSweep
