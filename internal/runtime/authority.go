@@ -93,6 +93,11 @@ type AuthorityConfig struct {
 	// Republish (release 086, policy SHADOW_RECONCILE only) lets the reconciliation sweep publish an unresolved
 	// command again under its own identity (shadow_reconcile.go); the dispatcher's RetryAllowed consults it.
 	Republish *Republisher
+	// RebootRecovery (release 087, `-reboot-recovery`, off by default): the steps REC-1 to REC-4 of
+	// reboot_recovery.go (learn the owner's claim floor, advance new owner sequences above it, compare a complete
+	// fence's reported level with the identities applied since the owner's boot, and leave identities listed
+	// UNCERTAIN by a complete fence out of the window). false: release 086 unchanged.
+	RebootRecovery bool
 	// Test-only synchronization hook used to force a domain revision change
 	// after analysis and verify that the authority recomputes before commit.
 	AfterPolicyEvaluationForTest func()
@@ -284,7 +289,18 @@ func NewAuthority(cfg AuthorityConfig) (*Authority, error) {
 			return nil, err
 		}
 	}
-	return &Authority{cfg: cfg, hc: httpx.Client(2 * time.Second), planner: probe.NewPlanner(cfg.QueryCosts, cfg.MaxConfigurations, cfg.PlannerCache)}, nil
+	a := &Authority{cfg: cfg, hc: httpx.Client(2 * time.Second), planner: probe.NewPlanner(cfg.QueryCosts, cfg.MaxConfigurations, cfg.PlannerCache)}
+	if cfg.RebootRecovery {
+		// release 087 (REC-1): the claim floor of every dispatch reply, also of the replies that are not receipts
+		if cfg.Dispatcher != nil {
+			cfg.Dispatcher.OwnerReport = a.ownerReport
+		}
+		if cfg.Trace != nil {
+			_ = cfg.Trace.Write(trace.Event{DomainID: cfg.Domain.ID, Event: "REBOOT_RECOVERY_CONFIGURATION", Policy: string(cfg.Policy),
+				Reason: "steps=REC-1,REC-2,REC-3,REC-4;fence_anchor=" + cfg.FenceAnchor + ";fence_intake=" + cfg.FenceIntake})
+		}
+	}
+	return a, nil
 }
 
 func (a *Authority) Handler() http.Handler {
@@ -382,8 +398,8 @@ func (a *Authority) evaluateCandidate(d journal.Domain, req protocol.CommandRequ
 	}
 	unresolved := 0
 	for _, c := range cmds {
-		if c.Status != "APPLIED" && c.Status != "STOPPED" {
-			unresolved++
+		if c.Status != "APPLIED" && c.Status != "STOPPED" && !a.recWindowExcluded(c.CommandID) {
+			unresolved++ // release 087 (REC-4, -reboot-recovery only): an identity a complete fence listed UNCERTAIN is not counted
 		}
 	}
 	if unresolved+1 > a.cfg.MaxOutstanding {
@@ -461,6 +477,14 @@ func (a *Authority) handleCommands(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, protocol.AuthorityResponse{SchemaVersion: 1, DomainID: req.DomainID, CommandID: req.CommandID, IntentHash: req.IntentHash, Decision: "REJECT", Status: "NOT_ADMITTED", Reason: "UNSUPPORTED_OPERATION_FOR_PROFILE", Revision: d0.Revision})
 		return
 	}
+	clientSeq := req.Sequence
+	if a.cfg.RebootRecovery {
+		// release 087 (REC-2): a replay of a request admitted under the recovery carries the client's sequence
+		if _, er := a.recMapReplay(&req, d0.Dimension); er != nil {
+			http.Error(w, er.Error(), 500)
+			return
+		}
+	}
 	if existing, er := a.cfg.Store.GetCommand(req.DomainID, req.CommandID); er == nil {
 		if existing.IntentHash != req.IntentHash {
 			d, _ := a.cfg.Store.GetDomain(req.DomainID)
@@ -505,7 +529,15 @@ func (a *Authority) handleCommands(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if req.Sequence <= d0.CutoffSequence || req.Sequence <= maxSeq {
+	staleClient := false
+	if a.cfg.RebootRecovery {
+		// release 087 (REC-2): the owner sequence of a new identity lands above the owner's claim floor
+		if staleClient, err = a.recAdvance(&req, d0.Dimension); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	}
+	if staleClient || req.Sequence <= d0.CutoffSequence || req.Sequence <= maxSeq {
 		reason := "SEQUENCE_NOT_MONOTONIC"
 		if er := a.persistDecision(req, "REJECT", reason, d0.Revision, "SEQUENCE_VALIDATION"); er != nil {
 			http.Error(w, er.Error(), 500)
@@ -618,6 +650,12 @@ func (a *Authority) handleCommands(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, er.Error(), 500)
 			return
 		}
+		if a.cfg.RebootRecovery {
+			if er := a.cfg.Store.RecordClientSequence(req.DomainID, req.CommandID, clientSeq, req.Sequence); er != nil {
+				http.Error(w, er.Error(), 500)
+				return
+			}
+		}
 		if a.cfg.Trace != nil {
 			_ = a.cfg.Trace.Write(trace.Event{DomainID: req.DomainID, CommandID: req.CommandID, Event: "RESERVATION_COMMITTED", Revision: rev, Policy: string(a.cfg.Policy)})
 			_ = a.cfg.Trace.Write(trace.Event{DomainID: req.DomainID, CommandID: req.CommandID, Event: "DECISION_RECORDED", Decision: "ADMITTED", Analyzer: runtimeAnalyzer, Revision: rev, Reason: rec.Reason, Policy: string(a.cfg.Policy)})
@@ -673,6 +711,7 @@ func (a *Authority) fetchReceiptMeasured(cmd journal.CommandRecord) (protocol.Re
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	responseBytes := int64(len(raw))
+	a.noteOwnerFloorBody(cmd.DomainID, raw, "RECEIPT_READ") // release 087 (REC-1); nothing without -reboot-recovery
 	if resp.StatusCode == 404 {
 		return protocol.Receipt{SchemaVersion: 1, DomainID: cmd.DomainID, Generation: cmd.Generation, CommandID: cmd.CommandID, IntentHash: cmd.IntentHash, Outcome: "NOT_FOUND", Reason: "NO_OWNER_RECORD"}, 404, requestBytes, responseBytes, nil
 	}
@@ -864,6 +903,7 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	a.noteOwnerFloorBody(br.DomainID, body, "FENCE") // release 087 (REC-1); nothing without -reboot-recovery
 	if resp.StatusCode/100 != 2 {
 		return resp.StatusCode, map[string]any{"error": string(body)}
 	}
@@ -941,6 +981,21 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 	if err != nil && a.cfg.FenceAnchor == FenceAnchorEvidence {
 		return 500, map[string]any{"error": err.Error()}
 	}
+	if err == nil && a.cfg.RebootRecovery && a.cfg.FenceAnchor == FenceAnchorEvidence && len(fa.Unknown) == 0 && fa.Inconsistent == "" &&
+		!fa.Undetermined && len(fa.States) == 1 {
+		// release 087 (REC-3): the reported level is compared with the identities applied above the owner's claim floor
+		batch, _, er := a.fenceBatch(d, rc.CutoffSequence, recs)
+		if er != nil {
+			return 500, map[string]any{"error": er.Error()}
+		}
+		fc, ok, er := a.recFloorCheck(d, rc, batch)
+		if er != nil {
+			return 500, map[string]any{"error": er.Error()}
+		}
+		if ok {
+			fa.Floor = &fc
+		}
+	}
 	if err == nil {
 		a.traceFenceAnchor(br, d, rc, fa)
 	}
@@ -959,6 +1014,12 @@ func (a *Authority) runBarrierLocked(br protocol.BarrierRequest) (int, any) {
 		case fa.Undetermined:
 			// more evidence-consistent states than the configuration budget: no anchor can be named
 			return a.commitUnanchoredLocked(br, d, rc, recs, seal, 0)
+		case fa.Floor != nil:
+			// release 087 (REC-3): the level since the owner's boot decides; the evidence anchor is committed on a match
+			if !fa.Floor.Match {
+				return a.barrierConflict(br, d.Generation, []evidenceConflict{{Authority: "level_above_floor=" + vecString(fa.Floor.Expected), Owner: "state=" + vecString(rc.State),
+					Detail: fmt.Sprintf("FENCE_ANCHOR_FLOOR_MISMATCH:floor=%d", fa.Floor.Floor), Computed: [][]int64{fa.Floor.Expected}, Reported: append([]int64(nil), rc.State...)}})
+			}
 		case !fa.Contains(rc.State):
 			// an evidence conflict: the owner's aggregate state is not a state the evidence allows (e.g. a
 			// firmware reboot reset a RAM level): abort as any evidence conflict, never adopt the reported state

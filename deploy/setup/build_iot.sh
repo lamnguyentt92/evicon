@@ -3,6 +3,8 @@
 #
 #   bash deploy/setup/build_iot.sh start          # Zephyr firmware (native_sim/native/64, nrf52840dk footprint; 077: MCU image for QEMU, networked nrf52840dk), on VM-D
 #   bash deploy/setup/build_iot.sh start matter   # optional: Matter apps (chip-all-clusters-app, chip-tool), on VM-D
+#   bash deploy/setup/build_iot.sh start zephyr_boot   # release 087: the boot-report variant (firmware/zephyr-boot) in the
+#                                                 # Zephyr workspace of `start` (5-10 min); the measured build is not rebuilt
 #   bash deploy/setup/build_iot.sh status         # progress: last steps, BUILD_OK / BUILD_FAIL
 #   bash deploy/setup/build_iot.sh fetch          # status files, build logs, footprint -> results/logs/iot-build/
 #
@@ -19,7 +21,7 @@ set -uo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO" || exit 2
 WHAT="${2:-zephyr}"
-for w in $WHAT; do case "$w" in zephyr|matter) ;; *) echo "unknown build '$w' (zephyr | matter)"; exit 2;; esac; done
+for w in $WHAT; do case "$w" in zephyr|matter|zephyr_boot) ;; *) echo "unknown build '$w' (zephyr | matter | zephyr_boot)"; exit 2;; esac; done
 ZEPHYR_VM="${BUILD_VM:-${ZEPHYR_VM:-d}}"
 MATTER_VM="${BUILD_VM:-${MATTER_VM:-d}}"
 for v in "$ZEPHYR_VM" "$MATTER_VM"; do case "$v" in d|e|b) ;; *) echo "build VMs must be d, e or b"; exit 2;; esac; done
@@ -32,7 +34,7 @@ ipof() {  # testbed.json address of VM-<x>
 VM_B_IP=$VM_B
 BD=/var/lib/evicon/builds
 ssh_to() { ssh -o BatchMode=yes -o ConnectTimeout=10 "root@$(ipof "$1")" "${@:2}"; }
-vm_of() { if [ "$1" = zephyr ]; then echo "$ZEPHYR_VM"; else echo "$MATTER_VM"; fi; }
+vm_of() { if [ "$1" = matter ]; then echo "$MATTER_VM"; else echo "$ZEPHYR_VM"; fi; }  # zephyr and zephyr_boot: the Zephyr VM
 
 start_on() {  # start_on <vm letter> <builds...>
   local vm=$1; shift
@@ -41,12 +43,12 @@ start_on() {  # start_on <vm letter> <builds...>
   ip=$(ipof "$vm")
   ssh_to "$vm" true || { echo "FAIL: cannot SSH to root@$ip without a password (ssh-copy-id root@$ip)"; return 1; }
   # 069: also a build script whose wrapper shell is gone (068's preflight stopped the wrapper by mistake)
-  if ssh_to "$vm" "{ [ -f $BD/build.pid ] && kill -0 \$(cat $BD/build.pid) 2>/dev/null && grep -q build_ /proc/\$(cat $BD/build.pid)/cmdline; } || pgrep -f 'deploy/setup/build_(zephyr|matter)[.]sh' >/dev/null"; then
+  if ssh_to "$vm" "{ [ -f $BD/build.pid ] && kill -0 \$(cat $BD/build.pid) 2>/dev/null && grep -q build_ /proc/\$(cat $BD/build.pid)/cmdline; } || pgrep -f 'deploy/setup/build_(zephyr|matter|zephyr_boot)[.]sh' >/dev/null"; then
     echo "a build is already running on $name (pid $(ssh_to "$vm" cat $BD/build.pid)); see: bash deploy/setup/build_iot.sh status"
     return 1
   fi
   ssh_to "$vm" "mkdir -p /root/evicon/firmware /root/evicon/deploy/setup $BD" || return 1
-  tar czf - firmware/zephyr-cutoff firmware/zephyr-mcu firmware/zephyr-auth deploy/setup/build_zephyr.sh deploy/setup/build_matter.sh \
+  tar czf - firmware/zephyr-cutoff firmware/zephyr-mcu firmware/zephyr-auth firmware/zephyr-boot deploy/setup/build_zephyr.sh deploy/setup/build_matter.sh deploy/setup/build_zephyr_boot.sh \
     | ssh_to "$vm" "tar xzf - -C /root/evicon" || { echo "FAIL: copying the build scripts to $name"; return 1; }
   local envs="EVC_BROKER_ADDR=$VM_B_IP "   # pinned versions can be overridden from VM-C: ZEPHYR_TAG=... MATTER_TAG=...
   for v in ZEPHYR_TAG MATTER_TAG; do
@@ -77,7 +79,7 @@ case "${1:-}" in
     exit $rc
     ;;
   status)
-    for w in zephyr matter; do
+    for w in zephyr zephyr_boot matter; do
       vm=$(vm_of "$w")
       echo "== $w on VM-$(echo "$vm" | tr a-z A-Z)"
       ssh_to "$vm" "pid=\$(cat $BD/build.pid 2>/dev/null); bp=\$(pgrep -f 'deploy/setup/build_$w[.]sh' | head -1); if [ -n \"\$pid\" ] && kill -0 \$pid 2>/dev/null; then echo \"build running (pid \$pid)\"; elif [ -n \"\$bp\" ]; then echo \"build running (pid \$bp)\"; else echo 'no build running'; fi;
@@ -87,7 +89,7 @@ case "${1:-}" in
     ;;
   fetch)
     mkdir -p results/logs/iot-build
-    for w in zephyr matter; do
+    for w in zephyr zephyr_boot matter; do
       vm=$(vm_of "$w"); ip=$(ipof "$vm")
       for f in "$w.status" "$w.log" build.out; do
         scp -q -o BatchMode=yes "root@$ip:$BD/$f" "results/logs/iot-build/${w}-${f}" 2>/dev/null || true
@@ -95,7 +97,8 @@ case "${1:-}" in
     done
     ip=$(ipof "$ZEPHYR_VM")
     for f in footprint.txt rom_report.txt ram_report.txt native-build.log zephyr-cutoff.config footprint-networked.txt \
-             rom_report-networked.txt ram_report-networked.txt mcu-qemu-build.log zephyr-mcu-qemu.config footprint-auth.txt; do
+             rom_report-networked.txt ram_report-networked.txt mcu-qemu-build.log zephyr-mcu-qemu.config footprint-auth.txt \
+             boot-build.log zephyr-boot.config; do
       scp -q -o BatchMode=yes "root@$ip:/root/evicon-build/zephyr-out/$f" results/logs/iot-build/ 2>/dev/null || true
     done
     ls -la results/logs/iot-build

@@ -11,6 +11,7 @@
 | `ext085.py`, `campaign_zephyr_ext085.py`, `campaign_real_ext085.py` | The runner option `policy_order` (`alternate_by_episode`: odd episodes run the config's policies in reverse order; default the config's order) on the frozen firmware and MinIO runners, through the 084 runners, which are imported unchanged (release 085, below) |
 | `sr086.py`, `sr086_schedules.py`, `anchor086.py`, `verdicts086.py` | Release 086 (below): the estimands of the second-seed replication, the check that the new seed's schedules differ from every earlier one, the fence anchors of every run against the evidence, the earlier verdicts against the 085 final report |
 | `ext086.py`, `campaign_ext086.py`, `campaign_zephyr_ext086.py`, `nvs_flash.py`, `cost086.py` | Release 086, Addendum (below): the policy SHADOW_RECONCILE for the emulated-owner runner, the firmware runner with the broker and flash counters, the flash-write counter, the cost table in physical units |
+| `ext087.py`, `campaign_zephyr_ext087.py`, `campaign_real_ext087.py`, `sh087.py`, `rb087.py`, `verdicts087.py`, `power_extra087_testbed.py` | Release 087 (below): the policies SHADOW_RECONCILE_1S, EVICON_FI_REC, EVICON_FI_REC_OS; the firmware runner with the 087 gateway and the campaign fault `owner_reboot`; the MinIO runner; the estimands of items A and B with the check RB-C1; the earlier verdicts against the 086 final report; the power of the 087 rules |
 | `campaigns/local_smoke.json` | Pipeline check on one machine (`make campaign-local`). **Development numbers are not measurements** |
 | `campaigns/pilot_pending_binding.json` | Testbed pilot, *pending-binding* regime |
 | `campaigns/pilot_capacity_binding.json` | Testbed pilot, *capacity-binding* regime |
@@ -433,3 +434,30 @@ SH-A1 to SH-A4) and the safety rule SR-S (no exempt contract).
 - `paper_tables.py` writes `tab_sr086.tex`, `tab_cost086.tex` and the macros `\evSR*`, `\evAnchor*`, `\evCost*`, `\evQosTwo*`.
 - Tests: `test_release086.py` (K1-K22); the Go tests `TestShadowReconcile*086`; `conformance/tests/test_qos2_device.py`; the Go tests `TestFenceAnchor*086`; `conformance/tests/test_fence_anchor_reboot.py`
   (B2-02 end to end: the MQTT owner gateway, the firmware's wire path and core as a host library, the authority).
+
+## Release 087: the shadow loop on the real owners and owner reboots as a campaign fault (`prereg/PREREG_extra_087.md`)
+
+Two experiments the simulated JNCA review asked for (M2, M3): 3 campaign configs, 66 cells, the firmware gate on two
+builds, about 10.5 testbed hours in one overnight session (`run087.sh`). 17 rules: 5 paired-difference hypotheses
+(SHR-1 to SHR-4 `equivalent 3`, RB-1 `at_least 15`; power 1.00 and 0.96 under the primary templates), 8 absence rules,
+1 detection rule, 2 safety rules, and the check RB-C1.
+
+| Item | Runs (configs) | What is new |
+|---|---|---|
+| A, firmware | SHRz6 (`expSHR_zephyr_w6`): copy of `expSR_zephyr_w6` with the unrestricted measured cutoff contract (ZEPHYR_CUTOFF_DIRECT, QoS 1, direct), EVICON, SHADOW_RECONCILE, SHADOW_RECONCILE_1S, 8 episodes | SHR-1, SHR-2 (equivalence within 3 pp), SHR-A1 to SHR-A3; runner `campaign_zephyr_ext087.py` |
+| A, MinIO | SHRm6 (`expSHR_minio_w6`): copy of `expSR_minio_w6` with MINIO_COND only, the same three policies | SHR-3, SHR-4, SHR-A4 to SHR-A6; runner `campaign_real_ext087.py` |
+| B | RBz6 (`expRB_zephyr_w6`): copy of `expSR_zephyr_w6` on the boot-report build (`firmware/zephyr-boot`), {F}, the fault `owner_reboot` (2 reboots per device and episode), 6 episodes; arms NEG_ZEPHYR_F_BOOT / EVICON_FI_REC_OS, ZEPHYR_F_BOOT / EVICON_FI, ZEPHYR_F_BOOT / EVICON_FI_REC | RB-1, RB-A1, RB-A2, RB-D1, RB-S, RB-C1; the authority's `-reboot-recovery`; the gateway `mqtt_owner_gateway_ext087.py` |
+| the firmware gate | `measure zephyr zephyr-boot` (no cells) | both builds measured; RBz6 runs only on the boot build's measured contract |
+| earlier verdicts | no cells | `verdicts087.py`: the 185 verdicts of the plans up to 086 against the 086 final report |
+
+- **Analysis**: `pairs_ext083.py` (frozen) on the plan's ```pairs-spec``` and ```pairs-ext```; `sh087.py` (E-SHR: owner calls
+  with the loop's reads, re-publishes, reads by outcome, unresolved identities and their budget at the end, the cadence
+  contrast, broker packets and flash writes per offered request; each arm against the SR run's EVICON cells on the same
+  schedules); `rb087.py` (E-RB per reboot: admissions until the next reboot, time to the first admission and to the first
+  effective one; stranded identities and budget; the recovery's trace counts; the check RB-C1).
+- **Power**: `power_extra087_testbed.py` (templates: the within-run differences of the 085 PM runs, SHd and SRz6 of the 086
+  final report, `sim_predictions/extra087_templates.csv`; output `extra087_power.csv`).
+- Tests: `test_release087.py` (K1-K22, including the uniqueness of every new ID against the earlier plans and the 086 claims
+  list, `sim_predictions/extra087_claim_ids.csv`); the Go tests `TestRebootRecovery*087`, `TestRec*087`;
+  `conformance/tests/test_reboot_recovery087.py`; the host tests of `firmware/zephyr-boot`; TLC on
+  `formal/EviconFenceReboot.tla`.

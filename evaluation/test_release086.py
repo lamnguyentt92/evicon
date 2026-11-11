@@ -81,11 +81,12 @@ def block(name: str) -> dict:
 
 class K1Version(unittest.TestCase):
     def test_version(self):
-        self.assertEqual((REPO / "VERSION").read_text().strip(), "086")
-        self.assertIn('const Release = "086"', (REPO / "internal" / "buildinfo" / "buildinfo.go").read_text())
-        self.assertIn('version: "086"', (REPO / "CITATION.cff").read_text())
+        v = (REPO / "VERSION").read_text().strip()  # release 087: this release or a later one
+        self.assertGreaterEqual(v, "086")
+        self.assertIn(f'const Release = "{v}"', (REPO / "internal" / "buildinfo" / "buildinfo.go").read_text())
+        self.assertIn(f'version: "{v}"', (REPO / "CITATION.cff").read_text())
         for f in sorted((REPO / "deploy" / "setup").glob("vm-*.sh")):
-            self.assertIn("(EviCon 086)", f.read_text(), f.name)
+            self.assertIn(f"(EviCon {v})", f.read_text(), f.name)
         self.assertIn("## 086", (REPO / "CHANGELOG.md").read_text())
 
 
@@ -357,6 +358,9 @@ class K11Driver(unittest.TestCase):
 
 class K12Script(unittest.TestCase):
     def test_run086(self):
+        if not (REPO / "run086.sh").exists():  # release 087: run087.sh replaces it (test_release087 K12)
+            self.assertTrue(sorted(REPO.glob("run08*.sh")))
+            return
         s = (REPO / "run086.sh").read_text()
         self.assertFalse((REPO / "run085.sh").exists())
         self.assertIn('CAMPAIGNS="expSR_zephyr_w6 expSR_zephyr_winf expSR_minio_w6 expSR_minio_winf expSH_queue expSH_direct"', s)
@@ -397,11 +401,11 @@ class K14Provenance(unittest.TestCase):
     def test_published(self):
         sys.path.insert(0, str(REPO / "scripts"))
         import provenance as PV
-        self.assertEqual(PV.NEWEST_PLAN, "PREREG_extra_086.md")
-        self.assertEqual(PV.NEWEST_RELEASE, "086")
+        self.assertGreaterEqual(PV.NEWEST_RELEASE, "086")  # release 087: a later plan is the newest (test_release087 K14)
+        self.assertEqual(PV.NEWEST_PLAN, f"PREREG_extra_{PV.NEWEST_RELEASE}.md")
         p = PV.PUBLISHED["PREREG_extra_085.md"]
         self.assertEqual((p[0]["commit"], p[0]["sha256"]), ("40e451d", sha(REPO / "evaluation" / "prereg" / "PREREG_extra_085.md")))
-        self.assertEqual(PV.PUBLISHED["PREREG_extra_086.md"], [])
+        self.assertEqual(PV.PUBLISHED[PV.NEWEST_PLAN], [])
         self.assertIn("review-20261104T171522", " ".join(PV.DEVIATIONS["PREREG_extra_085.md"]))
         top = (REPO / "PROVENANCE.md").read_text()
         self.assertIn("40e451d", top)
@@ -423,6 +427,8 @@ class K15Hygiene(unittest.TestCase):
         forbidden = "EC" + "HO"
         guide = "RUN_GUIDE" + "_VI"
         for f in NEW_FILES:
+            if f == "run086.sh" and not (REPO / f).exists():
+                continue  # release 087: run087.sh replaces it
             s = (REPO / f).read_text()
             self.assertNotIn(forbidden, s, f)
             self.assertFalse(re.search("[" + chr(0xC0) + "-" + chr(0x1EF9) + "]", s), f"non-English characters in {f}")

@@ -1,5 +1,67 @@
 # Changelog
 
+## 087 — 2026-11-11
+
+The two experiments the simulated JNCA review asked for (reviewer comments M2 and M3), approved by the author on 9 November
+2026, and three small fixes. One plan, `evaluation/prereg/PREREG_extra_087.md`, frozen once after the simulated-testbed
+regression and before its first cell; 3 campaign configs, 66 cells, the firmware gate on two builds; about 10.5 testbed
+hours in one overnight session (`run087.sh`). Every file an earlier plan freezes is byte-identical
+(`PREREG_review_077.md`: `db67640d...`; `PREREG_extra_083.md`: `6e3f24a9...`; `PREREG_extra_084.md`: `b1135164...`;
+`PREREG_extra_085.md`: `22586c78...`; `PREREG_extra_086.md`: `d28956e9...`), and so is the measured firmware build
+(SHA-256 `907b2ccd...`, checked by the driver). Defaults behave as before: every new behaviour is behind a flag, a policy
+or a campaign setting.
+
+- **Item A: the documented shadow loop on the real owners (M2).** Release 086's `SHADOW_RECONCILE` (unchanged) runs on the
+  cutoff firmware with its unrestricted measured contract {D_h, Q_A, F} (run SHRz6; the gateway's query is the
+  reported-state read) and on MinIO's conditional PUT with the tombstone stop (SHRm6; the S3 gateway's receipt read), at
+  the documented 10 s timeout and, for the cadence confound (F3-06), at EviCon's 1 s sweep cadence (new campaign policy
+  `SHADOW_RECONCILE_1S` in `evaluation/ext087.py`: the same arguments with `-release-after 1s`), against EVICON in the
+  same campaign; seed 20261105 reused (the SR schedules, byte-identical), W = 6, 8 episodes. Rules SHR-1 to SHR-4
+  (`equivalent 3`, Holm per owner), SHR-A1 to SHR-A6, SHR-S; estimands E-SHR (`evaluation/sh087.py`: owner calls with the
+  loop's reads, re-publishes, reads by outcome, unresolved identities and the budget they hold at the end, the cadence
+  contrast, the broker's packets and the firmware's flash writes). Runners `campaign_zephyr_ext087.py` (on the frozen
+  086 runner with its counters) and `campaign_real_ext087.py`; the driver's refusal of SHADOW_RECONCILE on a real owner
+  is lifted for them.
+- **Item B: owner reboots as a campaign fault (M3), and the reboot recovery.** New campaign fault `owner_reboot`
+  (`campaign_zephyr_ext087.py`, `real_owner.owner_reboot`): per device and episode a reboot in the longest arrival gap in
+  [60, 145] s and one at a random time in [150, 240] s (a stream of its own); the firmware stopped by its pid file
+  (SIGTERM, then SIGKILL, only while it runs in the cell's directory) and started again with the same arguments and
+  flash file; `reboots.jsonl` per cell. The boot-report build `firmware/zephyr-boot/` compiles the frozen sources of
+  `firmware/zephyr-cutoff` unchanged with three call redirections and `src/evc_boot_report.c`: the claim floor (the claim
+  mark restored at boot) in every reply and a hello after every connect; built by `deploy/setup/build_zephyr_boot.sh`
+  (`build_iot.sh start zephyr_boot`), which never rebuilds the measured build; measured by `measure zephyr-boot`. The
+  gateway `conformance/reference/mqtt_owner_gateway_ext087.py` (on the frozen 077 gateway) tracks the floor (GW-1),
+  reports `claim_floor` in every answer (GW-2) and, per cell, seals a never-forwarded identity at or below the floor (GW-3,
+  STOPPED, durable). The authority's recovery `-reboot-recovery` (off by default; `internal/runtime/reboot_recovery.go`,
+  `internal/journal/owner_floor.go`): REC-1 learns the floor from any answer; REC-2 advances the owner sequence above it
+  (the client's sequence plus a durable offset; the replay of a request maps to its stored intent); REC-3 commits the
+  evidence anchor of a complete fence after a reboot when the reported level equals the APPLIED values above the floor
+  (MATCH_FLOOR; a mismatch aborts as an evidence conflict, as in 086); REC-4 takes the identities a complete answer lists
+  UNCERTAIN out of the window (their budget stays reserved; the bound argument does not use the window). Run RBz6 (6
+  episodes, 18 cells): arm (i) the negative control `NEG_ZEPHYR_F_BOOT` / `EVICON_FI_REC_OS` (the recovery with
+  `-fence-anchor owner-state`), arm (ii) release 086 (`EVICON_FI`), arm (iii) the recovery (`EVICON_FI_REC`). Rules RB-1
+  (`at_least 15`, prediction +30 after the simulated testbed's full-length episode), RB-A1, RB-A2, RB-D1, RB-S and the
+  check RB-C1; estimands E-RB (`evaluation/rb087.py`). The driver treats a `NEG_` contract of a real-owner campaign as a
+  planned negative control.
+- **Tests.** Go: `TestRebootRecoveryDefaultOff087`, `TestRecSequenceAdvance087`, `TestRecFloorCheck087`,
+  `TestRecWindow087` and `TestRebootRecoveryProperty087` (a Go model of the firmware's decision rules, the gateway's
+  cache and seal; random histories with losses, orphans, fences and reboots: the recovery and release 086 never violate
+  the bound; owner-state with the recovery does). Conformance: `test_reboot_recovery087.py` (the 087 gateway, the boot
+  build's wire path as a host library, the real authority: the recovery commits MATCH_FLOOR and stays within the budget,
+  086 admits nothing effective after the reboot, owner-state exceeds the budget). Firmware host tests of the boot report.
+  TLA+: `formal/EviconFenceReboot.tla` with seven configurations (`formal/TLC_RESULTS_REBOOT.txt`). `test_release087`
+  (K1-K22), including the uniqueness of every ID of plan 087 against the plans 066-086 and the 086 claims list.
+- **Item C.** `scripts/make_data_archive.py`: the credential scan's allowance is per match (every assignment on a line
+  must itself be an allowed value) and covers the authority's fence tokens of 086's `FENCE_ANCHOR_CHECK` trace event
+  (`evicon-<mode>-<origin>-r<rev>[-a<n>]`); private keys and AWS-style keys are never allowed. `PROVENANCE.md` and
+  `scripts/provenance.py`: plan 086 published in commit `440ecf1`, 2026-11-05 06:21 UTC (SHA-256 verified read-only),
+  before its first measurement; its runs without deviation; plan 087 to be filled when published. No stray test file at
+  the tree root (the reboot test lives in `conformance/tests/` only; `test_release087` checks it).
+- **Driver and scripts.** `evicon_review.py`: the 087 runners, `measure zephyr-boot`, the check of the measured build's
+  SHA-256, the boot build's firmware for RBz6, the verify list (`test_release087`, the boot report's host tests), TLC on
+  the reboot model in `formal`, and the report steps `sh087.py`, `rb087.py` and `verdicts087.py` (the 185 earlier verdicts
+  against the 086 final report). `run087.sh` replaces `run086.sh`; the Vietnamese run guide of 087 replaces that of 086.
+
 ## 086 — 2026-11-05
 
 Two items the author approved on 5 November 2026 after the independent checks of the manuscript, the fence anchor

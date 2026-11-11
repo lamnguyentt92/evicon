@@ -495,6 +495,7 @@ func (a *Authority) stopOne(origin string, cmd journal.CommandRecord, stats *pol
 	if err == nil {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 		resp.Body.Close()
+		a.noteOwnerFloorBody(cmd.DomainID, raw, "STOP") // release 087 (REC-1); nothing without -reboot-recovery
 		if resp.StatusCode/100 != 2 {
 			reason = fmt.Sprintf("STOP_HTTP_%d", resp.StatusCode)
 		} else {

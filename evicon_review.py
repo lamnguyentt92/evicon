@@ -35,7 +35,7 @@ Stages (in order):
 
 Commands (release 065-068; run after `all` has passed build, distribute and controls):
     measure     stacks mosquitto, mosquitto-qos2 (086: QoS 2 end to end), coap, temporal, emqx, nats, minio,
-                dbos, k3s, thingsboard, zephyr. Starts the truth plant and a reference device/worker/app when the stack
+                dbos, k3s, thingsboard, zephyr, zephyr-boot (087: the boot-report build). Starts the truth plant and a reference device/worker/app when the stack
                 needs them, brings the system up (Mosquitto, EMQX, NATS JetStream, MinIO,
                 PostgreSQL for DBOS, k3s, ThingsBoard through docker compose on VM-B; its own
                 Temporal dev server on VM-D:7243, or testbed key temporal_address; the Zephyr
@@ -572,7 +572,19 @@ def st_verify(tb, a):
     else:
         results["firmware_host"] = "PASS" if rc == 0 else "FAIL"
     sh(["make", "-s", "-C", str(hostdir), "clean"], check=False)
-    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084", "evaluation.test_release085", "evaluation.test_release086"],
+    # release 087: the boot report's host tests (firmware/zephyr-boot: the floor in every reply format, the hello, the frozen main.c
+    # with the three call redirections, the host library of conformance/tests/test_reboot_recovery087.py)
+    bootdir = REPO / "firmware" / "zephyr-boot" / "tests" / "host"
+    sh(["make", "-s", "-C", str(bootdir), "clean"], check=False)
+    rc, out = sh(["make", "-s", "-C", str(bootdir)], check=False, timeout=900)
+    if rc != 0 and ("asan" in out.lower() or "sanitizer" in out.lower()):
+        sh(["make", "-s", "-C", str(bootdir), "clean"], check=False)
+        rc, out = sh(["make", "-s", "-C", str(bootdir), "CFLAGS=-std=c11 -Wall -Wextra -Werror -O1 -g"], check=False, timeout=900)
+        results["firmware_boot_host"] = "PASS_NO_SANITIZER" if rc == 0 else "FAIL"
+    else:
+        results["firmware_boot_host"] = "PASS" if rc == 0 else "FAIL"
+    sh(["make", "-s", "-C", str(bootdir), "clean"], check=False)
+    rc, _ = sh([sys.executable, "-m", "unittest", "evaluation.test_analysis", "evaluation.test_sim_to_real", "evaluation.test_campaign", "evaluation.test_prereg", "evaluation.test_reports", "evaluation.test_pairs_report", "evaluation.test_campaign_real", "evaluation.test_predict", "evaluation.test_campaign_zephyr", "evaluation.test_campaign_zephyr_ext", "evaluation.test_release075", "evaluation.test_release077", "evaluation.test_release078", "evaluation.test_release079", "evaluation.test_release080", "evaluation.test_release081", "evaluation.test_release082", "evaluation.test_release083", "evaluation.test_release084", "evaluation.test_release085", "evaluation.test_release086", "evaluation.test_release087"],
                env=env, check=False, timeout=900)
     results["analysis"] = "PASS" if rc == 0 else "FAIL"
     (RUN.path / "verify.json").write_text(json.dumps(results, indent=2) + "\n")
@@ -600,9 +612,16 @@ def st_formal(tb, a):
     tm = (out / "timing" / "summary.txt").read_text() if (out / "timing" / "summary.txt").exists() else ""
     if rc != 0:
         raise StageFail("TLC (timing boundary cases): unexpected verdict (see formal/timing/summary.txt)")
+    # release 087 (PREREG_extra_087.md item B): the reboot model EviconFenceReboot.tla (3 configurations without error, 4 expected
+    # violations: the owner-state negative control, the firmware without the eviction guard, and two reachability witnesses)
+    rc, _ = sh(["bash", "formal/run_tlc_reboot.sh", str(out / "reboot")], timeout=7200, check=False)
+    rb = (out / "reboot" / "summary.txt").read_text() if (out / "reboot" / "summary.txt").exists() else ""
+    if rc != 0:
+        raise StageFail("TLC (the reboot model): unexpected verdict (see formal/reboot/summary.txt)")
     return (f"{summary.count('EXPECTED')}/8 EXPECTED (5 safe models PASS, 3 negative controls VIOLATION); rule R5': "
             f"{fi.count('EXPECTED')}/3 EXPECTED (2 safe models PASS, the negative control without FC VIOLATION); timing: "
-            f"{tm.count('EXPECTED') - tm.count('UNEXPECTED')}/6 EXPECTED (2 without error, 4 boundary violations)")
+            f"{tm.count('EXPECTED') - tm.count('UNEXPECTED')}/6 EXPECTED (2 without error, 4 boundary violations); reboot: "
+            f"{rb.count('EXPECTED') - rb.count('UNEXPECTED')}/7 EXPECTED (3 without error, 4 expected violations)")
 
 
 def st_sim(tb, a):
@@ -1129,6 +1148,19 @@ def _expected_unsafe(cfg: dict) -> set:
     return planned_unsafe(cfg)
 
 
+def _negative_controls(cfg: dict) -> set:
+    """Release 087: the (contract, policy) cells of a real-owner campaign whose contract is labelled NEG_ (the negative control of
+    PREREG_extra_087.md item B, NEG_ZEPHYR_F_BOOT / EVICON_FI_REC_OS), in the cells the config runs (exclude_cells left out). A
+    violation there is planned (the report's safety total classifies NEG_ contracts as controls, safety_total.kind); the
+    driver adds them to the planned-unsafe groups of a real-owner campaign. No earlier real-owner config has a NEG_ contract,
+    and _expected_unsafe (the one rule of release 079) is unchanged."""
+    if not cfg.get("real_owner"):
+        return set()
+    excl = {tuple(x) for x in cfg.get("exclude_cells", [])}
+    return {(ct, pol) for ct in cfg.get("contracts", []) if str(ct).startswith("NEG_") for pol in cfg.get("policies", [])
+            if (ct, pol) not in excl}
+
+
 def _real_owner_campaign(tb, a, src: Path, cfg: dict):
     """Release 073, experiment C: EviCon authorities (VM-A) against MinIO (VM-B) through one S3 owner
     gateway per device (VM-C), run by evaluation/campaign_real.py. MinIO runs for the campaign in
@@ -1165,7 +1197,8 @@ def _real_owner_campaign(tb, a, src: Path, cfg: dict):
         for k in (cfg["real_owner"].get("access_key_env", "MINIO_ROOT_USER"), cfg["real_owner"].get("secret_key_env", "MINIO_ROOT_PASSWORD")):
             if not os.environ.get(k):
                 raise StageFail(f"{k} is not set after MinIO started (the runner reads the credentials from the environment)")
-        runner = ("evaluation/campaign_real_ext085.py" if _uses_085_options(cfg)  # 085: the matched comparison (policy_order)
+        runner = ("evaluation/campaign_real_ext087.py" if _uses_087(cfg)  # 087: SHADOW_RECONCILE(_1S) on MinIO
+                  else "evaluation/campaign_real_ext085.py" if _uses_085_options(cfg)  # 085: the matched comparison (policy_order)
                   else "evaluation/campaign_real_ext084.py" if _uses_084_policies(cfg)  # 084: PERIODIC_FULL
                   else "evaluation/campaign_real_ext083.py" if _uses_083_policies(cfg) else "evaluation/campaign_real.py")  # 083: EVICON_GREEDY
         st = _run_campaign(cfg, RUN.path / "campaigns", tb, new=a.new_campaign, max_cells=a.max_cells, runner=runner)
@@ -1181,7 +1214,7 @@ def _real_owner_campaign(tb, a, src: Path, cfg: dict):
         return "PARTIAL", (f"{st['cells_done']}/{st['cells_total']} cells in {run}; continue later with the same command "
                            f"(it resumes; MinIO is started again); nothing is analysed until every cell is done")
     an = run / "analysis"
-    expected = _expected_unsafe(cfg)
+    expected = _expected_unsafe(cfg) | _negative_controls(cfg)  # release 087: NEG_ contracts of a real-owner campaign
     rep = _analyze_runtime([run / "runtime_episodes.csv"], an, ["M1"], expected_unsafe=expected)
     late = rep.get("late_effects_total", 0)
     with open(run / "runtime_episodes.csv", newline="") as fh:
@@ -1207,15 +1240,26 @@ ZEPHYR_MODE_STACK = {"PLAIN": ("zephyr-plain", "zephyr-mqtt-plain", set()), "CUT
                      "STOP": ("zephyr-stop", "zephyr-mqtt-stop", {"D_h", "Q_A", "Q_S", "F"})}
 
 
+# release 087 (PREREG_extra_087.md item B): the boot-report build (firmware/zephyr-boot) is measured by `measure zephyr-boot`
+ZEPHYR_MODE_STACK_BOOT = {"CUTOFF": ("zephyr-boot", "zephyr-mqtt", {"D_h", "Q_A", "F"})}
+# release 087: the measured firmware build stays byte-identical to release 086's (the SHA-256 of 083-086's zephyr-cutoff.exe on
+# VM-D); a simulated testbed with its own build names its SHA-256 in EVICON_EXPECT_FIRMWARE_SHA256
+FIRMWARE_086_SHA256 = "907b2ccdc11ed3d32c6d311e6870741fd256a23885a8db8a75732beb73896f9d"
+
+
 def _measured_zephyr_contracts(cfg: dict, fw_sha: str) -> dict:
     """Release 074, experiment C2: for each contract of the config, the contract this review run measured
     for the firmware mode (newest `measure <stack>` run), checked against the plan before any cell runs:
     MEASURED, the planned capabilities, the measured fault model, and the very firmware binary the
     campaign will run. Returns {contract name: (contract.json path, contract)}."""
     found, bad = {}, []
+    boot = (cfg.get("real_owner") or {}).get("firmware_variant") == "boot"
     for name in cfg["contracts"]:
         mode = cfg["real_owner"]["contracts"][name]["mode"]
-        stack, conf, caps = ZEPHYR_MODE_STACK[mode]
+        if boot and mode not in ZEPHYR_MODE_STACK_BOOT:
+            bad.append(f"{name}: the boot-report firmware is measured in mode CUTOFF only (measure zephyr-boot)")
+            continue
+        stack, conf, caps = (ZEPHYR_MODE_STACK_BOOT if boot else ZEPHYR_MODE_STACK)[mode]
         runs = sorted((RUN.path / "measure" / stack / "runs" / conf).glob("2*/contract.json"))
         if not runs:
             bad.append(f"{name}: no measurement of {stack} in this review run (python3 evicon_review.py measure {stack})")
@@ -1243,6 +1287,7 @@ import ext083  # noqa: E402  (release 083: the authority policies of PREREG_extr
 import ext084  # noqa: E402  (release 084: the authority policies of PREREG_extra_084.md)
 import ext085  # noqa: E402  (release 085: the runner option policy_order of PREREG_extra_085.md)
 import ext086  # noqa: E402  (release 086: the policy SHADOW_RECONCILE of PREREG_extra_086.md)
+import ext087  # noqa: E402  (release 087: SHADOW_RECONCILE_1S, EVICON_FI_REC, EVICON_FI_REC_OS of PREREG_extra_087.md)
 
 
 def _uses_083_policies(cfg: dict) -> bool:
@@ -1271,6 +1316,16 @@ def _uses_086_policies(cfg: dict) -> bool:
     return any(ext086.is_086_policy(p) for p in cfg.get("policies", []))
 
 
+def _uses_087(cfg: dict) -> bool:
+    """Release 087: a config of PREREG_extra_087.md, with a policy of evaluation/ext087.py, or with a key of the 087 firmware
+    runner (firmware_variant, gateway_recovery_policies, owner_reboot); SHADOW_RECONCILE on a real owner (plan 087 item A)."""
+    ro = cfg.get("real_owner") or {}
+    return (str((cfg.get("preregistration") or {}).get("path", "")).endswith("PREREG_extra_087.md")
+            or any(ext087.is_087_policy(p) for p in cfg.get("policies", []))
+            or any(k in ro for k in ("firmware_variant", "gateway_recovery_policies", "owner_reboot"))
+            or (bool(ro) and _uses_086_policies(cfg)))
+
+
 def _emulated_runner(cfg: dict):
     """Release 077: the RELEASE_ON_TIMEOUT and RELEASE_ON_READ baselines and the validity cut of the retry
     guard (authority.resend_until) (PREREG_review_077.md) run on evaluation/campaign_ext077.py, which imports
@@ -1280,9 +1335,11 @@ def _emulated_runner(cfg: dict):
     baselines = sorted(set(cfg["policies"]) & set(RELEASE_BASELINES))
     if _uses_085_options(cfg):
         raise StageFail(f"{cfg.get('name')}: {ext085.KEY} is an option of the release-085 firmware and MinIO runners only")
+    if any(ext087.is_087_policy(p) for p in cfg.get("policies", [])):
+        raise StageFail(f"{cfg.get('name')}: the policies of release 087 run on the real owners of PREREG_extra_087.md only")
     if _uses_086_policies(cfg):  # release 086: campaign_ext086 installs the 077, 083, 084 and 086 policies
         if cfg.get("real_owner"):
-            raise StageFail(f"{cfg.get('name')}: SHADOW_RECONCILE runs on the emulated owner only")
+            raise StageFail(f"{cfg.get('name')}: SHADOW_RECONCILE on a real owner runs on the release-087 runners only")
         return "evaluation/campaign_ext086.py", baselines
     if _uses_084_policies(cfg):  # release 084: campaign_ext084 installs the 077, 083 and 084 policies
         return "evaluation/campaign_ext084.py", baselines
@@ -1298,6 +1355,9 @@ def _zephyr_runner(cfg: dict) -> str:
     Release 077: experiment Q (the delivery binding of the commands, the offline cut) runs on
     evaluation/campaign_zephyr_ext077.py, which imports the C3 runner."""
     specs = cfg["real_owner"]["contracts"].values()
+    if _uses_087(cfg):
+        # release 087: the 086 runner (counters) with the 087 policies, the 087 gateway (claim floor, seal) and owner_reboot
+        return "evaluation/campaign_zephyr_ext087.py"
     if str((cfg.get("preregistration") or {}).get("path", "")).endswith("PREREG_extra_086.md"):
         # release 086: the 077 runner (binding keys) with the broker and flash counters of the cost table (E-COST)
         return "evaluation/campaign_zephyr_ext086.py"
@@ -1375,7 +1435,7 @@ def _tb_owner_campaign(tb, a, src: Path, cfg: dict):
         return "PARTIAL", (f"{st['cells_done']}/{st['cells_total']} cells in {run}; continue later with the same command "
                            f"(it resumes; ThingsBoard is installed again); nothing is analysed until every cell is done")
     an = run / "analysis"
-    expected = _expected_unsafe(cfg)
+    expected = _expected_unsafe(cfg) | _negative_controls(cfg)  # release 087: NEG_ contracts of a real-owner campaign
     rep = _analyze_runtime([run / "runtime_episodes.csv"], an, ["M1"], expected_unsafe=expected)
     with open(run / "runtime_episodes.csv", newline="") as fh:
         rows = [r for r in csv.DictReader(fh) if r["cell_status"].startswith("VALID")]
@@ -1484,7 +1544,10 @@ def _zephyr_owner_campaign(tb, a, src: Path, cfg: dict):
     m.checks()
     try:
         m.deploy()
-        fw = m.firmware_to_e(m.out / "firmware")
+        if (cfg["real_owner"].get("firmware_variant") or "default") == "boot":  # release 087, item B
+            fw = m.boot_firmware_to_e(m.out / "firmware")
+        else:
+            fw = m.firmware_to_e(m.out / "firmware")
         contracts = _measured_zephyr_contracts(cfg, m.facts["firmware"]["sha256"])
         cdir = m.out / "contracts"
         cdir.mkdir(parents=True, exist_ok=True)
@@ -1511,7 +1574,7 @@ def _zephyr_owner_campaign(tb, a, src: Path, cfg: dict):
         return "PARTIAL", (f"{st['cells_done']}/{st['cells_total']} cells in {run}; continue later with the same command "
                            f"(it resumes; Mosquitto is started again); nothing is analysed until every cell is done")
     an = run / "analysis"
-    expected = _expected_unsafe(cfg)
+    expected = _expected_unsafe(cfg) | _negative_controls(cfg)  # release 087: NEG_ contracts of a real-owner campaign
     rep = _analyze_runtime([run / "runtime_episodes.csv"], an, ["M1"], expected_unsafe=expected)
     late = rep.get("late_effects_total", 0)
     with open(run / "runtime_episodes.csv", newline="") as fh:
@@ -1688,6 +1751,12 @@ STACKS = {
                     "fw_target": "auth",
                     "what": "Authenticated EviCon firmware on Zephyr {zephyr} (firmware/zephyr-auth), stop mode (native_sim/native/64, VM-E) "
                             "behind Eclipse Mosquitto 2.0.20 (docker, VM-B), against forged, altered and replayed messages"},
+    # release 087 (PREREG_extra_087.md item B): the boot-report build (firmware/zephyr-boot: the frozen sources of zephyr-cutoff with
+    # the claim floor in every reply and a hello after every connect; built by build_iot.sh start zephyr_boot), cutoff mode, measured
+    # with the probes of the measured build (the firmware gate runs on both builds)
+    "zephyr-boot": {"configs": ["zephyr-mqtt"], "py": {"C": ["paho.mqtt.client"]}, "owner": "mosquitto", "fw_mode": "cutoff", "fw_target": "boot",
+                    "what": "EviCon firmware on Zephyr {zephyr}, boot-report build (firmware/zephyr-boot), cutoff mode (native_sim/native/64, "
+                            "VM-E; built by deploy/setup/build_iot.sh start zephyr_boot) behind Eclipse Mosquitto 2.0.20 (docker, VM-B)"},
     # release 075: what the firmware certifies across an owner reboot (outside the measured fault model)
     "zephyr-reboot": {"configs": [], "reboot_check": True, "py": {"C": ["paho.mqtt.client"]}, "owner": "mosquitto", "fw_mode": "stop",
                       "what": "EviCon firmware on Zephyr {zephyr}, stop mode, across an owner reboot (process stopped and started again "
@@ -1703,7 +1772,7 @@ STACK_PROCS = {"mosquitto": [("E", "mqtt-device"), ("B", "broker")], "mosquitto-
                "thingsboard": [("E", "tb-device"), ("B", "broker")], "zephyr": [("E", "zephyr-fw"), ("B", "broker")],
                "zephyr-stop": [("E", "zephyr-fw"), ("B", "broker")], "zephyr-plain": [("E", "zephyr-fw"), ("B", "broker")],
                "zephyr-reboot": [("E", "zephyr-fw"), ("B", "broker")], "zephyr-mcu": [("E", "zephyr-fw"), ("B", "broker")],
-               "zephyr-auth": [("E", "zephyr-fw"), ("B", "broker")]}
+               "zephyr-auth": [("E", "zephyr-fw"), ("B", "broker")], "zephyr-boot": [("E", "zephyr-fw"), ("B", "broker")]}
 STACK_FREE = {"mosquitto": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]}, "mosquitto-qos2": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]},
               "emqx": {"C": ["proxy_emqx"], "E": ["mqtt_admin"]},
               "nats": {"C": ["proxy_nats"]}, "minio": {"C": ["proxy_minio"]}, "temporal": {"C": ["proxy_temporal"]},
@@ -1711,7 +1780,7 @@ STACK_FREE = {"mosquitto": {"C": ["proxy_mqtt"], "E": ["mqtt_admin"]}, "mosquitt
               "thingsboard": {"C": ["proxy_tb"], "E": ["tb_admin"]}, "zephyr": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
               "zephyr-stop": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]}, "zephyr-plain": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
               "zephyr-reboot": {"E": ["zephyr_plant_tcp"]}, "zephyr-mcu": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]},
-              "zephyr-auth": {"E": ["zephyr_plant_tcp"]}}
+              "zephyr-auth": {"E": ["zephyr_plant_tcp"]}, "zephyr-boot": {"C": ["proxy_mqtt"], "E": ["zephyr_plant_tcp"]}}
 STACK_DEPLOY = {"mosquitto": ["E"], "mosquitto-qos2": ["E"], "emqx": ["E"], "coap": ["E"], "temporal": ["E", "A"], "dbos": ["A"], "thingsboard": ["E"]}
 MEASURE_DURATION = {"mosquitto": "10-15 min (--quick: 3-5 min)", "mosquitto-qos2": "20-35 min with the expiry check (--quick: 8 min); 086", "coap": "60-75 min (--quick: 20-25 min)",
                     "temporal": "5-10 min (--quick: 2 min)", "emqx": "10-15 min (--quick: 4-6 min)",
@@ -1723,10 +1792,11 @@ MEASURE_DURATION = {"mosquitto": "10-15 min (--quick: 3-5 min)", "mosquitto-qos2
                     "zephyr-plain": "5-10 min (no P5); needs the 074 firmware from build_iot.sh",
                     "zephyr-reboot": "2-4 min (one scripted check across a firmware restart; release 075)",
                     "zephyr-mcu": "40-55 min (--quick: 15-20 min; P5 waits 600 s per repetition); needs the 077 MCU build from build_iot.sh",
-                    "zephyr-auth": "2-4 min (one scripted check; release 077); needs the 077 build from build_iot.sh"}
+                    "zephyr-auth": "2-4 min (one scripted check; release 077); needs the 077 build from build_iot.sh",
+                    "zephyr-boot": "35-45 min (--quick: 15 min); 087: needs the boot-report build (build_iot.sh start zephyr_boot)"}
 # stacks that need the testbed's docker on VM-B (no --local self-test)
 TESTBED_ONLY_STACKS = ("emqx", "nats", "minio", "dbos", "k3s", "thingsboard", "zephyr", "zephyr-stop", "zephyr-plain", "zephyr-reboot",
-                       "zephyr-mcu", "zephyr-auth")
+                       "zephyr-mcu", "zephyr-auth", "zephyr-boot")
 
 
 def _udp_in_use(host, port) -> str:
@@ -2578,6 +2648,12 @@ class _Measure:
         zst = src.run("grep -m1 'zephyr revision' /var/lib/evicon/builds/zephyr.status", check=False).stdout.strip()
         exe = f"{self.root}/bin/zephyr-cutoff.exe"
         fw_sha = sha256(tmp / "zephyr-cutoff.exe")
+        want = os.environ.get("EVICON_EXPECT_FIRMWARE_SHA256", FIRMWARE_086_SHA256)
+        if fw_sha != want:  # release 087: the measured build is release 086's, byte for byte (PREREG_extra_087.md)
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise StageFail(f"the measured firmware build on {src.name} has SHA-256 {fw_sha[:16]}..., release 086's is {want[:16]}...: "
+                            f"it was rebuilt or changed. Plan 087 runs the measured build of 083-086 unchanged; restore it (or rebuild "
+                            f"release 086's firmware/zephyr-cutoff with 'bash deploy/setup/build_iot.sh start zephyr') and send the bundle")
         try:
             _push_file(self.tb, "E", tmp / "zephyr-cutoff.exe", exe)
         finally:
@@ -2587,6 +2663,53 @@ class _Measure:
             raise StageFail(f"the firmware built on {src.name} has no -evc_mode option (built from release <= 073): rebuild it from this "
                             f"release with 'bash deploy/setup/build_iot.sh start zephyr' (the workspace is kept: 5-15 min)")
         self.facts["firmware"] = {"built_on": src.name, "sha256": fw_sha, "zephyr": zst.split(":", 1)[-1].strip() or "?", "path_on_E": exe,
+                                  "config": {k: v for k, v in conf.items() if k in ("CONFIG_EVC_DEVICE_ID", "CONFIG_EVC_RING_SLOTS",
+                                                                                  "CONFIG_EVC_TOMB_SLOTS", "CONFIG_EVC_DEDUP_HORIZON_MS",
+                                                                                  "CONFIG_EVC_STOP", "CONFIG_EVC_GUARD_EVICTED")}}
+        return exe
+
+    def boot_firmware_to_e(self, out: Path) -> str:
+        """Release 087 (`measure zephyr-boot`, campaign expRB_zephyr_w6): the boot-report build of deploy/setup/build_zephyr_boot.sh
+        (firmware/zephyr-boot, started by build_iot.sh start zephyr_boot; BOOT_BUILD_OK in zephyr_boot.status) is copied to VM-E;
+        returns its path there. The status line also names the SHA-256 of the measured build zephyr-cutoff.exe after the boot
+        build (it is never rebuilt); it must be release 086's."""
+        out.mkdir(parents=True, exist_ok=True)
+        src, line = None, ""
+        order = [os.environ.get("ZEPHYR_VM", "d").lower()] + [v for v in ("d", "e", "b") if v != os.environ.get("ZEPHYR_VM", "d").lower()]
+        for v in order:
+            if v not in ("d", "e", "b"):
+                continue
+            h = self.tb.host(v.upper())
+            st = h.run("grep -E ' BOOT_BUILD_(OK|FAIL) ' /var/lib/evicon/builds/zephyr_boot.status 2>/dev/null | tail -n 1", check=False).stdout.strip()
+            if " BOOT_BUILD_OK " in st and h.run("test -s /root/evicon-build/zephyr-out/zephyr-boot.exe", check=False).returncode == 0:
+                src, line = h, st
+                break
+        if src is None:
+            raise StageFail("no boot-report firmware build: run 'bash deploy/setup/build_iot.sh start zephyr_boot' on VM-C first "
+                            "(5-10 min, after the Zephyr build of release 083-086 on VM-D), then 'bash deploy/setup/build_iot.sh status' "
+                            "until BOOT_BUILD_OK")
+        want = os.environ.get("EVICON_EXPECT_FIRMWARE_SHA256", FIRMWARE_086_SHA256)
+        dflt = line.split("default_sha256=", 1)[-1].split()[0] if "default_sha256=" in line else ""
+        if dflt != want:
+            raise StageFail(f"the boot build on {src.name} reports the measured build zephyr-cutoff.exe with SHA-256 {dflt[:16] or 'none'}..., "
+                            f"release 086's is {want[:16]}...: the measured build must stay unchanged (send the bundle)")
+        tmp = Path(tempfile.mkdtemp(prefix="evicon-fw-"))
+        for f, dst in (("zephyr-boot.exe", tmp), ("zephyr-boot.config", out)):
+            sh(["scp", "-q", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"{src.ssh}:/root/evicon-build/zephyr-out/{f}", str(dst / f)],
+               timeout=300)
+        conf = dict(l.split("=", 1) for l in (out / "zephyr-boot.config").read_text().splitlines() if l.startswith("CONFIG_EVC_"))
+        zst = src.run("grep -m1 'zephyr revision' /var/lib/evicon/builds/zephyr.status", check=False).stdout.strip()
+        exe = f"{self.root}/bin/zephyr-boot.exe"
+        fw_sha = sha256(tmp / "zephyr-boot.exe")
+        try:
+            _push_file(self.tb, "E", tmp / "zephyr-boot.exe", exe)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        helptext = self.E.run(f"{shlex.quote(exe)} --help 2>&1 | head -c 20000", check=False, timeout=30).stdout
+        if "evc_mode" not in helptext:
+            raise StageFail(f"the boot-report build on {src.name} has no -evc_mode option: rebuild it ('bash deploy/setup/build_iot.sh start zephyr_boot')")
+        self.facts["firmware"] = {"built_on": src.name, "sha256": fw_sha, "variant": "boot", "default_sha256": dflt,
+                                  "zephyr": zst.split(":", 1)[-1].strip() or "?", "path_on_E": exe,
                                   "config": {k: v for k, v in conf.items() if k in ("CONFIG_EVC_DEVICE_ID", "CONFIG_EVC_RING_SLOTS",
                                                                                   "CONFIG_EVC_TOMB_SLOTS", "CONFIG_EVC_DEDUP_HORIZON_MS",
                                                                                   "CONFIG_EVC_STOP", "CONFIG_EVC_GUARD_EVICTED")}}
@@ -2727,6 +2850,10 @@ class _Measure:
         wd = self._wd("zephyr-fw")
         if self.spec.get("fw_target") == "auth":
             exe = self.auth_firmware_to_e(self.out / "firmware")
+            self.fw_argv = [exe, f"-flash={wd}/fw.bin", "-evc_device=zephyr-1", f"-evc_broker={self.tb.ip('B')}",
+                            f"-evc_broker_port={P['broker']}", "-evc_plant=127.0.0.1", f"-evc_plant_port={P['zephyr_plant_tcp']}", f"-evc_mode={mode}"]
+        elif self.spec.get("fw_target") == "boot":  # release 087: the boot-report build, as the measured build
+            exe = self.boot_firmware_to_e(self.out / "firmware")
             self.fw_argv = [exe, f"-flash={wd}/fw.bin", "-evc_device=zephyr-1", f"-evc_broker={self.tb.ip('B')}",
                             f"-evc_broker_port={P['broker']}", "-evc_plant=127.0.0.1", f"-evc_plant_port={P['zephyr_plant_tcp']}", f"-evc_mode={mode}"]
         elif self.spec.get("fw_target") == "mcu":
@@ -3856,6 +3983,37 @@ def cmd_report(tb, a):
                                     f"(anchor086/ANCHOR086.md): the runs concerned depend on the anchor rule")
         else:
             RUN.problem("WARN", f"anchor086 failed: {text[-400:]}")
+    # release 087 (PREREG_extra_087.md): the estimands E-SHR of item A (the shadow loop on the firmware and MinIO, with the
+    # replication's EVICON cells on the same schedules) and E-RB of item B with the check RB-C1 (owner reboots), from the
+    # earliest complete run of each campaign among the sources
+    def _first(name):
+        found = sorted({r for s in srcs for r in _find_complete_runs(s, name)}, key=lambda r: r.name)
+        return found[0] if found else None
+    shr = {k: _first(n) for k, n in (("SHRz6", "expSHR-zephyr-w6"), ("SHRm6", "expSHR-minio-w6"))}
+    srr = {k: _first(n) for k, n in (("SRz6", "expSR-zephyr-w6"), ("SRm6", "expSR-minio-w6"))}
+    if any(shr.values()):
+        a087 = [x for k, v in shr.items() if v for x in ("--run", f"{k}={v}")] + [x for k, v in srr.items() if v for x in ("--ref", f"{k}={v}")]
+        rc, text = sh([sys.executable, "evaluation/sh087.py", *a087, "--out", str(out / "sh087")], timeout=1800, quiet=True, check=False)
+        if rc == 0:
+            done.append("E-SHR (087)")
+            index.append("- [The documented shadow loop on the firmware and MinIO: owner calls, re-publishes, stranded budget (E-SHR)](sh087/SH087.md)")
+        else:
+            RUN.problem("WARN", f"sh087 failed: {text[-400:]}")
+    rbr = _first("expRB-zephyr-w6")
+    if rbr:
+        rc, text = sh([sys.executable, "evaluation/rb087.py", "--run", f"RBz6={rbr}"] + (["--ref", f"SRz6={srr['SRz6']}"] if srr["SRz6"] else [])
+                      + ["--out", str(out / "rb087")], timeout=1800, quiet=True, check=False)
+        rj = out / "rb087" / "rb087.json"
+        if rc == 0 and rj.is_file():
+            c1 = json.loads(rj.read_text())["RB-C1"]
+            done.append(f"E-RB (087; RB-C1 {c1['verdict']})")
+            index.append(f"- [Owner reboots as a campaign fault: admissions after each reboot, stranded budget, the recovery's trace "
+                         f"(E-RB); RB-C1 {c1['verdict']}](rb087/RB087.md)")
+            if c1["verdict"] == "NOT MET":
+                RUN.problem("WARN", f"RB-C1 NOT MET: {c1['count']} MISMATCH_FLOOR in the recovery arm ({c1['cells'][:6]}): the floor-relative "
+                                    f"check is not usable as described (rb087/RB087.md)")
+        else:
+            RUN.problem("WARN", f"rb087 failed: {text[-400:]}")
     # release 086 (Addendum B, estimand E-QB): the QoS 2 row's directed expiry check (measure mosquitto-qos2), the newest one
     qxs = sorted((p for s in srcs for p in s.glob("measure/mosquitto-qos2/qos2_expiry.json")), key=lambda p: p.stat().st_mtime)
     if qxs:
@@ -3971,6 +4129,28 @@ def cmd_report(tb, a):
             RUN.problem("WARN", f"verdicts086 failed: {text[-400:]}")
     elif (out / "claims" / "claims.json").is_file():
         RUN.log("report: no 085 final report among the sources: the 168 earlier verdicts were not compared with it")
+    # release 087: the 185 verdicts of the plans up to PREREG_extra_086 must be those of the 086 final report (the newest report of
+    # release 086 among the sources); every difference is listed (report/verdicts087/VERDICTS.md) and logged as a FAIL
+    old086 = sorted((s / "report" for s in srcs if (s / "report" / "claims" / "claims.json").is_file() and (s / "report" / "REPORT.md").is_file()
+                     and "Release 086;" in (s / "report" / "REPORT.md").read_text()[:400] and s.resolve() != RUN.path.resolve()),
+                    key=lambda d: (d / "REPORT.md").stat().st_mtime)
+    if (out / "claims" / "claims.json").is_file() and old086:
+        rc, text = sh([sys.executable, "evaluation/verdicts087.py", "--new", str(out), "--old", str(old086[-1]), "--out", str(out / "verdicts087")],
+                      timeout=300, check=False, quiet=True)
+        vj = out / "verdicts087" / "verdicts.json"
+        if rc == 0 and vj.is_file():
+            v = json.loads(vj.read_text())
+            index.append(f"- [Verdicts of the earlier plans against the 086 final report]"
+                         f"(verdicts087/VERDICTS.md): {'identical' if v['identical'] else 'DIFFERENT'}")
+            done.append(f"earlier verdicts against 086 {'identical' if v['identical'] else 'DIFFER'} ({v['compared']} compared, "
+                        f"{len(v['verdicts_differ'])} differ, {len(v['missing_in_new'])} missing in this report)")
+            if not v["identical"]:
+                RUN.problem("FAIL", f"verdicts of earlier plans differ from the 086 final report ({old086[-1]}): "
+                                    f"{[(x['plan'], x['id'], x['old'], x['new']) for x in v['verdicts_differ']][:8]}; missing {v['missing_in_new'][:8]}")
+        else:
+            RUN.problem("WARN", f"verdicts087 failed: {text[-400:]}")
+    elif (out / "claims" / "claims.json").is_file():
+        RUN.log("report: no 086 final report among the sources: the 185 earlier verdicts were not compared with it")
     # release 085 (last, after the tbcheck copy): provenance of every campaign of the safety total (release, review run, the
     # plan its config carries) and of every plan (SHA-256, frozen, published), the runs' deviations and the numbers not
     # regenerated (PROVENANCE.md)
@@ -4522,6 +4702,10 @@ def _main(argv):
                                ("expSH_direct", "086 SH, K2 direct: about 1.2 h (10 cells)")):
             print(f"{'campaign':11s} {what:40s} python3 evicon_review.py campaign {cfg_name}")
         print(f"{'measure':11s} {'086 QB, MQTT QoS 2 row: 25-35 min':40s} python3 evicon_review.py measure mosquitto-qos2")
+        for cfg_name, what in (("expSHR_zephyr_w6", "087 SHR, firmware W=6, EVICON + 2 shadow loops: about 3.0 h (24 cells)"),
+                               ("expSHR_minio_w6", "087 SHR, MinIO cond W=6, EVICON + 2 shadow loops: about 2.9 h (24 cells)"),
+                               ("expRB_zephyr_w6", "087 RB, boot firmware, owner reboots, 3 arms: about 2.25 h (18 cells)")):
+            print(f"{'campaign':11s} {what:40s} python3 evicon_review.py campaign {cfg_name}")
         print(f"{'scale':11s} {'077, RQ4 load with 8/16/32 domains: 1.2 h':40s} python3 evicon_review.py scale")
         print(f"{'report':11s} {'2-5 min (078: 15-30 min with an archive)':40s} python3 evicon_review.py report [--archive <dir>] [--from <run dir> ...]")
         print(f"{'import':11s} {'078, result bundles -> archive: 10-30 min':40s} python3 evicon_review.py import-results <bundles> --archive /root/evicon-archive")

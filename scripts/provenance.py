@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PROVENANCE.md (release 085; release 086: plan 085 published, its runs, plan 086): where every campaign the paper uses comes from, every preregistered plan with its SHA-256,
+"""PROVENANCE.md (release 085; release 086: plan 085 published, its runs, plan 086; release 087: plan 086 published, its runs, plan 087): where every campaign the paper uses comes from, every preregistered plan with its SHA-256,
 when it was frozen and published, the deviations of each plan's runs, and the numbers that the analysis does not
 regenerate. The paper points here instead of carrying release and commit details.
 
@@ -10,7 +10,7 @@ cells), and the plan it carries, from the campaign run's own `config.json` (the 
 when the run directory is there (as in `evicon_review.py report`, which writes `report/PROVENANCE.md`), else from the
 config of the same name in the release tree that ran it (`<trees>/EVICON_TOIT_<release>/evaluation/campaigns/`; the
 source of each row is shown). The runs of the newest plan that the report does not hold yet are listed as "to be filled
-by the 086 report". Plans: every plan under evaluation/prereg/ with the SHA-256 of the file (checked against the SHA-256
+by the <newest release> report". Plans: every plan under evaluation/prereg/ with the SHA-256 of the file (checked against the SHA-256
 the configs carry), the date it was frozen (the plan's header, else the date of the release it names), and, for the plans
 published on GitHub before their runs, the commit and UTC time (verified read-only with `gh api` on
 lamnguyentt92/evicon: the commit, its time, and the SHA-256 of the plan file at that commit). Deviations and exceptions:
@@ -26,10 +26,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PREREG = REPO / "evaluation" / "prereg"
-NEWEST_PLAN = "PREREG_extra_086.md"
-NEWEST_RELEASE = "086"
+NEWEST_PLAN = "PREREG_extra_087.md"
+NEWEST_RELEASE = "087"
 
-# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04 (077-084) and 2026-11-05 (085):
+# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04 (077-084), 2026-11-05 (085) and
+# 2026-11-09 (086):
 # commit time (UTC) and the SHA-256 of the plan file at that commit (contents API, raw).
 PUBLISHED = {
     "PREREG_review_077.md": [
@@ -44,7 +45,10 @@ PUBLISHED = {
     "PREREG_extra_085.md": [{"commit": "40e451d", "utc": "2026-11-04 10:05", "sha256": "22586c782aa3ac704bcc56376324faeb7c4047da6e35c1668a65a34924bf4790",
                              "note": "release 085, pushed 10:07 UTC; the 085 review run (review-20261104T171522, VM-C time UTC+7) began at "
                                      "10:15 UTC and its first cell at 11:18 UTC"}],
-    "PREREG_extra_086.md": [],  # to be filled when release 086 is published
+    "PREREG_extra_086.md": [{"commit": "440ecf1", "utc": "2026-11-05 06:21", "sha256": "d28956e98e4fff3ba032f14e1a3a48c1e92d9e0ffa1b75e14d9a36ca3adba9c6",
+                             "note": "release 086; the 086 review run (review-20261105T134319, VM-C time UTC+7) began at 06:43 UTC, its "
+                                     "first measurement at 06:52 UTC and its first cell at 07:48 UTC"}],
+    "PREREG_extra_087.md": [],  # to be filled when release 087 is published
 }
 
 # Plans frozen as a later version than the release in their header says (date of the frozen version).
@@ -90,7 +94,12 @@ DEVIATIONS = {
         "-minio-winf, 16 cells each) ran in the planned order in one session; 64 cells, 0 INVALID; `tbcheck` decided at the "
         "first run (95 trials: SEQ 20, CUT 10 and ACK 10 per direction, TTL 5 per kind; 0 invalid); the final report found the 150 earlier verdicts identical to the 084 final "
         "report's (`report/verdicts085/`)."],
-    NEWEST_PLAN: ["To be filled after the 086 runs (none at release time)."],
+    "PREREG_extra_086.md": [
+        "None: the plan's runs (review run `review-20261105T134319`: measure zephyr-plain zephyr, measure mosquitto-qos2, then "
+        "expSR-zephyr-w6, -zephyr-winf, -minio-w6, -minio-winf (16 cells each), expSH-queue and expSH-direct (10 cells each)) ran "
+        "in the planned order in one session; 84 cells, 0 INVALID; the final report found the 168 earlier verdicts identical to "
+        "the 085 final report's (`report/verdicts086/`)."],
+    NEWEST_PLAN: ["To be filled after the 087 runs (none at release time)."],
 }
 
 # Numbers the report does not regenerate.
@@ -98,7 +107,8 @@ EXCEPTIONS = [
     "TLC results: `formal/TLC_RESULTS.txt`, `formal/TLC_RESULTS_FI.txt` and `formal/TLC_RESULTS_TIMING.txt` (with "
     "`formal/tlc_logs*/`) come from the release tree: TLC was run when each model was added (releases 082, 084, 085), "
     "not by `report`; `python3 evicon_review.py formal` runs them again. Release 086 adds no TLA+ configuration (the fence "
-    "models never anchor on the owner's state: the guard's reservations come from the authority's own statuses).",
+    "models never anchor on the owner's state: the guard's reservations come from the authority's own statuses). Release 087 "
+    "adds the reboot model `formal/EviconFenceReboot.tla` (`formal/TLC_RESULTS_REBOOT.txt`, `formal/tlc_logs_reboot/`).",
     "Simulator predictions and the power tables of the plans: `evaluation/sim_predictions/` (and sections 1 and 5 of each "
     "plan) were computed before the plan was frozen and are frozen with it; `report` reads them and does not recompute "
     "them (each file's command is in `evaluation/sim_predictions/README.md`).",

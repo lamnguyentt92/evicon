@@ -1,0 +1,104 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 108 and seed -1384609297264766356 with 2 workers on 2 cores with 1328MB heap and 64MB offheap memory [pid] (Linux 6.18.44-fc-v310 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <tree>/formal/EviconFenceReboot.tla
+Parsing file <tmp>
+Parsing file <tmp>
+Parsing file <tmp>
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EviconFenceReboot
+Starting... (2026-11-09 23:28:16)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-09 23:28:16.
+Error: Invariant NoAnchorAfterReboot is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ nextSeq = 1
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"NONE", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 2: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 2
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 3: <Reboot line 106, col 11 to line 108, col 61 of module EviconFenceReboot>
+/\ nextSeq = 2
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 4: <Fence line 133, col 3 to line 142, col 85 of module EviconFenceReboot>
+/\ nextSeq = 2
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 1
+/\ acut = 1
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"STOPPED", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = TRUE
+/\ anchor = 0
+
+33 states generated, 27 distinct states found, 17 states left on queue.
+The depth of the complete state graph search is 5.
+The average outdegree of the complete state graph is 4 (minimum is 2, the maximum 5 and the 95th percentile is 5).
+Finished in 00s at (2026-11-09 23:28:16)

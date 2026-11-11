@@ -9,6 +9,8 @@ __pycache__/
 /formal/states/
 /formal/*_TTrace_*
 firmware/zephyr-cutoff/tests/host/build/
+firmware/zephyr-boot/tests/host/test_evc_boot_report
+firmware/zephyr-boot/tests/host/libevcbootshim.so
 # release packaging (the zip carries a manifest and the operator's run guide)
 /MANIFEST.sha256
 /EVICON_*_RUN_GUIDE_VI.md

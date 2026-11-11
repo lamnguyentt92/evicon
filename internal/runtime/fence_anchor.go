@@ -53,6 +53,9 @@ type fenceAnchor struct {
 	Applied      int            // of which APPLIED
 	PrevCutoff   uint64
 	Undetermined bool // more states than the configuration budget
+	// release 087 (REC-3, -reboot-recovery only): the comparison of the reported level with the identities applied
+	// above the owner's claim floor; nil: the comparison of release 086
+	Floor *floorCheck
 }
 
 // Contains: the reported state is one the evidence allows.
@@ -170,6 +173,14 @@ func (f fenceAnchor) result(reported []int64, mode string) string {
 		return "INCONSISTENT"
 	case f.Undetermined:
 		return "UNDETERMINED"
+	case f.Floor != nil && mode == FenceAnchorOwnerState && !f.Contains(reported):
+		// release 087, the negative control of plan 087 (-reboot-recovery -fence-anchor owner-state): the reported
+		// state is adopted although it is not the evidence anchor; the floor check is in the reason
+		return "MISMATCH_OWNER_STATE_ADOPTED"
+	case f.Floor != nil && f.Floor.Match:
+		return "MATCH_FLOOR"
+	case f.Floor != nil:
+		return "MISMATCH_FLOOR"
 	case !f.Contains(reported):
 		if mode == FenceAnchorOwnerState {
 			return "MISMATCH_OWNER_STATE_ADOPTED"
@@ -190,9 +201,9 @@ func (a *Authority) traceFenceAnchor(br protocol.BarrierRequest, d journal.Domai
 	}
 	_ = a.cfg.Trace.Write(trace.Event{DomainID: br.DomainID, Event: "FENCE_ANCHOR_CHECK", Revision: d.Revision, Policy: string(a.cfg.Policy),
 		Outcome: f.result(rc.State, a.cfg.FenceAnchor),
-		Reason: truncate(fmt.Sprintf("token=%s;mode=%s;computed=%s;reported=%s;previous=%s;prev_cutoff=%d;cutoff=%d;batch=%d;applied=%d;unknown=%s",
+		Reason: truncate(fmt.Sprintf("token=%s;mode=%s;computed=%s;reported=%s;previous=%s;prev_cutoff=%d;cutoff=%d;batch=%d;applied=%d;%sunknown=%s",
 			br.Token, a.cfg.FenceAnchor, f.StatesString(), vecString(rc.State), vecString(d.Anchor), f.PrevCutoff, rc.CutoffSequence, f.Batch, f.Applied,
-			strings.Join(f.Unknown, ",")), 400)})
+			f.floorText(), strings.Join(f.Unknown, ",")), 400)})
 }
 
 // commitUnanchoredLocked ends the PENDING barrier br whose evidence allows several states: every terminal
@@ -225,4 +236,12 @@ func (a *Authority) commitUnanchoredLocked(br protocol.BarrierRequest, d journal
 			Reason: truncate(fmt.Sprintf("%s:ANCHOR_UNDETERMINED:states=%d", br.Token, states), 400)})
 	}
 	return 200, map[string]any{"barrier": rc, "revision": rev, "intake": "UNANCHORED", "anchor_states": states, "terminal": len(recs), "sealed": len(sealed)}
+}
+
+// floorText (release 087): "floor=F;expected_level=[..];" for a REC-3 comparison, "" otherwise.
+func (f fenceAnchor) floorText() string {
+	if f.Floor == nil {
+		return ""
+	}
+	return fmt.Sprintf("floor=%d;expected_level=%s;", f.Floor.Floor, vecString(f.Floor.Expected))
 }

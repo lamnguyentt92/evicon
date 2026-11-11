@@ -1,0 +1,46 @@
+# TLC on the reboot model (release 087, PREREG_extra_087.md item B): EviconFenceReboot.tla, the {F} firmware's fence across
+# owner reboots (claim mark, floor, eviction guard, RAM level and ring reset), the authority's anchor (owner state, the
+# evidence anchor with the 086 check, with the floor-relative check REC-3, or without a check), the reboot recovery
+# (REC-1 learn the floor, REC-2 admit above it) and the gateway seal GW-3. A new model: the frozen models EviconFence.tla
+# and EviconFenceFI.tla have no anchor (their guard uses the statuses), so they cannot express the reset level.
+# end 2026-11-09T16:28:18Z; tla2tools v1.7.4 (sha256 936a2620...0e88), TLC2 2.19, OpenJDK 21.0.12.1, 2 workers
+# Command: TMPDIR=<tmp> TLA2TOOLS_JAR=<jar> bash formal/run_tlc_reboot.sh <out>   (logs: formal/tlc_logs_reboot/, paths sanitized)
+# Bounded model checking: 5 sequences of one unit each, bound 3, claim block 1, <= 2 owner reboots, <= 2 deliveries per
+# identity (late copies, lost replies, orphans), fences at the highest admitted sequence. The window (REC-4) is not
+# modelled (the guard is the budget only, as in the R5 models). Not a proof about the Go/C code.
+config                 result                                          generated  distinct depth cex_states
+recovery               no error                                         14454598   2220832    28 -
+recovery_nocheck       no error                                         14454598   2220832    28 -
+r086                   no error                                          6247409   1006843    27 -
+ownerstate             Invariant BoundSafety is violated                  560844    161117    15 15
+noguard                Invariant AtMostOncePerIntent is violated             294       171     8 7
+recovery_witness       Invariant NoAnchorAfterReboot is violated              33        27     5 4
+r086_conflict_witness  Invariant NeverConflicted is violated                 732       395     8 7
+
+# recovery: Recovery, Seal, the evidence anchor with the floor-relative check (REC-3); invariants BoundSafety,
+#   AtMostOncePerIntent, NoFalseStopped, NoFalseApplied, FloorPartition (the level counts exactly the identities above
+#   the floor applied since the boot) and NeverConflicted (the floor check never fails while the eviction guard holds:
+#   the formal side of rule RB-C1).
+# recovery_nocheck: the same without any check (the evidence anchor committed on every complete answer): no error and the
+#   same state graph as recovery, so safety does not need the check; the check is the detector of FB violations.
+# r086: release 086 (no recovery, no seal, the evidence anchor checked against the whole anchor): no error (safe).
+# ownerstate (NEGATIVE CONTROL, arm (i) of RBz6): the recovery with the owner-state anchor; the counterexample:
+#   three admissions, two effects, a reboot (level 0, floor 2 = the claim mark), the third identity (above the floor)
+#   applied with its reply lost, a complete fence (the ring certifies it) adopts the reset level 1 instead of the evidence
+#   anchor 3, the guard admits a fourth identity and the plant exceeds the bound (4 > 3).
+# noguard (NEGATIVE CONTROL of the premise FB): the firmware without the eviction guard; the counterexample: an
+#   identity applied, a reboot, a late copy of it executed again (its receipt was in the RAM ring only).
+# recovery_witness: the recovery commits an evidence anchor after a reboot (the path the testbed arm (iii) relies on).
+# r086_conflict_witness: release 086 marks the domain conflicted after a reboot (an applied identity cached at the
+#   gateway, the reboot, a complete fence: the reset level differs from the evidence; the liveness loss of B).
+
+# SHA-256 of the model files
+074d3cd6c8dc588775c39f30b64a40b720efe24d2e9adf995d2c58f40b1e9187  formal/EviconFenceReboot.tla
+b54d6f8bbe8b81f60aec5ae8adbdcbf8e8863a8271948d7b3649a404d9adb6a4  formal/EviconFenceReboot_noguard.cfg
+d0dee8c089866d4652481708c324ffa2db72b1316fa7f8f85a5ae4fbb2932bea  formal/EviconFenceReboot_ownerstate.cfg
+c964c2a4b7ff387e1e76aaa14e634f8f6ba03a512db6bfedfa8a6380a99fe188  formal/EviconFenceReboot_r086.cfg
+d9404c605943ed56416401b1b82d5559897606061ecf285770e65e8b3e7b7407  formal/EviconFenceReboot_r086_conflict_witness.cfg
+ad7183b2ef77c45a1cbe701f92499c889061c2dffce5d092ac3899e429366d2d  formal/EviconFenceReboot_recovery.cfg
+29666f4be5a7ec5e8106e0c6e3dc8821059cd263617e051d7363d41d979eca2b  formal/EviconFenceReboot_recovery_nocheck.cfg
+0e4f6ca4ca6b4d98fd75cdd56aac8aae86a18e904d1dc394936dd59ddcc00d78  formal/EviconFenceReboot_recovery_witness.cfg
+7825853f0d0fcde7c1116551b586d82c4e19ff72209a1e53eb74557700ffb6a4  formal/run_tlc_reboot.sh

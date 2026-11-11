@@ -90,6 +90,10 @@ type Receipt struct {
 	ReceiptVersion uint64  `json:"receipt_version"`
 	State          []int64 `json:"state"`
 	Reason         string  `json:"reason,omitempty"`
+	// ClaimFloor (release 087, optional): the owner's claim floor, the claim mark it restored at its last boot (an
+	// owner that reports it: the gateway of the boot-report firmware). Not evidence about this identity; only the
+	// reboot recovery reads it (evicon-authority -reboot-recovery).
+	ClaimFloor *uint64 `json:"claim_floor,omitempty"`
 }
 
 // ValidateReceipt validates application evidence independently of its ingress
@@ -184,6 +188,9 @@ type BarrierReceipt struct {
 	State          []int64   `json:"state"`
 	Receipts       []Receipt `json:"receipts,omitempty"`
 	Reason         string    `json:"reason"`
+	// ClaimFloor (release 087, optional): the claim floor of the boot in which the owner answered this fence (its State is
+	// the level counted since that boot); read only by the reboot recovery (step REC-3).
+	ClaimFloor *uint64 `json:"claim_floor,omitempty"`
 }
 
 // StopRequest asks the owner for a per-identity terminal stop (Q_S, release

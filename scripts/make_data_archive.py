@@ -34,13 +34,27 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SECRET_PATTERNS = [re.compile(p, re.I) for p in (
-    r"(password|passwd|secret|api[_-]?key|access[_-]?key|token)\s*[=:]\s*['\"]?[A-Za-z0-9/+_\-]{8,}",
+ASSIGNMENT = re.compile(r"(password|passwd|secret|api[_-]?key|access[_-]?key|token)\s*[=:]\s*['\"]?([A-Za-z0-9/+_\-]{8,})", re.I)
+SECRET_PATTERNS = [ASSIGNMENT] + [re.compile(p, re.I) for p in (
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
     r"\bAKIA[0-9A-Z]{16}\b",
 )]
-# words that look like a credential assignment in EviCon's own outputs but are not one
-ALLOW = re.compile(r"(token\s*[=:]\s*['\"]?(rb-[0-9]+|fence-|f-[0-9a-f]+|[0-9a-f]{8}-))|(_ENV|\$\{[A-Z_]+\})", re.I)
+# Values that look like a credential assignment in EviCon's own outputs but are not one. Release 087: the allowance is per
+# match, not per line: every assignment on a line must itself be an allowed value (a line with an allowed token and a real
+# secret is a hit), and private keys and AWS-style keys are never allowed. Allowed: the probes' fence tokens (rb-<n>,
+# fence-..., f-<hex>, a UUID-like <8 hex>-...), the authority's fence tokens of the FENCE_ANCHOR_CHECK trace event (release
+# 086: evicon-<mode>-<origin>-r<revision>[-a<n>], mode certificate, pending_bound, sweep, periodic; the origin may be empty,
+# as in evicon-sweep--r121), and the names of environment variables (NAME_ENV; a ${NAME} reference is no assignment).
+ALLOWED_VALUE = re.compile(r"(rb-[0-9]+|fence-[A-Za-z0-9/+_\-]*|f-[0-9a-f]+[A-Za-z0-9/+_\-]*|[0-9a-f]{8}-[A-Za-z0-9/+_\-]*"
+                           r"|evicon-(certificate|pending_bound|sweep|periodic)-[A-Za-z0-9_]*(-[A-Za-z0-9_]+)*-r[0-9]+(-a[0-9]+)?)", re.I)
+ENV_NAME = re.compile(r"[A-Z][A-Z0-9_]*_ENV")
+
+
+def line_hit(line: str) -> bool:
+    """True when the line holds a credential: a private key, an AWS-style key, or an assignment whose value is not allowed."""
+    if any(rx.search(line) for rx in SECRET_PATTERNS[1:]):
+        return True
+    return any(not (ALLOWED_VALUE.fullmatch(m.group(2)) or ENV_NAME.fullmatch(m.group(2))) for m in ASSIGNMENT.finditer(line))
 TEXT_SUFFIXES = {".json", ".jsonl", ".log", ".txt", ".md", ".csv", ".yml", ".yaml", ".sh", ".env", ".conf", ".ini", ".cfg", ".py", ".out", ""}
 
 
@@ -79,7 +93,7 @@ def scan(run: Path, max_mb: float) -> list:
         except OSError:
             continue
         for i, line in enumerate(text.splitlines(), 1):
-            if any(rx.search(line) for rx in SECRET_PATTERNS) and not ALLOW.search(line):
+            if line_hit(line):
                 hits.append(f"{p}:{i}")
                 break
     return hits

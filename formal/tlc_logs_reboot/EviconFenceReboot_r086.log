@@ -1,0 +1,24 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 87 and seed -5936600954316576514 with 2 workers on 2 cores with 1328MB heap and 64MB offheap memory [pid] (Linux 6.18.44-fc-v310 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <tree>/formal/EviconFenceReboot.tla
+Parsing file <tmp>
+Parsing file <tmp>
+Parsing file <tmp>
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EviconFenceReboot
+Starting... (2026-11-09 23:27:56)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-09 23:27:56.
+Progress(16) at 2026-11-09 23:27:59: 719,322 states generated (719,322 s/min), 185,110 distinct states found (185,110 ds/min), 76,605 states left on queue.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.9E-7
+  based on the actual fingerprints:  val = 6.9E-7
+6247409 states generated, 1006843 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 27.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 7 and the 95th percentile is 3).
+Finished in 15s at (2026-11-09 23:28:11)

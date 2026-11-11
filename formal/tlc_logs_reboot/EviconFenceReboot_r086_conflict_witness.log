@@ -1,0 +1,167 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 127 and seed 8946887121955959325 with 2 workers on 2 cores with 1328MB heap and 64MB offheap memory [pid] (Linux 6.18.44-fc-v310 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <tree>/formal/EviconFenceReboot.tla
+Parsing file <tmp>
+Parsing file <tmp>
+Parsing file <tmp>
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EviconFenceReboot
+Starting... (2026-11-09 23:28:17)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-09 23:28:17.
+Error: Invariant NeverConflicted is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ nextSeq = 1
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"NONE", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 2: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 2
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 3: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 4: <Forward line 71, col 15 to line 74, col 72 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "NONE", "NONE", "NONE">>
+/\ sent = {2}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 5: <Deliver line 85, col 3 to line 103, col 48 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 1, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {2}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {2}
+/\ floor = 0
+/\ hw = 3
+/\ status = <<"PENDING", "APPLIED", "NONE", "NONE", "NONE">>
+/\ sent = {2}
+/\ ring = {2}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 6: <Reboot line 106, col 11 to line 108, col 61 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 1, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {2}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {2}
+/\ floor = 3
+/\ hw = 3
+/\ status = <<"PENDING", "APPLIED", "NONE", "NONE", "NONE">>
+/\ sent = {2}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 7: <Fence line 133, col 3 to line 142, col 85 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 1, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 2
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {2}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = TRUE
+/\ cached = {2}
+/\ floor = 3
+/\ hw = 3
+/\ status = <<"STOPPED", "APPLIED", "NONE", "NONE", "NONE">>
+/\ sent = {2}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+732 states generated, 395 distinct states found, 248 states left on queue.
+The depth of the complete state graph search is 8.
+The average outdegree of the complete state graph is 3 (minimum is 0, the maximum 6 and the 95th percentile is 5).
+Finished in 00s at (2026-11-09 23:28:17)

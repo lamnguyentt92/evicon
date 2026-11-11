@@ -1,0 +1,335 @@
+Picked up JAVA_TOOL_OPTIONS: <proxy and trust-store settings of the build machine>
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 0 and seed 5450570231298054013 with 2 workers on 2 cores with 1328MB heap and 64MB offheap memory [pid] (Linux 6.18.44-fc-v310 amd64, Ubuntu 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file <tree>/formal/EviconFenceReboot.tla
+Parsing file <tmp>
+Parsing file <tmp>
+Parsing file <tmp>
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module EviconFenceReboot
+Starting... (2026-11-09 23:28:12)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-09 23:28:12.
+Error: Invariant BoundSafety is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ nextSeq = 1
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"NONE", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 2: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 2
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "NONE", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 3: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 3
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "NONE", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 4: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "PENDING", "NONE", "NONE">>
+/\ sent = {}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 5: <Forward line 71, col 15 to line 74, col 72 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "PENDING", "NONE", "NONE">>
+/\ sent = {1}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 6: <Forward line 71, col 15 to line 74, col 72 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<0, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {}
+/\ floor = 0
+/\ hw = 0
+/\ status = <<"PENDING", "PENDING", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 7: <Deliver line 85, col 3 to line 103, col 48 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 0, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {1}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {1}
+/\ floor = 0
+/\ hw = 2
+/\ status = <<"APPLIED", "PENDING", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2}
+/\ ring = {1}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 8: <Deliver line 85, col 3 to line 103, col 48 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 1, 0, 0, 0>>
+/\ reboots = 0
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {1, 2}
+/\ aFloor = 0
+/\ level = 2
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 0
+/\ hw = 2
+/\ status = <<"APPLIED", "APPLIED", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2}
+/\ ring = {1, 2}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 9: <Reboot line 106, col 11 to line 108, col 61 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 1, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {1, 2}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 2
+/\ status = <<"APPLIED", "APPLIED", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 10: <Forward line 71, col 15 to line 74, col 72 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 1, 0, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {1, 2}
+/\ aFloor = 0
+/\ level = 0
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 2
+/\ status = <<"APPLIED", "APPLIED", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2, 3}
+/\ ring = {}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 11: <Deliver line 85, col 3 to line 103, col 48 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 1, 1, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 0
+/\ acut = 0
+/\ sealedGw = {}
+/\ applied = {1, 2, 3}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 4
+/\ status = <<"APPLIED", "APPLIED", "PENDING", "NONE", "NONE">>
+/\ sent = {1, 2, 3}
+/\ ring = {3}
+/\ dup = FALSE
+/\ anchoredAfterReboot = FALSE
+/\ anchor = 0
+
+State 12: <Fence line 133, col 3 to line 142, col 85 of module EviconFenceReboot>
+/\ nextSeq = 4
+/\ deliveries = <<1, 1, 1, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 3
+/\ acut = 3
+/\ sealedGw = {}
+/\ applied = {1, 2, 3}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 4
+/\ status = <<"APPLIED", "APPLIED", "APPLIED", "NONE", "NONE">>
+/\ sent = {1, 2, 3}
+/\ ring = {3}
+/\ dup = FALSE
+/\ anchoredAfterReboot = TRUE
+/\ anchor = 1
+
+State 13: <Admit line 65, col 10 to line 68, col 90 of module EviconFenceReboot>
+/\ nextSeq = 5
+/\ deliveries = <<1, 1, 1, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 3
+/\ acut = 3
+/\ sealedGw = {}
+/\ applied = {1, 2, 3}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 4
+/\ status = <<"APPLIED", "APPLIED", "APPLIED", "PENDING", "NONE">>
+/\ sent = {1, 2, 3}
+/\ ring = {3}
+/\ dup = FALSE
+/\ anchoredAfterReboot = TRUE
+/\ anchor = 1
+
+State 14: <Forward line 71, col 15 to line 74, col 72 of module EviconFenceReboot>
+/\ nextSeq = 5
+/\ deliveries = <<1, 1, 1, 0, 0>>
+/\ reboots = 1
+/\ cutoff = 3
+/\ acut = 3
+/\ sealedGw = {}
+/\ applied = {1, 2, 3}
+/\ aFloor = 0
+/\ level = 1
+/\ conflicted = FALSE
+/\ cached = {1, 2}
+/\ floor = 2
+/\ hw = 4
+/\ status = <<"APPLIED", "APPLIED", "APPLIED", "PENDING", "NONE">>
+/\ sent = {1, 2, 3, 4}
+/\ ring = {3}
+/\ dup = FALSE
+/\ anchoredAfterReboot = TRUE
+/\ anchor = 1
+
+State 15: <Deliver line 85, col 3 to line 103, col 48 of module EviconFenceReboot>
+/\ nextSeq = 5
+/\ deliveries = <<1, 1, 1, 1, 0>>
+/\ reboots = 1
+/\ cutoff = 3
+/\ acut = 3
+/\ sealedGw = {}
+/\ applied = {1, 2, 3, 4}
+/\ aFloor = 0
+/\ level = 2
+/\ conflicted = FALSE
+/\ cached = {1, 2, 4}
+/\ floor = 2
+/\ hw = 4
+/\ status = <<"APPLIED", "APPLIED", "APPLIED", "APPLIED", "NONE">>
+/\ sent = {1, 2, 3, 4}
+/\ ring = {3, 4}
+/\ dup = FALSE
+/\ anchoredAfterReboot = TRUE
+/\ anchor = 1
+
+560844 states generated, 161117 distinct states found, 78734 states left on queue.
+The depth of the complete state graph search is 15.
+The average outdegree of the complete state graph is 2 (minimum is 0, the maximum 8 and the 95th percentile is 4).
+Finished in 02s at (2026-11-09 23:28:14)

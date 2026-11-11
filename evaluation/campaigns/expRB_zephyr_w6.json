@@ -1,0 +1,152 @@
+{
+  "schema_version": 2,
+  "name": "expRB-zephyr-w6",
+  "regime": "expRB-zephyr-w6",
+  "mode": "remote",
+  "seed": 20261105,
+  "episodes": 6,
+  "devices": 4,
+  "duration_s": 300,
+  "tail_s": 60,
+  "contracts": [
+    "NEG_ZEPHYR_F_BOOT",
+    "ZEPHYR_F_BOOT"
+  ],
+  "policies": [
+    "EVICON_FI_REC_OS",
+    "EVICON_FI",
+    "EVICON_FI_REC"
+  ],
+  "workload": {
+    "rate_per_s": 0.5,
+    "value_min": 1,
+    "value_max": 5,
+    "bound": 345,
+    "deadline_s": 60,
+    "validity_s": 90,
+    "retry_s": 0.5,
+    "reissue_after_stopped": true
+  },
+  "faults": {
+    "windows_per_min": 2.0,
+    "window_s": [
+      1.0,
+      4.0
+    ],
+    "offline_s": [
+      10.0,
+      40.0
+    ],
+    "min_gap_s": 3.0,
+    "delay_ms": 6000,
+    "crash_recovery_s": 2.0,
+    "linger_s": 3.0,
+    "mix": {
+      "offline": 0.3,
+      "drop_up": 0.2,
+      "drop_down": 0.2,
+      "delay_up": 0.1,
+      "crash_after_effect": 0.2
+    }
+  },
+  "authority": {
+    "dispatch_poll": "100ms",
+    "probe_budget": 4,
+    "ambiguity_after": "1s",
+    "resolve_mode": "SKI_RENTAL",
+    "query_first": true,
+    "hold_cost": 1.0,
+    "stop_cost": 1.0,
+    "fence_cost": 5.0,
+    "resolve_sweep": "1s",
+    "fixed_threshold": "5s",
+    "periodic": "10s",
+    "retry_guard": true,
+    "max_network_delay": "-1ns",
+    "max_outstanding": 6
+  },
+  "real_owner": {
+    "system": "zephyr",
+    "broker": "FILLED_BY_EVICON_REVIEW:1883",
+    "firmware": "FILLED_BY_EVICON_REVIEW",
+    "plant_tcp_port": 18093,
+    "contracts": {
+      "NEG_ZEPHYR_F_BOOT": {
+        "mode": "CUTOFF",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN",
+        "channel": "direct",
+        "restrict_to": [
+          "F"
+        ],
+        "binding": "qos1"
+      },
+      "ZEPHYR_F_BOOT": {
+        "mode": "CUTOFF",
+        "contract_file": "MEASURED_IN_THIS_REVIEW_RUN",
+        "channel": "direct",
+        "restrict_to": [
+          "F"
+        ],
+        "binding": "qos1"
+      }
+    },
+    "gateway_budget_s": 1.8,
+    "qos_cmd": 1,
+    "firmware_variant": "boot",
+    "gateway_recovery_policies": [
+      "EVICON_FI_REC_OS",
+      "EVICON_FI_REC"
+    ],
+    "owner_reboot": {
+      "per_device": [
+        {
+          "kind": "quiet",
+          "range_s": [
+            60,
+            145
+          ],
+          "after_arrival_s": 1.5
+        },
+        {
+          "kind": "random",
+          "range_s": [
+            150,
+            240
+          ]
+        }
+      ],
+      "down_s": 2.0
+    }
+  },
+  "remote": {
+    "vm_a": "root@192.168.107.151",
+    "vm_e": "root@192.168.107.154",
+    "vm_a_ip": "192.168.107.151",
+    "vm_e_ip": "192.168.107.154",
+    "vm_c_ip": "192.168.107.150",
+    "bin_dir": "/root/evicon/bin",
+    "cost_file": "/root/evicon/experiments/configs/query_costs.json",
+    "state_dir": "/var/lib/evicon/campaigns",
+    "vm_b": "root@192.168.107.152",
+    "vm_b_ip": "192.168.107.152"
+  },
+  "preregistration": {
+    "path": "evaluation/prereg/PREREG_extra_087.md",
+    "sha256": "f42bafffc96187f04d93e39d8f9d51bebd3cbf2fc306cb55765515ae2b86f100"
+  },
+  "notes": "Release 087, PREREG_extra_087.md item B (run RBz6, rules RB-1, RB-A1, RB-A2, RB-D1, RB-S; reviewer comment M3): owner reboots as a campaign fault (owner_reboot: per device and episode one reboot in the longest arrival gap in [60, 145] s and one at a random time in [150, 240] s, down 2 s, the firmware restarted with its flash) on the boot-report firmware (firmware/zephyr-boot, the frozen sources of the cutoff firmware with the claim floor in every reply and a hello after every connect; its contract measured by `measure zephyr-boot` and restricted to {F}), direct channel, QoS 1, W = 6, rule R5' in every arm: (i) NEG_ZEPHYR_F_BOOT / EVICON_FI_REC_OS, the negative control (the recovery with the owner-state anchor; the gateway seal on), (ii) ZEPHYR_F_BOOT / EVICON_FI (release 086: the evidence anchor, no recovery, no seal), (iii) ZEPHYR_F_BOOT / EVICON_FI_REC (the recovery REC-1 to REC-4 with the gateway seal). Copy of expSR_zephyr_w6 (seed 20261105: the SR arrivals and fault windows, byte-identical; the reboots from a stream of their own) except the name, the episodes (6), the contracts, the policies, exclude_cells and the 087 keys. Outside the measured fault model (owner up). Runner: evaluation/campaign_zephyr_ext087.py.",
+  "exclude_cells": [
+    [
+      "NEG_ZEPHYR_F_BOOT",
+      "EVICON_FI"
+    ],
+    [
+      "NEG_ZEPHYR_F_BOOT",
+      "EVICON_FI_REC"
+    ],
+    [
+      "ZEPHYR_F_BOOT",
+      "EVICON_FI_REC_OS"
+    ]
+  ]
+}

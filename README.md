@@ -1,6 +1,6 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **086** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+Release **087** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
 check them); `PROVENANCE.md` gives the release, review run and plan of every campaign, every plan's SHA-256, freezing
 and publication, and the deviations of the runs; `CHANGELOG.md` lists what each release changed.
 
@@ -59,8 +59,15 @@ as an evidence conflict; `-fence-anchor owner-state` restores the earlier anchor
 archived fence against that rule (`evaluation/anchor086.py`), and adds the plan `PREREG_extra_086.md`: a second-seed
 replication of the four real-owner headline contrasts, each within one campaign; a baseline that reproduces the
 documented device-shadow reconciliation loop (`SHADOW_RECONCILE`); an MQTT QoS 2 row of the contract map (`measure
-mosquitto-qos2`); and a cost table in physical units (`evaluation/cost086.py`). One overnight command runs it all
-(`run086.sh`). Numbers produced by the simulator (`SIMULATION_ONLY`) or on one
+mosquitto-qos2`); and a cost table in physical units (`evaluation/cost086.py`). Release 087 adds the plan
+`PREREG_extra_087.md`: the documented shadow loop on the real owners (the cutoff firmware and MinIO's conditional PUT, at
+10 s and at EviCon's 1 s cadence, against EVICON), and owner reboots as a campaign fault (`owner_reboot`) with a reboot
+recovery of the authority (`-reboot-recovery`, off by default: the owner's claim floor learned from its answers, the
+sequence advanced above it, the evidence anchor committed on a floor-relative check), a gateway that reports the floor and
+seals never-forwarded identities below it (`mqtt_owner_gateway_ext087.py`), a boot-report build of the firmware that
+compiles the frozen sources unchanged (`firmware/zephyr-boot/`), and a TLA+ model of the fence across reboots
+(`formal/EviconFenceReboot.tla`). One overnight command runs it all (`run087.sh`). Numbers produced by the simulator
+(`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 
 ## Layout
@@ -74,6 +81,7 @@ machine (`DEV_LOCAL`) are not measurements.
 | `experiments/` | Contract catalog, simulator regimes, query cost model, MinIO contracts measured in 070 (`owners/minio/`), the simulator's inputs for the firmware (`owners/zephyr/`) |
 | `firmware/zephyr-cutoff/` | Zephyr firmware (evidence modes plain, cutoff, stop; built with Zephyr v4.2.0 for native_sim/native/64 and nrf52840dk; host tests) |
 | `firmware/zephyr-mcu/`, `firmware/zephyr-auth/` | The same sources for MCU boards (QEMU mps2-an385, nRF52840 DK with OpenThread); the firmware with authenticated messages (HMAC-SHA256) |
+| `firmware/zephyr-boot/` | Release 087: the boot-report build (the frozen sources of `zephyr-cutoff` unchanged plus `src/evc_boot_report.c`: the claim floor in every reply and a hello after every connect; host tests) |
 | `formal/` | TLA+ models (`EviconFence`, `EviconFenceFI`, `EviconTiming`) and TLC runners |
 | `docs/spec/` | API and semantics specifications |
 | `evicon_review.py` | **Reviewer driver**: one command on VM-C for every stage, measurement, campaign and report |

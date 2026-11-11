@@ -83,6 +83,7 @@ func main() {
 	releaseSettle := flag.Duration("release-settle", 0, "release 083, policy RELEASE_ON_READ_ANSWERED only: the one-way delay bound the baseline assumes; it re-sends a command only until release-after minus this after its creation and releases on an answered NOT_FOUND only when the read was sent at least this long after the command's last dispatch attempt (0 = release-after)")
 	fenceIntake := flag.String("fence-intake", eruntime.FenceIntakeAllOrNothing, "release 084: intake of a complete fence answer that lists identities the owner cannot certify (UNCERTAIN): all-or-nothing (rule R5, releases 062-083: abort, seal and anchor nothing) or per-identity (rule R5': take in the listed terminal answers, seal the unlisted identities at or below the cutoff as STOPPED, keep the UNCERTAIN ones pending and owner-uncertain)")
 	fenceAnchor := flag.String("fence-anchor", eruntime.FenceAnchorEvidence, "release 086: the anchor of a complete fence: evidence (default: the previous anchor plus every identity at or below the cutoff that is APPLIED, by the domain's reducer; a fence whose owner-reported state differs is aborted as an evidence conflict and the reported state is never adopted) or owner-state (releases 061-085: the owner's reported state becomes the anchor; for regression tests)")
+	rebootRecovery := flag.Bool("reboot-recovery", false, "release 087 (off by default): the reboot recovery of an owner that reports its claim floor (claim_floor in its answers; the gateway of firmware/zephyr-boot): REC-1 learn the floor, REC-2 advance the owner sequence of new identities above it, REC-3 compare a complete fence's reported level with the identities applied above the floor and commit the evidence anchor on a match, REC-4 leave identities a complete fence listed UNCERTAIN (rule R5') out of the window, their budget kept. Off: release 086 unchanged")
 	certificate := flag.String("certificate", eruntime.CertificateEnumerate, "release 083, EVICON: certificate search of a guard block: enumerate (bounded enumeration up to -certificate-depth, releases 061-082) or greedy (the greedy certificate of an additive domain, Section 3.6; other domains use the enumeration)")
 	flag.Parse()
 	if *traceSeed < 0 {
@@ -209,7 +210,7 @@ func main() {
 		EvidenceContract: ec, ResolvePolicy: rp, ResolveCosts: resolve.Costs{HoldPerUnitPerSec: *holdCost, QueryCost: *eviconQueryCost, StopCost: *stopCost, FenceCost: *fenceCost},
 		AmbiguityAfter: *ambiguityAfter, CertificateDepth: *certDepth, ResolveTrigger: strings.ToUpper(*resolveTrigger), ReleaseAfter: *releaseAfter,
 		ReleaseSettle: *releaseSettle, Certificate: strings.ToLower(strings.TrimSpace(*certificate)), FenceIntake: strings.ToLower(strings.TrimSpace(*fenceIntake)),
-		FenceAnchor: strings.ToLower(strings.TrimSpace(*fenceAnchor))})
+		FenceAnchor: strings.ToLower(strings.TrimSpace(*fenceAnchor)), RebootRecovery: *rebootRecovery})
 	if e != nil {
 		log.Fatal(e)
 	}
@@ -240,6 +241,9 @@ func main() {
 		if method == probe.ReleaseOnReadAnswered {
 			log.Printf("%s: only an answered NOT_FOUND releases a command; an unanswered or UNCERTAIN read is read again", method)
 		}
+	}
+	if *rebootRecovery {
+		log.Printf("reboot recovery (release 087): REC-1 to REC-4 on (fence anchor %s, fence intake %s)", *fenceAnchor, *fenceIntake)
 	}
 	srv := &http.Server{Addr: *listen, Handler: auth.Handler(), ReadHeaderTimeout: 2 * time.Second}
 	if *admin != "" {

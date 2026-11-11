@@ -37,6 +37,10 @@ type Dispatcher struct {
 	// expires_at_ms = command creation time + ExpiresAfter, so an owner with
 	// capability T rejects late deliveries. Retries keep the same deadline.
 	ExpiresAfter time.Duration
+	// OwnerReport (release 087, optional; set only by the reboot recovery, evicon-authority -reboot-recovery): called with
+	// every reply the owner sends to a dispatch, whatever its status, before the reply is taken in, so that the authority
+	// learns the owner's claim floor (step REC-1) from receipts and error bodies alike. nil: nothing is called.
+	OwnerReport func(domainID string, status int, body []byte)
 }
 
 func New(store *journal.Store, poll time.Duration, tr *trace.Writer) *Dispatcher {
@@ -137,6 +141,9 @@ func (d *Dispatcher) dispatchOne(ctx context.Context, item journal.OutboxRecord)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if d.OwnerReport != nil {
+		d.OwnerReport(item.DomainID, resp.StatusCode, raw)
+	}
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("endpoint status %d: %s", resp.StatusCode, string(raw))
 	}
