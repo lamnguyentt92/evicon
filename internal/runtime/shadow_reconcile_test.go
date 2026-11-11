@@ -84,7 +84,9 @@ func shadowAuthority(t *testing.T, r *deviceRig, every time.Duration) (*Authorit
 
 func TestShadowReconcileK2Safe086(t *testing.T) {
 	r := newDeviceRig(t, func(c *device.Config) { c.Query = true; c.DedupHorizon = -1 }) // K2
-	a, st, disp := shadowAuthority(t, r, 30*time.Millisecond)
+	// release 088: a 1 s reconciliation timeout (086: 30 ms). The steps before the first sweep write the journal with
+	// synchronous=FULL; on a VM disk with slow fsync they took longer than 30 ms and the first sweep already read.
+	a, st, disp := shadowAuthority(t, r, time.Second)
 	A, B := dose(t, "A", 4, 1), dose(t, "B", 4, 2)
 	r.drop["A"], r.drop["B"] = true, true
 	for _, c := range []protocol.CommandRequest{A, B} {
@@ -102,7 +104,7 @@ func TestShadowReconcileK2Safe086(t *testing.T) {
 	if n, err := a.ReleaseSweepOnce(); err != nil || n != 0 {
 		t.Fatalf("before the reconciliation timeout nothing is read: n=%d %v", n, err)
 	}
-	time.Sleep(40 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	n, err := a.ReleaseSweepOnce()
 	if err != nil || n != 1 {
 		t.Fatalf("reconciliation: n=%d err=%v (want A published again)", n, err)

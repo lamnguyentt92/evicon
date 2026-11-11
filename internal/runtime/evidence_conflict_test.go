@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"evicon/internal/contract"
 	"evicon/internal/device"
@@ -70,6 +71,8 @@ func TestF37EvidenceConflictAbortsBarrierAndEscalates(t *testing.T) {
 		t.Fatalf("B: %d %+v", code, out)
 	}
 	_ = disp.DispatchOnce(context.Background())
+	// release 088: let AmbiguityAfter (1 ms) pass, so that B is aged; on a fast disk (tmpfs) the sweep came first
+	time.Sleep(5 * time.Millisecond)
 
 	if err := a.SweepOnce(); err != nil { // aged B: the resolver fences
 		t.Fatal(err)

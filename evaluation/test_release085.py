@@ -556,8 +556,9 @@ class K17Provenance(unittest.TestCase):
             self.assertEqual(pub[n][0]["sha256"], sha(REPO / "evaluation" / "prereg" / n))
         self.assertEqual([x["commit"] for x in pub["PREREG_review_077.md"]] + [pub["PREREG_extra_083.md"][0]["commit"], pub["PREREG_extra_084.md"][0]["commit"]],
                          ["ed044bb", "d67fd27", "ad4c714", "ce7fd12"])
-        self.assertEqual(pub[PV.NEWEST_PLAN], [])  # release 086: plan 085 is published (40e451d), plan 086 not yet
-        self.assertIn("to be filled when published", md)
+        if PV.NEWEST_PLAN == f"PREREG_extra_{PV.NEWEST_RELEASE}.md":  # release 088 runs plan 087, published by 087 (test_release088 L5)
+            self.assertEqual(pub[PV.NEWEST_PLAN], [])  # release 086: plan 085 is published (40e451d), plan 086 not yet
+            self.assertIn("to be filled when published", md)
         # the release's own file and the report's
         top = (REPO / "PROVENANCE.md").read_text()
         self.assertIn("review-20261102T174310", top)

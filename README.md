@@ -1,6 +1,6 @@
 # EviCon — Evidence Contracts for safe continuation after ambiguous remote effects
 
-Release **087** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
+Release **088** (research prototype). Artifact reviewers: start with `ARTIFACT.md` (claims, evidence, how to
 check them); `PROVENANCE.md` gives the release, review run and plan of every campaign, every plan's SHA-256, freezing
 and publication, and the deviations of the runs; `CHANGELOG.md` lists what each release changed.
 
@@ -66,7 +66,7 @@ recovery of the authority (`-reboot-recovery`, off by default: the owner's claim
 sequence advanced above it, the evidence anchor committed on a floor-relative check), a gateway that reports the floor and
 seals never-forwarded identities below it (`mqtt_owner_gateway_ext087.py`), a boot-report build of the firmware that
 compiles the frozen sources unchanged (`firmware/zephyr-boot/`), and a TLA+ model of the fence across reboots
-(`formal/EviconFenceReboot.tla`). One overnight command runs it all (`run087.sh`). Numbers produced by the simulator
+(`formal/EviconFenceReboot.tla`). One overnight command runs it all (`run088.sh`; release 088 makes two unit tests independent of disk speed). Numbers produced by the simulator
 (`SIMULATION_ONLY`) or on one
 machine (`DEV_LOCAL`) are not measurements.
 

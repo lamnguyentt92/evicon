@@ -27,10 +27,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PREREG = REPO / "evaluation" / "prereg"
 NEWEST_PLAN = "PREREG_extra_087.md"
-NEWEST_RELEASE = "087"
+NEWEST_RELEASE = "088"  # release 088 runs plan 087 (the same plan; see DEVIATIONS)
 
-# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04 (077-084), 2026-11-05 (085) and
-# 2026-11-09 (086):
+# Publication on GitHub (lamnguyentt92/evicon), verified with read-only `gh api` on 2026-11-04 (077-084), 2026-11-05 (085),
+# 2026-11-09 (086) and 2026-11-11 (087):
 # commit time (UTC) and the SHA-256 of the plan file at that commit (contents API, raw).
 PUBLISHED = {
     "PREREG_review_077.md": [
@@ -48,7 +48,8 @@ PUBLISHED = {
     "PREREG_extra_086.md": [{"commit": "440ecf1", "utc": "2026-11-05 06:21", "sha256": "d28956e98e4fff3ba032f14e1a3a48c1e92d9e0ffa1b75e14d9a36ca3adba9c6",
                              "note": "release 086; the 086 review run (review-20261105T134319, VM-C time UTC+7) began at 06:43 UTC, its "
                                      "first measurement at 06:52 UTC and its first cell at 07:48 UTC"}],
-    "PREREG_extra_087.md": [],  # to be filled when release 087 is published
+    "PREREG_extra_087.md": [{"commit": "2e98edc", "utc": "2026-11-11 04:50", "sha256": "f42bafffc96187f04d93e39d8f9d51bebd3cbf2fc306cb55765515ae2b86f100",
+                             "note": "release 087, before any measurement of the plan; release 088 (the plan and every frozen file unchanged) runs it"}],
 }
 
 # Plans frozen as a later version than the release in their header says (date of the frozen version).
@@ -99,7 +100,9 @@ DEVIATIONS = {
         "expSR-zephyr-w6, -zephyr-winf, -minio-w6, -minio-winf (16 cells each), expSH-queue and expSH-direct (10 cells each)) ran "
         "in the planned order in one session; 84 cells, 0 INVALID; the final report found the 168 earlier verdicts identical to "
         "the 085 final report's (`report/verdicts086/`)."],
-    NEWEST_PLAN: ["To be filled after the 087 runs (none at release time)."],
+    NEWEST_PLAN: [
+        "The plan runs under release 088, not 087. The 087 review run on the testbed (`review-20261111T120106`) stopped at `verify`, before any measurement or cell: the unit test `TestShadowReconcileK2Safe086` (release 086, unchanged) failed twice (its 30 ms reconciliation window was shorter than the journal writes before the first sweep on VM-C's disk), and a third `verify` with `TMPDIR` on tmpfs failed on `TestRecWindow087` (it needs the 1 ms ambiguity delay to pass before its sweeps). Release 088 changes only unit tests (these two: a 1 s window, a 5 ms wait; and `TestF37EvidenceConflictAbortsBarrierAndEscalates`, with the same 1 ms assumption: a 5 ms wait) and the release number: no runtime code and no frozen file changed.",
+        "The rest is to be filled after the runs."],
 }
 
 # Numbers the report does not regenerate.

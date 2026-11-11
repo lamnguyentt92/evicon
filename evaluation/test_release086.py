@@ -402,10 +402,12 @@ class K14Provenance(unittest.TestCase):
         sys.path.insert(0, str(REPO / "scripts"))
         import provenance as PV
         self.assertGreaterEqual(PV.NEWEST_RELEASE, "086")  # release 087: a later plan is the newest (test_release087 K14)
-        self.assertEqual(PV.NEWEST_PLAN, f"PREREG_extra_{PV.NEWEST_RELEASE}.md")
+        same = PV.NEWEST_PLAN == f"PREREG_extra_{PV.NEWEST_RELEASE}.md"
+        self.assertTrue(same or (PV.NEWEST_RELEASE, PV.NEWEST_PLAN) == ("088", "PREREG_extra_087.md"))  # release 088 runs plan 087
         p = PV.PUBLISHED["PREREG_extra_085.md"]
         self.assertEqual((p[0]["commit"], p[0]["sha256"]), ("40e451d", sha(REPO / "evaluation" / "prereg" / "PREREG_extra_085.md")))
-        self.assertEqual(PV.PUBLISHED[PV.NEWEST_PLAN], [])
+        if same:  # release 088: plan 087 was published by release 087 (test_release088 L5)
+            self.assertEqual(PV.PUBLISHED[PV.NEWEST_PLAN], [])
         self.assertIn("review-20261104T171522", " ".join(PV.DEVIATIONS["PREREG_extra_085.md"]))
         top = (REPO / "PROVENANCE.md").read_text()
         self.assertIn("40e451d", top)

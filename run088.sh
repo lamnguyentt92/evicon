@@ -1,13 +1,13 @@
 #!/bin/bash
-# EviCon 087: everything of plan PREREG_extra_087 in ONE overnight session, in one review run of release 087: the firmware gate
+# EviCon 088: everything of plan PREREG_extra_087 in ONE overnight session, in one review run of release 088: the firmware gate
 # on both builds (the measured build and the boot-report build), the documented shadow loop on the real owners (SHRz6 on the
 # cutoff firmware, SHRm6 on MinIO's conditional PUT: EVICON, SHADOW_RECONCILE at 10 s and at 1 s), owner reboots as a
 # campaign fault with the reboot recovery (RBz6: the negative control, release 086, the recovery), then the final report of
 # the paper (the data freeze, with the 185 earlier verdicts compared with the 086 final report) and the bundles.
 # BEFORE the session (once, on VM-C, about 10 minutes): bash deploy/setup/build_iot.sh start zephyr_boot, then
 # bash deploy/setup/build_iot.sh status until "BOOT_BUILD_OK" (the measured build is not rebuilt).
-#   tmux new -s evicon        (or tmux attach -t evicon)
-#   bash /root/EVICON_TOIT_087/run087.sh 2>&1 | tee -a /root/run087.log
+#   (no tmux needed: run it in the background with nohup, below)
+#   nohup bash /root/EVICON_TOIT_088/run088.sh >> /root/run088.log 2>&1 < /dev/null &
 # About 10.5 h in all (at most 12 h). Expected per step (from the 086 testbed run's own times):
 #   preflight build verify distribute    0.2 h       measure zephyr zephyr-boot    1.15 h (the gate on both builds)
 #   campaign expSHR_zephyr_w6            3.0 h (24 cells, with the counters)     campaign expSHR_minio_w6   2.9 h (24 cells)
@@ -27,8 +27,8 @@
 # campaigns finished); bundle after new work. An unplanned safety violation stops everything (exit 3); a violation of the
 # negative control (NEG_ZEPHYR_F_BOOT) is planned. It refuses to start while another evicon_review.py runs.
 set -uo pipefail
-cd "${EVICON087_DIR:-/root/EVICON_TOIT_087}" || exit 1
-UNTIL=""; RECHECK=0; LABEL="run087"
+cd "${EVICON088_DIR:-/root/EVICON_TOIT_088}" || exit 1
+UNTIL=""; RECHECK=0; LABEL="run088"
 while [ $# -gt 0 ]; do
   case "$1" in
     --until) [ $# -ge 2 ] || { echo "--until needs HH:MM"; exit 2; }; UNTIL="$2"; shift 2;;
@@ -193,7 +193,7 @@ fits() {  # fits <minutes> <what>: with --until, is there time for the step? (el
   STOP_BEFORE="$2 (about $1 min)"; return 1
 }
 
-echo "######## EviCon 087 $LABEL: started $(T now) (Vietnam time from this machine's clock: check it is right)"
+echo "######## EviCon 088 $LABEL: started $(T now) (Vietnam time from this machine's clock: check it is right)"
 if o=$(other_driver) || ! lock_free; then
   echo "######## REFUSED: another evicon_review.py is running (${o:-the driver lock /run/lock/evicon-review.lock is held}); wait until it ends"; exit 1
 fi
@@ -210,7 +210,7 @@ if [ -n "$UNTIL" ]; then
   echo "######## steps must end by $(T fmt "$DEADLINE"); one that would not is left for the next piece"
 fi
 if bad=$(unsafe); then
-  echo "######## STOP: unplanned safety violation in $bad. Send every EVICON_087_result_*.zip not sent yet; run nothing else."; exit 3
+  echo "######## STOP: unplanned safety violation in $bad. Send every EVICON_088_result_*.zip not sent yet; run nothing else."; exit 3
 fi
 if [ $RECHECK = 1 ] && [ -e results/LATEST ]; then
   echo; echo "######## testbed check (column notes: ok, or only 'clock not NTP-synchronised')"
@@ -224,7 +224,7 @@ if [ $RECHECK = 1 ] && [ -e results/LATEST ]; then
 fi
 NEW=""; [ -e results/LATEST ] || NEW=--new
 E preflight build verify distribute $NEW --quick || { echo "######## build/verify FAIL: nothing run. Send: python3 evicon_review.py bundle"; exit 1; }
-# a later piece: copy 087's binaries to the VMs again, so every campaign runs on exactly this release
+# a later piece: copy 088's binaries to the VMs again, so every campaign runs on exactly this release
 [ -z "$NEW" ] && { E distribute --force || { echo "######## distribute FAIL: nothing run. Send: python3 evicon_review.py bundle"; exit 1; }; }
 echo "######## review run: $(readlink -f results/LATEST)"
 
@@ -263,7 +263,7 @@ if [ -n "$left" ]; then
   echo "######## not finished yet:$left"
   echo "######## no report: run this script again (it resumes), or send the bundle if a step keeps failing"
   echo "######## no campaign is running now. Bundles of this release (send those not sent yet):"
-  ls -1t EVICON_087_result_*.zip 2>/dev/null | head -8 | sed 's/^/   /'
+  ls -1t EVICON_088_result_*.zip 2>/dev/null | head -8 | sed 's/^/   /'
   exit 0
 fi
 if [ $WORK = 0 ] && report_current; then
@@ -279,12 +279,12 @@ if E report --archive "$ARCHIVE" --from "$R078" --from "$R083" --from "$R084" --
   E bundle --incremental
   s=$(summary_of report)
   case "$s" in
-    *"earlier verdicts against 086 DIFFER"*) echo; echo "######## REPORT DONE WITH A DIFFERENCE $(T now): an earlier plan's verdict differs from the 086 final report (report/verdicts087/VERDICTS.md). Send every EVICON_087_result_*.zip not sent yet (each holds only the files new since the one before)";;
-    *"earlier verdicts against 086 identical"*) echo; echo "######## ALL DONE $(T now). The 185 earlier verdicts are those of the 086 final report. Send every EVICON_087_result_*.zip not sent yet (each holds only the files new since the one before)";;
-    *) echo; echo "######## ALL DONE $(T now) (the earlier verdicts were not compared: is the 086 run's report among the sources?). Send every EVICON_087_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *"earlier verdicts against 086 DIFFER"*) echo; echo "######## REPORT DONE WITH A DIFFERENCE $(T now): an earlier plan's verdict differs from the 086 final report (report/verdicts087/VERDICTS.md). Send every EVICON_088_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *"earlier verdicts against 086 identical"*) echo; echo "######## ALL DONE $(T now). The 185 earlier verdicts are those of the 086 final report. Send every EVICON_088_result_*.zip not sent yet (each holds only the files new since the one before)";;
+    *) echo; echo "######## ALL DONE $(T now) (the earlier verdicts were not compared: is the 086 run's report among the sources?). Send every EVICON_088_result_*.zip not sent yet (each holds only the files new since the one before)";;
   esac
 else
   E bundle --incremental
-  echo; echo "######## REPORT FAIL $(T now): the campaigns are done. Send every EVICON_087_result_*.zip not sent yet (each holds only the files new since the one before) and the end of /root/run087.log"
+  echo; echo "######## REPORT FAIL $(T now): the campaigns are done. Send every EVICON_088_result_*.zip not sent yet (each holds only the files new since the one before) and the end of /root/run088.log"
   exit 1
 fi

@@ -63,7 +63,10 @@ EARLIER = {"evaluation/prereg/PREREG_review_077.md": "db67640d1709b06dfa5e61f77e
            "evaluation/prereg/PREREG_extra_085.md": "22586c782aa3ac704bcc56376324faeb7c4047da6e35c1668a65a34924bf4790",
            "evaluation/prereg/PREREG_extra_086.md": "d28956e98e4fff3ba032f14e1a3a48c1e92d9e0ffa1b75e14d9a36ca3adba9c6"}
 FIRMWARE_086 = "907b2ccdc11ed3d32c6d311e6870741fd256a23885a8db8a75732beb73896f9d"
-GUIDE = "EVICON_087_" + "RUN_GUIDE" + "_VI.md"
+VERSION = (REPO / "VERSION").read_text().strip()
+# release 088 runs this plan: the operator script and the guide are the newest release's (run088.sh, its guide)
+GUIDE = f"EVICON_{VERSION}_" + "RUN_GUIDE" + "_VI.md"
+SCRIPT = f"run{VERSION}.sh"
 
 
 def sha(p: Path) -> str:
@@ -569,23 +572,25 @@ class K11Driver(unittest.TestCase):
 # ------------------------------------------------------------------ K12
 class K12Script(unittest.TestCase):
     def test_run087(self):
-        s = (REPO / "run087.sh").read_text()
+        s = (REPO / SCRIPT).read_text()
         self.assertFalse((REPO / "run086.sh").exists())
+        if VERSION != "087":
+            self.assertFalse((REPO / "run087.sh").exists())  # release 088: run088.sh replaces it (test_release088)
         self.assertIn('CAMPAIGNS="expSHR_zephyr_w6 expSHR_minio_w6 expRB_zephyr_w6"', s)
         order = [s.index(x) for x in ("E preflight build verify distribute", "for st in zephyr zephyr-boot", 'E campaign "$c"',
                                        'E report --archive "$ARCHIVE" --from "$R078" --from "$R083" --from "$R084" --from "$R085" --from "$R086"')]
         self.assertEqual(order, sorted(order))
-        for x in ("REFUSED: another evicon_review.py is running", "STOP: unplanned safety violation", "not sent yet", "EVICON_087_result_",
+        for x in ("REFUSED: another evicon_review.py is running", "STOP: unplanned safety violation", "not sent yet", f"EVICON_{VERSION}_result_",
                   "The 185 earlier verdicts are those of the 086 final report", "build_iot.sh start zephyr_boot"):
             self.assertIn(x, s)
         self.assertNotIn("EVICON_086_result", s)
         self.assertNotIn("RUN_GUIDE" + "_VI", s)
-        r = subprocess.run(["bash", "-n", str(REPO / "run087.sh")], capture_output=True, text=True)
+        r = subprocess.run(["bash", "-n", str(REPO / SCRIPT)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertTrue((REPO / GUIDE).exists())
         self.assertFalse((REPO / ("EVICON_086_" + "RUN_GUIDE" + "_VI.md")).exists())
         g = (REPO / GUIDE).read_text()
-        for x in ("run087.sh", "build_iot.sh start zephyr_boot", "BOOT_BUILD_OK", "907b2ccd", "expRB_zephyr_w6", "NEG_ZEPHYR_F_BOOT"):
+        for x in (SCRIPT, "build_iot.sh start zephyr_boot", "BOOT_BUILD_OK", "907b2ccd", "expRB_zephyr_w6", "NEG_ZEPHYR_F_BOOT"):
             self.assertIn(x, g)
 
 
@@ -642,14 +647,18 @@ class K14Provenance(unittest.TestCase):
     def test_published(self):
         sys.path.insert(0, str(REPO / "scripts"))
         import provenance as PV
-        self.assertEqual((PV.NEWEST_PLAN, PV.NEWEST_RELEASE), ("PREREG_extra_087.md", "087"))
+        self.assertEqual((PV.NEWEST_PLAN, PV.NEWEST_RELEASE), ("PREREG_extra_087.md", VERSION))
         p = PV.PUBLISHED["PREREG_extra_086.md"]
         self.assertEqual((p[0]["commit"], p[0]["utc"], p[0]["sha256"]), ("440ecf1", "2026-11-05 06:21", EARLIER["evaluation/prereg/PREREG_extra_086.md"]))
-        self.assertEqual(PV.PUBLISHED["PREREG_extra_087.md"], [])
+        if VERSION == "087":
+            self.assertEqual(PV.PUBLISHED["PREREG_extra_087.md"], [])
+        else:  # release 088: plan 087 as published by release 087 (2e98edc), unchanged
+            p = PV.PUBLISHED["PREREG_extra_087.md"]
+            self.assertEqual((p[0]["commit"], p[0]["sha256"]), ("2e98edc", sha(REPO / PLAN)))
         self.assertIn("review-20261105T134319", " ".join(PV.DEVIATIONS["PREREG_extra_086.md"]))
         self.assertTrue(" ".join(PV.DEVIATIONS["PREREG_extra_086.md"]).startswith("None:"))
         top = (REPO / "PROVENANCE.md").read_text()
-        for s in ("440ecf1", "expSR-zephyr-w6/20261105T144816", "expRB-zephyr-w6/<to be filled by the 087 report>", "(release 087)"):
+        for s in ("440ecf1", "expSR-zephyr-w6/20261105T144816", f"expRB-zephyr-w6/<to be filled by the {VERSION} report>", f"(release {VERSION})"):
             self.assertIn(s, top)
 
 
@@ -657,7 +666,7 @@ class K14Provenance(unittest.TestCase):
 NEW_FILES = ["internal/runtime/reboot_recovery.go", "internal/runtime/reboot_recovery_test.go", "internal/journal/owner_floor.go",
              "evaluation/ext087.py", "evaluation/campaign_zephyr_ext087.py", "evaluation/campaign_real_ext087.py", "evaluation/sh087.py",
              "evaluation/rb087.py", "evaluation/verdicts087.py", "evaluation/power_extra087_testbed.py", "evaluation/test_release087.py", PLAN,
-             "run087.sh", "conformance/reference/mqtt_owner_gateway_ext087.py", "conformance/tests/test_reboot_recovery087.py",
+             SCRIPT, "conformance/reference/mqtt_owner_gateway_ext087.py", "conformance/tests/test_reboot_recovery087.py",
              "firmware/zephyr-boot/CMakeLists.txt", "firmware/zephyr-boot/Kconfig", "firmware/zephyr-boot/prj.conf", "firmware/zephyr-boot/README.md",
              "firmware/zephyr-boot/src/evc_boot_report.c", "firmware/zephyr-boot/src/evc_boot_report.h", "firmware/zephyr-boot/tests/host/Makefile",
              "firmware/zephyr-boot/tests/host/evc_boot_shim.c", "firmware/zephyr-boot/tests/host/test_evc_boot_report.c",
@@ -673,7 +682,7 @@ class K15Hygiene(unittest.TestCase):
             s = (REPO / f).read_text()
             self.assertNotIn(forbidden, s, f)
             self.assertFalse(re.search("[" + chr(0xC0) + "-" + chr(0x1EF9) + "]", s), f"non-English characters in {f}")
-            if f != "run087.sh":
+            if f != SCRIPT:
                 self.assertNotIn(guide, s, f)
         for p in list((REPO / "evaluation").glob("test_*.py")) + list((REPO / "conformance" / "tests").glob("test_*.py")):
             self.assertNotIn(guide, p.read_text(), p.name)

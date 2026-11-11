@@ -1,15 +1,16 @@
 # EviCon artifact: claims, evidence, and how to check them
 
-Release **087** of the EviCon research prototype (evidence contracts for safe continuation after
+Release **088** of the EviCon research prototype (evidence contracts for safe continuation after
 ambiguous remote effects). The testbed data were collected with releases 066-078 and 083-086 (each run's
 `manifest.json` and `source.json` record the release and source that collected it); the final report of release 086
 (run `review-20261105T134319`) regenerates every number from them. Release 087 adds the plan `PREREG_extra_087.md`
 (claim 18), whose testbed runs are pending: the documented device-shadow reconciliation loop on the real owners (the
 cutoff firmware and MinIO's conditional PUT, at its 10 s timeout and at EviCon's 1 s cadence, against EVICON in the same
 campaign), and owner reboots as a campaign fault with the authority's reboot recovery (`-reboot-recovery`, off by
-default), its negative control and release 086 as the other arms; the paper's final report is made with release 087 from
+default), its negative control and release 086 as the other arms; the paper's final report is made with release 088 (release 087 with two unit tests made independent of the disk's
+speed; plan 087 unchanged) from
 the archive, the 078 run and the 083 to 086 runs (`report --archive /root/evicon-archive --from <the 078 run> --from <the
-083 run> --from <the 084 run> --from <the 085 run> --from <the 086 run>` in the 087 review run, `run087.sh`).
+083 run> --from <the 084 run> --from <the 085 run> --from <the 086 run>` in the 088 review run, `run088.sh`).
 **`PROVENANCE.md`** lists, for every campaign the paper uses, the release that ran it, its review run and the plan (with
 SHA-256) it carries; every plan with its SHA-256, the date it was frozen and, for plans 077 and 083 to 086, the GitHub
 commit and UTC time of its publication; the deviations of each plan's runs; and the numbers the analysis does not

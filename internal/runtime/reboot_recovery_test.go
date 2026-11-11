@@ -591,6 +591,9 @@ func TestRecWindow087(t *testing.T) {
 		}
 		r.reboot()
 		r.deliverHeld(1 << 10)
+		// release 088: let AmbiguityAfter (1 ms) pass since h1's dispatch; on a fast disk (tmpfs) the sweeps came
+		// before it and h1 was not yet ambiguous, so no fence listed it
+		time.Sleep(5 * time.Millisecond)
 		for i := 0; i < 3; i++ {
 			_ = a.SweepOnce() // a fence: h1 listed UNCERTAIN (rule R5')
 		}

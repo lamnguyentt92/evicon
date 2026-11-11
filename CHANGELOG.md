@@ -1,5 +1,33 @@
 # Changelog
 
+## 088 — 2026-11-11
+
+Release 087 with unit tests made independent of the disk's speed, so that plan `PREREG_extra_087.md` can run. The
+087 review run on the testbed stopped at `verify`, before any measurement or cell: `TestShadowReconcileK2Safe086`
+(release 086) failed twice on VM-C (its 30 ms reconciliation window was shorter than the journal writes, `synchronous=FULL`,
+before the first sweep on the VM's disk), and a third `verify` with `TMPDIR` on tmpfs failed on `TestRecWindow087` (it needs
+the authority's 1 ms ambiguity delay to pass before its sweeps; on tmpfs the sweeps came first). Both were reproduced on
+the build machine (under CPU load the first fails 18 of 30 runs; on tmpfs the second fails 32 of 40) and pass 30 of 30
+after the fix in both settings. No runtime code, no plan and no frozen file changed: plan 087 (`f42bafff...`, published
+in `2e98edc`) and every earlier plan are byte-identical, and the measured firmware build is still `907b2ccd...`.
+
+- `internal/runtime/shadow_reconcile_test.go`: `TestShadowReconcileK2Safe086` uses a 1 s reconciliation timeout (was 30 ms)
+  and waits 1.1 s (was 40 ms) before the reconciling sweep; the assertions are unchanged.
+- `internal/runtime/reboot_recovery_test.go`: `TestRecWindow087` waits 5 ms after the reboot and the delivery, so that the
+  1 ms ambiguity delay has passed before its sweeps; the assertions are unchanged.
+- `internal/runtime/evidence_conflict_test.go`: `TestF37EvidenceConflictAbortsBarrierAndEscalates` waits 5 ms before its
+  sweep for the same reason (it failed on tmpfs on the build machine, never on a disk); the assertions are unchanged.
+- Known limitation, unchanged: a few older runtime tests (for example `TestF31PendingBoundActivatesResolver`) also assume
+  that the journal writes before a sweep take at least the 1 ms ambiguity delay; they hold on a disk (the testbed's and
+  the build machine's) but can fail with the temporary directory on tmpfs. `verify` runs on the disk.
+- Release 088 runs plan 087: `run088.sh` replaces `run087.sh` (same steps; directory `/root/EVICON_TOIT_088`, bundles
+  `EVICON_088_result_*`, run in the background with `nohup`); the Vietnamese run guide of 088 replaces that of 087;
+  `scripts/provenance.py` records plan 087's publication (`2e98edc`, 2026-11-11 04:50 UTC, before any measurement) and the
+  deviation (the plan runs under release 088); `PROVENANCE.md` regenerated.
+- `evaluation/test_release088.py` (L1-L5): the release number, the two tests' timing, the frozen plans and firmware hash,
+  the operator script and guide, the provenance record; `test_release087` reads the newest operator script and guide.
+- Version 088 in VERSION, buildinfo, CITATION.cff, the VM set-up banners, README, ARTIFACT, RELEASE_NOTES_VI.
+
 ## 087 — 2026-11-11
 
 The two experiments the simulated JNCA review asked for (reviewer comments M2 and M3), approved by the author on 9 November

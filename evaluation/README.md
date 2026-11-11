@@ -435,6 +435,14 @@ SH-A1 to SH-A4) and the safety rule SR-S (no exempt contract).
 - Tests: `test_release086.py` (K1-K22); the Go tests `TestShadowReconcile*086`; `conformance/tests/test_qos2_device.py`; the Go tests `TestFenceAnchor*086`; `conformance/tests/test_fence_anchor_reboot.py`
   (B2-02 end to end: the MQTT owner gateway, the firmware's wire path and core as a host library, the authority).
 
+## Release 088: plan 087 runs under release 088 (two unit tests made independent of the disk's speed)
+
+Release 088 changes no runtime code, plan or frozen file. The 087 review run stopped at `verify` before any measurement:
+`TestShadowReconcileK2Safe086` (30 ms window) failed on the testbed's disk and `TestRecWindow087` (1 ms ambiguity delay)
+failed with the temporary directory on tmpfs; both tests now hold on either (a 1 s window; a 5 ms wait), and so does
+`TestF37EvidenceConflictAbortsBarrierAndEscalates` (the same 1 ms assumption; a 5 ms wait). `verify` runs on the disk. Plan 087 runs
+unchanged with `run088.sh`; `evaluation/test_release088.py` checks the release.
+
 ## Release 087: the shadow loop on the real owners and owner reboots as a campaign fault (`prereg/PREREG_extra_087.md`)
 
 Two experiments the simulated JNCA review asked for (M2, M3): 3 campaign configs, 66 cells, the firmware gate on two
